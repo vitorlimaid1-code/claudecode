@@ -1,0 +1,43 @@
+name: Instalador Windows
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Teste (gera um PDF de exemplo)
+        run: npm test
+
+      - name: Gerar instalador .exe
+        run: npm run dist:win
+
+      - name: Publicar instalador como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: Diagramador-de-Livros-Instalador
+          path: dist/*.exe
+          if-no-files-found: error
+
+      - name: Criar release (somente em tags v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.exe

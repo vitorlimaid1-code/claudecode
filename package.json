@@ -1,0 +1,97 @@
+{
+  "name": "diagramador-de-livros",
+  "productName": "Diagramador de Livros",
+  "version": "1.0.0",
+  "description": "Aplicativo desktop para diagramação de livros, 100% local e offline.",
+  "main": "src/main.js",
+  "author": "Diagramador de Livros",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "postinstall": "node scripts/vendor.js",
+    "start": "node scripts/vendor.js && electron .",
+    "test": "node scripts/vendor.js && node test/smoke.js",
+    "dist:win": "node scripts/vendor.js && node scripts/build.js --win nsis --x64",
+    "dist:linux": "node scripts/vendor.js && node scripts/build.js --linux AppImage"
+  },
+  "devDependencies": {
+    "@fontsource/cormorant-garamond": "^5.3.0",
+    "@fontsource/crimson-pro": "^5.3.0",
+    "@fontsource/eb-garamond": "^5.3.0",
+    "@fontsource/libre-baskerville": "^5.3.0",
+    "@fontsource/lora": "^5.3.0",
+    "@fontsource/merriweather": "^5.3.0",
+    "@fontsource/playfair-display": "^5.3.0",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
+    "pagedjs": "^0.4.3"
+  },
+  "dependencies": {
+    "hyphen": "^1.14.1",
+    "mammoth": "^1.13.0"
+  },
+  "build": {
+    "appId": "br.diagramador.livros",
+    "productName": "Diagramador de Livros",
+    "copyright": "Diagramador de Livros",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "build/icon.png",
+      "package.json",
+      "!**/node_modules/hyphen/patterns/!(pt).js",
+      "!**/node_modules/hyphen/!(pt|patterns)/**",
+      "!**/node_modules/mammoth/mammoth.browser*",
+      "!**/node_modules/**/{test,tests,docs,example,examples}/**",
+      "!**/node_modules/**/*.{md,markdown,ts,map}"
+    ],
+    "asar": true,
+    "fileAssociations": [
+      {
+        "ext": "livro",
+        "name": "Projeto de livro",
+        "description": "Projeto do Diagramador de Livros",
+        "icon": "build/icon.ico"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "executableName": "DiagramadorDeLivros"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Diagramador de Livros",
+      "installerLanguages": [
+        "pt_BR"
+      ],
+      "language": "1046",
+      "artifactName": "Diagramador-de-Livros-Setup-${version}.exe",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "uninstallDisplayName": "Diagramador de Livros"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Office",
+      "icon": "build/icon.png"
+    },
+    "compression": "maximum"
+  }
+}

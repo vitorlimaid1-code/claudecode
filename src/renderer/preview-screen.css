@@ -1,0 +1,34 @@
+/* Aparência da prévia na tela (não afeta o PDF) */
+@media screen {
+  html, body { margin: 0; padding: 0; }
+  body { background: #e4e2dd; }
+  body.single .pagedjs_pages { flex-direction: column; align-items: center; width: auto; }
+  body.single .pagedjs_first_page { margin-left: 0 !important; }
+  .pagedjs_pages {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    width: calc(var(--pagedjs-width) * 2);
+    margin: 24px auto;
+    row-gap: 22px;
+  }
+  .pagedjs_page {
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .18), 0 6px 18px rgba(0, 0, 0, .10);
+    margin: 0 !important;
+    flex: none;
+    position: relative;
+  }
+  .pagedjs_first_page { margin-left: var(--pagedjs-width) !important; }
+  .pagedjs_left_page { box-shadow: -1px 1px 3px rgba(0,0,0,.18), -4px 6px 18px rgba(0,0,0,.10); }
+  .pagedjs_page::after {
+    content: attr(data-page-number);
+    position: absolute;
+    bottom: -18px;
+    left: 0; right: 0;
+    text-align: center;
+    font: 11px system-ui, sans-serif;
+    color: #77736b;
+  }
+  body.guides .pagedjs_area { outline: 1px dashed rgba(70, 130, 220, .55); }
+}
