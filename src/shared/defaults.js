@@ -144,6 +144,17 @@
     distribution: 'DISTRIBUIÇÃO\nCEDET — Centro de Desenvolvimento Profissional e Tecnológico\nAv. Comendador Aladino Selmi, 4682 — Condomínio GR2, galpão 8\nCEP: 13069-096 — Vila San Martin, Campinas-SP\nTelefones: (19) 3249-0580 / 3327-2257\ne-mail: livros@cedet.com.br',
     contact: 'editoras-parceiras@cedet.com.br'
   };
+  // Estilos de legenda (figuras, gráficos, tabelas e legendas soltas). O padrão vale para o livro todo;
+  // cada legenda pode ter o seu (clique na legenda e escolha o estilo).
+  const CAPTION_STYLES = [
+    { key: 'classica', label: 'Clássica', desc: 'Centralizada, em itálico, rótulo em negrito' },
+    { key: 'editorial', label: 'Editorial', desc: 'Rótulo em versalete, texto regular, filete fino acima' },
+    { key: 'moderna', label: 'Moderna', desc: 'Alinhada à esquerda, rótulo em maiúsculas espaçadas' },
+    { key: 'discreta', label: 'Discreta', desc: 'Pequena, em cinza, alinhada à esquerda' },
+    { key: 'destaque', label: 'Destaque', desc: 'Rótulo em etiqueta escura, texto em itálico' },
+    { key: 'lateral', label: 'Lateral', desc: 'Filete vertical à esquerda, texto alinhado à esquerda' }
+  ];
+
   const isCedet = s => !!s && s.standard === 'cedet';
   // Layout livre (formatos fora do CEDET): margens, sangria e saída padrão do sistema
   const FREE_LAYOUT = {
@@ -346,6 +357,7 @@
 
     // legendas numeradas: Figura N, Gráfico N, Tabela N (com listas opcionais nas páginas iniciais)
     captionNumbering: true,
+    captionStyle: 'classica',
     footnotesVisible: true,
     footnoteNumbering: 'book',
 
@@ -650,7 +662,7 @@
     PAGE_FORMATS, FORMAT_GROUPS, DEFAULT_FORMAT_ID, BUNDLED_FONTS, SYSTEM_FONTS,
     STYLE_DEFS, DEFAULT_STYLES, DEFAULT_SETTINGS, GENRE_PRESETS,
     uid, newProject, normalizeProject, mergeSettings, applyGenrePreset, emptyCatalog,
-    toUnit, fromUnit, MM, KDP, autoBleed, OUTPUT_SHEETS, outputSheetSize, markGeometry, CEDET, isCedet, applyCedet,
+    toUnit, fromUnit, MM, KDP, autoBleed, OUTPUT_SHEETS, outputSheetSize, markGeometry, CEDET, isCedet, applyCedet, CAPTION_STYLES,
     FREE_LAYOUT, applyFreeLayout, applyFormatOverrides
   };
 });

@@ -80,6 +80,7 @@
     sec.appendChild(h);
     const body = doc.createElement('div');
     body.innerHTML = String(c.html || '').replace(/\ssrc="blob:[^"]*"/g, '');
+    body.querySelectorAll('span.comment').forEach(c => c.remove()); // comentários de revisão não vão para o livro
     const notes = [];
     body.querySelectorAll('span.footnote').forEach(fn => {
       if (!settings.footnotesVisible) { fn.remove(); return; }
@@ -108,7 +109,8 @@
       if (cap && cap.textContent.trim()) {
         const fc = doc.createElement('figcaption'); fc.innerHTML = cap.innerHTML;
         // mesma numeração do livro impresso (Figura N / Gráfico N)
-        if (ctr && settings.captionNumbering !== false) { const a = App.project.assets[f.dataset.asset]; const k = a && a.chart ? 'graf' : 'fig'; const n = ++ctr[k]; fig.id = `${k}-${n}`; fc.innerHTML = `<b>${k === 'graf' ? 'Gráfico' : 'Figura'} ${n}</b> – ` + fc.innerHTML; }
+        const OWN = /^\s*(Figura|Fig\.?|Gr[áa]fico|Tabela|Quadro|Imagem|Ilustra[çc][ãa]o|Mapa|Foto(grafia)?)\s*\d+/i;
+        if (ctr && settings.captionNumbering !== false && !OWN.test(fc.textContent)) { const a = App.project.assets[f.dataset.asset]; const k = a && a.chart ? 'graf' : 'fig'; const n = ++ctr[k]; fig.id = `${k}-${n}`; fc.innerHTML = `<b>${k === 'graf' ? 'Gráfico' : 'Figura'} ${n}</b> – ` + fc.innerHTML; }
         fig.appendChild(fc);
       }
       f.replaceWith(fig);
@@ -122,7 +124,7 @@
       fig.appendChild(img);
       f.replaceWith(fig);
     });
-    if (ctr && settings.captionNumbering !== false) body.querySelectorAll('table > caption').forEach(cap => { if (!cap.textContent.trim()) return; const n = ++ctr.tab; cap.parentElement.id = cap.parentElement.id || `tab-${n}`; cap.innerHTML = `<b>Tabela ${n}</b> – ` + cap.innerHTML; });
+    if (ctr && settings.captionNumbering !== false) body.querySelectorAll('table > caption').forEach(cap => { if (!cap.textContent.trim() || /^\s*(Tabela|Quadro)\s*\d+/i.test(cap.textContent)) return; const n = ++ctr.tab; cap.parentElement.id = cap.parentElement.id || `tab-${n}`; cap.innerHTML = `<b>Tabela ${n}</b> – ` + cap.innerHTML; });
     body.querySelectorAll('div.page-break').forEach(p => p.remove());
     body.querySelectorAll('hr.scene-break').forEach(hr => { const p = doc.createElement('p'); p.className = 'scene'; p.textContent = settings.sceneBreak || '* * *'; hr.replaceWith(p); });
     body.querySelectorAll('[style]').forEach(e => { if (!e.matches('img')) { const ta = e.style.textAlign; e.removeAttribute('style'); if (ta) e.setAttribute('style', `text-align:${ta}`); } });

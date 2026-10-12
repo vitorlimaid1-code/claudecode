@@ -80,7 +80,16 @@
     v.appendChild(el('div', { class: 'form-wrap' }, [
       el('h2', { text: 'Estilos de texto' }),
       el('p', { class: 'muted', text: 'Hierarquia: Título do capítulo → T1 (seção) → T2 (subtítulo) → T3 (intertítulo). No editor, escolha o estilo na caixa “Texto principal”. Fontes diferentes podem ser usadas para texto, títulos, citações, poesias, notas, legendas, cabeçalhos, sumário e referências.' }),
-      typesetBar
+      typesetBar,
+      // galeria de estilos de legenda: o escolhido vale para o livro todo (cada legenda pode ter o seu no editor)
+      el('div', { class: 'card span-all' }, [
+        el('h3', { text: 'Estilo das legendas (figuras, gráficos e tabelas)' }),
+        el('p', { class: 'muted small', text: 'Clique para aplicar a todas as legendas do livro. No editor, selecione um texto e use “Legenda ▾” para transformá-lo em legenda (ou para dar a uma legenda um estilo próprio).' }),
+        el('div', { class: 'qs-gallery' }, D.CAPTION_STYLES.map(cs => el('button', {
+          class: 'qs-cap qs-cap-' + cs.key + ((s.captionStyle || 'classica') === cs.key ? ' on' : ''), title: cs.desc,
+          onclick: () => { s.captionStyle = cs.key; App.changed('Estilo das legendas: ' + cs.label); rerender(); }
+        }, [el('span', { class: 'qs-cap-label', text: 'Figura 1' }), el('span', { class: 'qs-cap-text', text: ' – ' + cs.label }), el('div', { class: 'small muted', text: cs.desc })])))
+      ])
     ].concat(cards)));
     api.typesetsGet().then(sets => {
       const row = $('#typesetRow');

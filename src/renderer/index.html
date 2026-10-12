@@ -6,6 +6,8 @@
 <title>Diagramador de Livros</title>
 <link rel="stylesheet" href="vendor/fonts.css">
 <link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
 </head>
 <body>
 <header class="topbar">
@@ -26,6 +28,7 @@
     <button data-cmd="history" title="Histórico de alterações">Histórico</button>
     <span class="sep"></span>
     <button data-cmd="library" id="btnLibrary" title="Biblioteca de imagens (arraste para o texto ou para a página)">Biblioteca</button>
+    <button id="btnNight" title="Modo noturno (liga/desliga)">🌙</button>
     <button id="btnElements" title="Tabelas, planilhas, gráficos e elementos extras (arraste para o texto ou para a página)">Elementos</button>
     <button data-cmd="export" class="primary" title="Exportar (Ctrl+E)">Exportar</button>
   </div>
@@ -57,6 +60,7 @@
         <button class="nav-item" data-view="kdp"><span class="ic">a</span>Amazon KDP</button>
       </div>
       <div class="nav-group">Sistema</div>
+      <button class="nav-item" data-view="appearance"><span class="ic">◐</span>Aparência do sistema</button>
       <button class="nav-item" data-view="reset"><span class="ic">↺</span>Restaurar padrões</button>
     </nav>
     <div class="chapters-head">
@@ -92,6 +96,7 @@
     <section id="view-stylelib" class="view"></section>
     <section id="view-export" class="view"></section>
     <section id="view-reset" class="view"></section>
+    <section id="view-appearance" class="view"></section>
     <section id="view-bulk" class="view"></section>
     <section id="view-chapter" class="view chapter-view">
       <div class="chapter-meta">
@@ -220,6 +225,8 @@
 <script src="reset-ui.js"></script>
 <script src="chart.js"></script>
 <script src="elements-ui.js"></script>
+<script src="quickstyle.js"></script>
+<script src="appearance-ui.js"></script>
 <script src="exportprep.js"></script>
 <script src="export-ui.js"></script>
 <script src="page-tools.js"></script>

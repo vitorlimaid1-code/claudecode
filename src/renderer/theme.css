@@ -1,0 +1,96 @@
+/* Aparência do sistema: cores de destaque (paletas) e modo noturno.
+   As páginas do livro na prévia continuam brancas (representam o papel). */
+
+/* ---------------------------------------------------------------- paletas de cor */
+:root[data-accent="terracota"] { --accent: #8a3b1f; --accent-2: #a9502c; --accent-soft: #f3e3da; --accent-line: #e2c3b2; }
+:root[data-accent="azul"] { --accent: #1f4e8a; --accent-2: #2c64a9; --accent-soft: #dfe8f5; --accent-line: #b7cbe6; }
+:root[data-accent="verde"] { --accent: #2f6b3a; --accent-2: #3d8549; --accent-soft: #e0efe2; --accent-line: #b9d8be; }
+:root[data-accent="vinho"] { --accent: #7a1f3d; --accent-2: #962a4d; --accent-soft: #f3dfe5; --accent-line: #e0b8c4; }
+:root[data-accent="grafite"] { --accent: #3b3f46; --accent-2: #555b64; --accent-soft: #e6e8eb; --accent-line: #c5c9cf; }
+:root[data-accent="roxo"] { --accent: #5b3a8a; --accent-2: #7150a6; --accent-soft: #ebe3f5; --accent-line: #cfc0e6; }
+:root[data-accent="petroleo"] { --accent: #0f5c66; --accent-2: #177684; --accent-soft: #dcedef; --accent-line: #b1d5da; }
+:root[data-accent="ambar"] { --accent: #8f5a00; --accent-2: #ad6e00; --accent-soft: #f6ead2; --accent-line: #e6cf9f; }
+:root[data-accent="rosa"] { --accent: #a3366b; --accent-2: #bd4a83; --accent-soft: #f7e1ec; --accent-line: #ebbcd3; }
+button.on, .toolbar button.on { border-color: var(--accent-line, #e2c3b2); }
+.chapter-item.checked { background: var(--accent-soft); }
+
+/* ---------------------------------------------------------------- modo noturno */
+:root[data-theme="dark"] {
+  --bg: #15171b;
+  --panel: #1e2126;
+  --side: #191b20;
+  --line: #343841;
+  --text: #e7e3dc;
+  --muted: #9a958d;
+  --good: #6cc27a;
+  --warn: #e0a83a;
+  --bad: #ef7067;
+  --input: #23262c;
+  --hover: #2a2e35;
+  color-scheme: dark;
+}
+:root[data-theme="dark"][data-accent="terracota"], :root[data-theme="dark"]:not([data-accent]) { --accent: #d98a62; --accent-2: #e6a07c; --accent-soft: rgba(217,138,98,.18); --accent-line: rgba(217,138,98,.45); }
+:root[data-theme="dark"][data-accent="azul"] { --accent: #79a6e6; --accent-2: #94b9ee; --accent-soft: rgba(121,166,230,.18); --accent-line: rgba(121,166,230,.45); }
+:root[data-theme="dark"][data-accent="verde"] { --accent: #7cc489; --accent-2: #95d2a0; --accent-soft: rgba(124,196,137,.18); --accent-line: rgba(124,196,137,.45); }
+:root[data-theme="dark"][data-accent="vinho"] { --accent: #e07a9b; --accent-2: #ea95b0; --accent-soft: rgba(224,122,155,.18); --accent-line: rgba(224,122,155,.45); }
+:root[data-theme="dark"][data-accent="grafite"] { --accent: #b9bec7; --accent-2: #cfd3d9; --accent-soft: rgba(185,190,199,.16); --accent-line: rgba(185,190,199,.4); }
+:root[data-theme="dark"][data-accent="roxo"] { --accent: #b39ae0; --accent-2: #c5b1e8; --accent-soft: rgba(179,154,224,.18); --accent-line: rgba(179,154,224,.45); }
+:root[data-theme="dark"][data-accent="petroleo"] { --accent: #5fc1ce; --accent-2: #7fcfd9; --accent-soft: rgba(95,193,206,.18); --accent-line: rgba(95,193,206,.45); }
+:root[data-theme="dark"][data-accent="ambar"] { --accent: #e3ae55; --accent-2: #ebc07a; --accent-soft: rgba(227,174,85,.18); --accent-line: rgba(227,174,85,.45); }
+:root[data-theme="dark"][data-accent="rosa"] { --accent: #ea8fbb; --accent-2: #f0a8ca; --accent-soft: rgba(234,143,187,.18); --accent-line: rgba(234,143,187,.45); }
+
+:root[data-theme="dark"] body { background: var(--bg); color: var(--text); }
+:root[data-theme="dark"] button { background: var(--input); color: var(--text); border-color: var(--line); }
+:root[data-theme="dark"] button:hover:not(:disabled) { background: var(--hover); border-color: #4a4f59; }
+:root[data-theme="dark"] button.primary { background: var(--accent); border-color: var(--accent); color: #15171b; }
+:root[data-theme="dark"] button.ghost { background: transparent; }
+:root[data-theme="dark"] button.danger:hover:not(:disabled) { background: rgba(239,112,103,.12); }
+:root[data-theme="dark"] .chip { background: var(--input); }
+:root[data-theme="dark"] .topbar { background: #0e0f12; border-bottom: 1px solid #23262c; }
+:root[data-theme="dark"] .nav-item:hover, :root[data-theme="dark"] .chapter-item:hover { background: var(--hover); }
+:root[data-theme="dark"] .look-panel, :root[data-theme="dark"] .toolbar { background: #1a1d22; }
+:root[data-theme="dark"] .toolbar button:hover { background: var(--hover); }
+:root[data-theme="dark"] .toolbar select,
+:root[data-theme="dark"] .field input, :root[data-theme="dark"] .field select, :root[data-theme="dark"] .field textarea,
+:root[data-theme="dark"] input[type=text], :root[data-theme="dark"] input[type=number], :root[data-theme="dark"] input[type=search],
+:root[data-theme="dark"] select, :root[data-theme="dark"] textarea { background: var(--input); color: var(--text); border-color: var(--line); }
+:root[data-theme="dark"] .chapter-title-input:focus { background: var(--input); }
+:root[data-theme="dark"] .lock-banner { background: rgba(224,168,58,.14); color: #f0c46c; border-color: rgba(224,168,58,.35); }
+/* papel do editor em tom escuro confortável (a prévia continua mostrando o papel branco) */
+:root[data-theme="dark"] .editor { background: #23262c; color: #e9e5de; box-shadow: 0 1px 3px rgba(0,0,0,.5); }
+:root[data-theme="dark"] .editor[contenteditable="false"] { background: #202328; }
+:root[data-theme="dark"] .editor div.box { background: #2a2d33; border-color: #4a4f59; }
+:root[data-theme="dark"] .editor th { background: #2d3138; }
+:root[data-theme="dark"] .editor td, :root[data-theme="dark"] .editor th { border-color: #4a4f59; }
+:root[data-theme="dark"] .editor .page-break::after { background: #23262c; }
+:root[data-theme="dark"] .editor .footnote { background: #3a3426; border-color: #5d5236; color: #f1e3c2; }
+:root[data-theme="dark"] .editor div.poem { border-left-color: #4a4f59; }
+:root[data-theme="dark"] .mini-editor, :root[data-theme="dark"] .notes-table, :root[data-theme="dark"] .layers-table, :root[data-theme="dark"] .checks-table,
+:root[data-theme="dark"] .font-list, :root[data-theme="dark"] .font-detail, :root[data-theme="dark"] .asset-card, :root[data-theme="dark"] .card { background: var(--panel); color: var(--text); }
+:root[data-theme="dark"] .notes-table td, :root[data-theme="dark"] .notes-table th, :root[data-theme="dark"] .layers-table td, :root[data-theme="dark"] .layers-table th,
+:root[data-theme="dark"] .checks-table td, :root[data-theme="dark"] .font-row, :root[data-theme="dark"] .find-row { border-color: var(--line); }
+:root[data-theme="dark"] .font-row:hover, :root[data-theme="dark"] .find-row:hover { background: var(--hover); }
+:root[data-theme="dark"] .font-row.active, :root[data-theme="dark"] .layers-table tr.sel { background: var(--accent-soft); }
+:root[data-theme="dark"] .find-row mark { background: #6b5a14; color: #fff; }
+:root[data-theme="dark"] .issue.error, :root[data-theme="dark"] .bad-card { background: rgba(239,112,103,.1); }
+:root[data-theme="dark"] .issue.warn, :root[data-theme="dark"] .warn-box { background: rgba(224,168,58,.1); border-color: rgba(224,168,58,.35); }
+:root[data-theme="dark"] .issue.info { background: rgba(255,255,255,.04); }
+:root[data-theme="dark"] .cover-banner.info { background: rgba(121,166,230,.1); border-color: rgba(121,166,230,.35); }
+:root[data-theme="dark"] .cover-banner.ok { background: rgba(108,194,122,.1); border-color: rgba(108,194,122,.35); }
+:root[data-theme="dark"] .modal { background: var(--panel); color: var(--text); }
+:root[data-theme="dark"] .drawer { background: var(--panel); }
+:root[data-theme="dark"] .el-tile { background: var(--input); }
+:root[data-theme="dark"] .sheet-grid td { background: #2a2d33; color: var(--text); border-color: var(--line); }
+:root[data-theme="dark"] .sheet-grid tr:first-child td { background: #33373f; }
+:root[data-theme="dark"] .qs-cap { background: #f5f2ec; } /* amostras de legenda mostram o papel */
+:root[data-theme="dark"] .preview-pane, :root[data-theme="dark"] .preview-frames { background: #101114; }
+:root[data-theme="dark"] .cat-mini-sheet { background: #f5f2ec; }
+
+/* ---------------------------------------------------------------- tela Aparência */
+.theme-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.theme-swatch { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; background: var(--panel); color: var(--text); }
+.theme-swatch.on { outline: 2px solid var(--accent); }
+.theme-swatch .dot { width: 22px; height: 22px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 2px rgba(255,255,255,.35); }
+.theme-modes { display: flex; gap: 8px; flex-wrap: wrap; }
+.theme-mode { padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; min-width: 120px; text-align: center; }
+.theme-mode.on { outline: 2px solid var(--accent); }

@@ -165,6 +165,23 @@
     find();
   }
 
+  // comentários de revisão vindos do Word/ODT (ou feitos no editor): não saem no livro
+  function commentsCard() {
+    const list = [];
+    App.project.chapters.forEach(c => { const t = document.createElement('template'); t.innerHTML = c.html || ''; t.content.querySelectorAll('span.comment').forEach((n, i) => list.push({ c, i, author: n.dataset.author || '', text: n.dataset.text || '', ctx: (n.parentElement ? n.parentElement.textContent : '').trim().slice(0, 90) })); });
+    if (!list.length) return null;
+    const removeAll = () => { App.project.chapters.forEach(c => { c.html = String(c.html || '').replace(/<span class="comment"[^>]*>[\s\S]*?<\/span>/g, ''); }); App.editorChapterId = null; App.changed('Comentários de revisão removidos'); render(); };
+    return el('div', { class: 'card' }, [
+      el('h3', { text: `Comentários de revisão (${list.length})` }),
+      el('p', { class: 'muted small', text: 'Vieram do manuscrito importado. Aparecem no editor como 💬 e nunca saem no livro impresso, no PDF nem no EPUB.' }),
+      el('div', { class: 'find-results' }, list.map(r => el('div', { class: 'find-row', onclick: () => App.setView('chapter', r.c.id) }, [
+        el('span', { class: 'muted small', text: r.c.title + ': ' }), el('b', { text: (r.author ? r.author + ': ' : '') }), el('span', { text: r.text }),
+        r.ctx ? el('div', { class: 'muted small', text: '“' + r.ctx + '…”' }) : null
+      ]))),
+      el('div', { class: 'inline wrap' }, [el('button', { text: 'Remover todos os comentários', onclick: removeAll })])
+    ]);
+  }
+
   function render() {
     const v = $('#view-tools');
     v.innerHTML = '';
@@ -176,6 +193,7 @@
     const boxes = {};
     v.appendChild(el('div', { class: 'form-wrap' }, [
       el('h2', { text: 'Revisão do texto' }),
+      commentsCard(),
       el('div', { class: 'card' }, [
         el('h3', { text: 'Localizar e substituir' }),
         el('div', { class: 'grid' }, [App.field('Localizar', inp('find', 'texto ou expressão')), App.field('Substituir por', inp('repl', '')), App.field('Onde', scope)]),

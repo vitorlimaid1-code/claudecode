@@ -5,9 +5,78 @@ const path = require('path');
 
 const IMAGE_MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.bmp': 'image/bmp' };
 
+// Gráficos nativos do Word (DrawingML): lê os valores guardados no próprio gráfico (séries, categorias,
+// tipo e título) para recriá-los como gráficos do livro, no mesmo lugar do texto.
+function parseWordChart(xml) {
+  const tag = (x, t) => (new RegExp(`<c:${t}\\b[^>]*?(?:/>|>([\\s\\S]*?)</c:${t}>)`).exec(x) || []);
+  const attr = (x, t) => (new RegExp(`<c:${t}\\b[^>]*\\bval="([^"]*)"`).exec(x) || [])[1];
+  const pts = x => { const out = []; String(x || '').replace(/<c:pt\b[^>]*idx="(\d+)"[^>]*>\s*<c:v>([\s\S]*?)<\/c:v>/g, (m, i, v) => { out[Number(i)] = v.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>'); return m; }); return out; };
+  const types = [['barChart', 'bar'], ['bar3DChart', 'bar'], ['lineChart', 'line'], ['line3DChart', 'line'], ['areaChart', 'area'], ['area3DChart', 'area'], ['pieChart', 'pie'], ['pie3DChart', 'pie'], ['doughnutChart', 'donut'], ['scatterChart', 'line'], ['radarChart', 'line']];
+  const found = types.find(([t]) => new RegExp(`<c:${t}\\b`).test(xml));
+  if (!found) return null;
+  const block = tag(xml, found[0])[1] || '';
+  let type = found[1];
+  if (type === 'bar') {
+    if (attr(block, 'barDir') === 'bar') type = 'hbar';
+    if (/stacked/i.test(attr(block, 'grouping') || '')) type = 'stacked';
+  }
+  const series = [];
+  let labels = [];
+  block.replace(/<c:ser>([\s\S]*?)<\/c:ser>/g, (m, ser) => {
+    const name = (pts(tag(ser, 'tx')[1]) || [])[0] || (/<a:t>([^<]*)<\/a:t>/.exec(tag(ser, 'tx')[1] || '') || [])[1] || `Série ${series.length + 1}`;
+    const cat = pts(tag(ser, 'cat')[1] || tag(ser, 'xVal')[1]);
+    const val = pts(tag(ser, 'val')[1] || tag(ser, 'yVal')[1]).map(v => Number(v) || 0);
+    if (cat.length > labels.length) labels = cat;
+    series.push({ name, values: val });
+    return m;
+  });
+  if (!series.length) return null;
+  const n = Math.max(labels.length, ...series.map(s => s.values.length));
+  labels = Array.from({ length: n }, (_, i) => labels[i] != null ? String(labels[i]) : String(i + 1));
+  const titleXml = tag(xml, 'title')[1] || '';
+  const title = (titleXml.match(/<a:t>([^<]*)<\/a:t>/g) || []).map(t => t.replace(/<[^>]+>/g, '')).join('').trim();
+  return { type, title, labels, series: series.map(s => ({ name: s.name, values: labels.map((_, i) => s.values[i] || 0) })), legend: true, values: true };
+}
+
+async function prepareDocx(filePath) {
+  const JSZip = require('jszip');
+  const buf = fs.readFileSync(filePath);
+  let zip;
+  try { zip = await JSZip.loadAsync(buf); } catch (e) { return { buffer: buf, charts: [], authors: {} }; }
+  const docFile = zip.file('word/document.xml');
+  const relsFile = zip.file('word/_rels/document.xml.rels');
+  const charts = [];
+  const authors = {};
+  const cm = zip.file('word/comments.xml');
+  if (cm) (await cm.async('string')).replace(/<w:comment\b[^>]*w:id="(\d+)"[^>]*>/g, (m, id) => { authors[id] = (/w:author="([^"]*)"/.exec(m) || [])[1] || ''; return m; });
+  if (!docFile || !relsFile) return { buffer: buf, charts, authors };
+  let doc = await docFile.async('string');
+  if (!/<c:chart\b/.test(doc)) return { buffer: buf, charts, authors };
+  const rels = await relsFile.async('string');
+  const target = rid => (new RegExp(`<Relationship\\b[^>]*Id="${rid}"[^>]*Target="([^"]+)"`).exec(rels) || new RegExp(`<Relationship\\b[^>]*Target="([^"]+)"[^>]*Id="${rid}"`).exec(rels) || [])[1];
+  const drawings = [];
+  doc.replace(/<w:drawing>[\s\S]*?<\/w:drawing>/g, (m, at) => { drawings.push({ m, at }); return m; });
+  for (const d of drawings.reverse()) {
+    const rid = (/<c:chart\b[^>]*r:id="([^"]+)"/.exec(d.m) || [])[1];
+    if (!rid) continue;
+    const t = target(rid);
+    const f = t && zip.file('word/' + t.replace(/^\/?word\//, '').replace(/^\//, ''));
+    const spec = f ? parseWordChart(await f.async('string')) : null;
+    if (!spec) continue;
+    charts.unshift(spec);
+    doc = doc.slice(0, d.at) + `<w:t>\u27E6GRAFICO:${drawings.length}\u27E7</w:t>` + doc.slice(d.at + d.m.length);
+  }
+  // numera os marcadores na ordem do documento
+  let k = 0;
+  doc = doc.replace(/\u27E6GRAFICO:\d+\u27E7/g, () => `\u27E6GRAFICO:${k++}\u27E7`);
+  zip.file('word/document.xml', doc);
+  return { buffer: await zip.generateAsync({ type: 'nodebuffer' }), charts, authors };
+}
+
 async function importDocx(filePath) {
   const mammoth = require('mammoth');
-  const result = await mammoth.convertToHtml({ path: filePath }, {
+  const prep = await prepareDocx(filePath);
+  const result = await mammoth.convertToHtml({ buffer: prep.buffer }, {
     styleMap: [
       "p[style-name='Title'] => h1:fresh",
       "p[style-name='Título'] => h1:fresh",
@@ -32,10 +101,19 @@ async function importDocx(filePath) {
       'u => u',
       'strike => s',
       "r[style-name='Footnote Reference'] =>",
-      "r[style-name='Ref. de nota de rodapé'] =>"
+      "r[style-name='Ref. de nota de rodapé'] =>",
+      'comment-reference => sup'
     ]
   });
-  return { kind: 'html', html: result.value, notesFormat: 'mammoth' };
+  // comentários de revisão do Word: viram anotações no editor (aparecem na revisão, não no livro impresso)
+  const comments = {};
+  let html = result.value.replace(/<dl>([\s\S]*?)<\/dl>\s*$/, (m, inner) => {
+    inner.replace(/<dt id="comment-(\d+)">[\s\S]*?<\/dt>\s*<dd>([\s\S]*?)<\/dd>/g, (mm, id, dd) => { comments[id] = dd.replace(/<a href="#comment-ref-\d+">[\s\S]*?<\/a>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); return mm; });
+    return '';
+  });
+  const escA = t => String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  html = html.replace(/<sup><a href="#comment-(\d+)" id="comment-ref-\d+">[^<]*<\/a><\/sup>/g, (m, id) => (comments[id] ? `<span class="comment" data-author="${escA(prep.authors[id] || '')}" data-text="${escA(comments[id])}">\u200b</span>` : ''));
+  return { kind: 'html', html, notesFormat: 'mammoth', charts: prep.charts };
 }
 
 // O word-extractor descarta o caractere de referência de nota (0x02). Antes de carregá-lo,

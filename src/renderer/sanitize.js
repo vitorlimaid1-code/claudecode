@@ -5,7 +5,7 @@
   const INLINE = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'S', 'SUP', 'SUB', 'BR', 'SPAN', 'IMG']);
   const DROP = new Set(['SCRIPT', 'STYLE', 'META', 'LINK', 'TITLE', 'HEAD', 'IFRAME', 'OBJECT', 'EMBED', 'SVG', 'MATH', 'TEMPLATE', 'NOSCRIPT', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA', 'FORM', 'NAV', 'COL', 'COLGROUP']);
   const RENAME = { STRONG: 'b', EM: 'i', H1: 'h2', H5: 'h4', H6: 'h4', DEL: 's', STRIKE: 's', INS: 'u', CITE: 'i', DFN: 'i', VAR: 'i', ASIDE: 'div', DT: 'p', DD: 'p' };
-  const P_CLASSES = new Set(['no-indent', 'phrase', 'reference', 'epigraph-inline', 'table-source']);
+  const P_CLASSES = new Set(['no-indent', 'phrase', 'reference', 'epigraph-inline', 'table-source', 'caption-text']);
   const DIV_CLASSES = ['page-break', 'poem', 'box', 'fullbleed'];
   const FIG_ATTRS = ['data-asset', 'data-align', 'data-wrap', 'data-width', 'data-gap', 'data-rot', 'data-flipx', 'data-flipy', 'data-opacity', 'data-crop', 'data-ratio', 'data-fit'];
 
@@ -102,6 +102,15 @@
     }
 
     const outTag = (RENAME[tag] || tag).toLowerCase();
+    if (outTag === 'span' && cls.contains('comment')) {
+      // comentário de revisão (Word/ODT): anotação no editor, não sai no livro
+      const c = doc.createElement('span');
+      c.className = 'comment';
+      c.setAttribute('data-text', node.getAttribute('data-text') || node.textContent || '');
+      if (node.getAttribute('data-author')) c.setAttribute('data-author', node.getAttribute('data-author'));
+      c.textContent = '\u200b';
+      return c;
+    }
     if (outTag === 'span') {
       const st = node.style || {};
       const fs = String(st.fontStyle || '');
@@ -183,15 +192,25 @@
           p.replaceWith(fig);
         }
       });
-      // legenda importada logo após a imagem
+      // legendas importadas: ficam ligadas à figura, à tabela ou ao gráfico a que pertencem (o texto
+      // da legenda é mantido como veio — se já vier numerada, a numeração original é respeitada)
+      const isChartMark = el => el && el.tagName === 'P' && /^\s*\u27E6GRAFICO:\d+\u27E7\s*$/.test(el.textContent);
+      const moveInto = (p, tagName, host, atStart) => { const c = doc.createElement(tagName); while (p.firstChild) c.appendChild(p.firstChild); if (atStart) host.insertBefore(c, host.firstChild); else host.appendChild(c); p.remove(); };
       out.querySelectorAll('p.caption-import').forEach(p => {
+        const prev = p.previousElementSibling, next = p.nextElementSibling;
+        if (prev && prev.tagName === 'FIGURE' && !prev.querySelector('figcaption')) return moveInto(p, 'figcaption', prev);
+        if (isChartMark(prev) && !prev.dataset.caption) { prev.dataset.caption = p.textContent.trim(); p.remove(); return; }
+        if (next && next.tagName === 'TABLE' && !next.querySelector('caption')) return moveInto(p, 'caption', next, true);
+        if (next && next.tagName === 'FIGURE' && !next.querySelector('figcaption')) return moveInto(p, 'figcaption', next);
+        if (isChartMark(next) && !next.dataset.caption) { next.dataset.caption = p.textContent.trim(); p.remove(); return; }
+        if (prev && prev.tagName === 'TABLE' && !prev.querySelector('caption') && !/^fonte\s*:/i.test(p.textContent.trim())) return moveInto(p, 'caption', prev, true);
+        p.classList.remove('caption-import');
+        p.classList.add('caption-text'); // legenda solta: mantém a aparência de legenda
+      });
+      // “Fonte: …” logo depois de uma tabela, gráfico ou figura
+      out.querySelectorAll('p').forEach(p => {
         const prev = p.previousElementSibling;
-        if (prev && prev.tagName === 'FIGURE' && !prev.querySelector('figcaption')) {
-          const c = doc.createElement('figcaption');
-          while (p.firstChild) c.appendChild(p.firstChild);
-          prev.appendChild(c);
-          p.remove();
-        } else p.classList.remove('caption-import');
+        if (/^fonte\s*:/i.test(p.textContent.trim()) && prev && (prev.tagName === 'TABLE' || prev.tagName === 'FIGURE' || isChartMark(prev))) p.classList.add('table-source');
       });
     }
     return out.innerHTML;
@@ -260,7 +279,8 @@
   // ---------------------------------------------------------------- capítulos
   // "Capítulo 3 — A fuga" -> "A fuga" (número automático); "Capítulo 3" sozinho -> não numerado
   function splitChapterTitle(title) {
-    const m = /^(cap[ií]tulo|chapter)\s+([0-9]+|[ivxlcdm]+|[a-zà-ú]+)\s*([-–—:.]\s*)?(.*)$/i.exec(title || '');
+    // o número (1, IV, “dois”) precisa terminar a palavra: “Capítulo Dois” não é “Capítulo D” + “ois”
+    const m = /^(cap[ií]tulo|chapter)\s+([0-9]+|[ivxlcdm]+|[a-zà-ú]+)(?![\p{L}\p{N}])\s*([-–—:.]\s*)?(.*)$/iu.exec(title || '');
     if (!m) return { title, numbered: true };
     if (m[4].trim()) return { title: m[4].trim(), numbered: true };
     return { title, numbered: false };

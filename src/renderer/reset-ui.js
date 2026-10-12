@@ -30,7 +30,8 @@
   }
 
   function resetPrefs() {
-    ['unit', 'zoom', 'previewWidth', 'helpShown2'].forEach(k => { try { localStorage.removeItem(k); } catch (e) { /* ok */ } });
+    ['unit', 'zoom', 'previewWidth', 'helpShown2', 'themeMode', 'themeAccent'].forEach(k => { try { localStorage.removeItem(k); } catch (e) { /* ok */ } });
+    if (window.SystemTheme) { window.SystemTheme.apply(); if (App.appearance) App.appearance.syncButton(); }
     App.unit = 'mm';
     document.documentElement.style.removeProperty('--preview-w');
     if (App.preview && App.preview.resetMode) App.preview.resetMode();
@@ -101,7 +102,7 @@
       el('div', { class: 'card span-all' }, [
         el('h3', { text: 'Sistema (próximos livros)' }),
         ...SYSTEM_ITEMS.map(i => row(i.label, i.done, badge(st[i.key]), '↺ Restaurar', () => resetSystem([i], i.label), !st[i.key])),
-        row('Preferências da tela', 'Unidade de medida, zoom e largura da prévia, ajuda inicial.', null, '↺ Restaurar', resetPrefs),
+        row('Preferências da tela', 'Unidade de medida, zoom e largura da prévia, ajuda inicial, modo noturno e cor do sistema.', null, '↺ Restaurar', resetPrefs),
         el('div', { class: 'inline wrap' }, [el('button', { class: 'primary', text: '↺ Restaurar todos os padrões do sistema', onclick: () => resetSystem(SYSTEM_ITEMS, 'Restaurar todos os padrões').then(resetPrefs) })]),
         el('p', { class: 'small muted', text: 'Restaurar os padrões não apaga imagens nem fontes que você adicionou. Para removê-las, use as opções abaixo.' })
       ]),

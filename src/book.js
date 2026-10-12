@@ -112,6 +112,7 @@ function figureHtml(attrs, inner, ctx) {
   const id = attrs['data-asset'];
   const asset = ctx.assets[id];
   const capMatch = /<figcaption[^>]*>([\s\S]*?)<\/figcaption>/i.exec(inner);
+  const capStyle = (/<figcaption[^>]*\sdata-cap="([a-z]+)"/i.exec(inner) || [])[1];
   const caption = capMatch && capMatch[1].replace(/<[^>]+>/g, '').trim() ? capMatch[1] : '';
   if (!asset) {
     ctx.missing.push(id);
@@ -197,13 +198,49 @@ function figureHtml(attrs, inner, ctx) {
   let capHtml = caption, figId = '';
   if (caption && wrap !== 'behind' && ctx.numbering) {
     const kind = asset.chart ? 'graf' : 'fig';
-    const n = ++ctx.counters[kind];
-    figId = `${kind}-${n}`;
-    const label = `${kind === 'graf' ? 'Gráfico' : 'Figura'} ${n}`;
-    ctx.lists[kind].push({ id: figId, label, title: caption.replace(/<[^>]+>/g, '').trim() });
-    capHtml = `<span class="cap-num">${label}</span> – ${caption}`;
+    const own = ownLabel(caption);
+    if (own) {
+      // legenda que já vem numerada (ex.: importada do Word): o texto e a numeração originais são mantidos
+      ctx.counters[kind] = Math.max(ctx.counters[kind], own.n);
+      figId = `${kind}-${ctx.counters[kind]}-${ctx.lists[kind].length}`;
+      ctx.lists[kind].push({ id: figId, label: own.label, title: own.rest });
+      capHtml = `<span class="cap-num">${own.labelHtml}</span>${own.sepHtml}${own.restHtml}`;
+    } else {
+      const n = ++ctx.counters[kind];
+      figId = `${kind}-${n}`;
+      const label = `${kind === 'graf' ? 'Gráfico' : 'Figura'} ${n}`;
+      ctx.lists[kind].push({ id: figId, label, title: caption.replace(/<[^>]+>/g, '').trim() });
+      capHtml = `<span class="cap-num">${label}</span> – ${caption}`;
+    }
   }
-  return `<figure${figId ? ` id="${figId}"` : ''} class="fig fig-${wrap}${align === 'full' ? ' fig-full' : ''}${asset.chart ? ' fig-chart' : ''}" data-asset="${esc(id)}" data-print-width="${printW.toFixed(2)}" data-px-width="${Math.round(iw * cw)}" style="${figStyle.join('; ')}">${frame}${capHtml && wrap !== 'behind' ? `<figcaption>${capHtml}</figcaption>` : ''}</figure>`;
+  return `<figure${figId ? ` id="${figId}"` : ''} class="fig fig-${wrap}${align === 'full' ? ' fig-full' : ''}${asset.chart ? ' fig-chart' : ''}" data-asset="${esc(id)}" data-print-width="${printW.toFixed(2)}" data-px-width="${Math.round(iw * cw)}" style="${figStyle.join('; ')}">${frame}${capHtml && wrap !== 'behind' ? `<figcaption${capStyle ? ` data-cap="${esc(capStyle)}"` : ''}>${capHtml}</figcaption>` : ''}</figure>`;
+}
+
+// Estilos de legenda: o do livro (.capstyle-X) vale para as legendas sem estilo próprio (data-cap)
+function captionStyleCss() {
+  const C = '.fig figcaption, .chapter-body table caption, .chapter-body p.caption-text';
+  const sel = (k, extra) => C.split(',').map(x => `.book.capstyle-${k} ${x.trim()}:not([data-cap])${extra || ''}, ${x.trim()}[data-cap="${k}"]${extra || ''}`).join(', ');
+  const R = {
+    classica: ['text-align: center; font-style: italic;', 'font-weight: 700; font-style: normal;'],
+    editorial: ['text-align: center; font-style: normal; border-top: 0.4pt solid currentColor; padding-top: 1.2mm; width: 70%; margin-left: auto; margin-right: auto;', 'font-variant: small-caps; letter-spacing: 0.06em; font-weight: 400;'],
+    moderna: ['text-align: left; font-style: normal;', 'text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.82em; font-weight: 700;'],
+    discreta: ['text-align: left; font-style: italic; font-size: 0.88em; color: #555;', 'font-weight: 600; font-style: normal;'],
+    destaque: ['text-align: left; font-style: italic;', 'background: #222; color: #fff; padding: 0.2mm 1.4mm; font-style: normal; font-weight: 700; font-size: 0.85em; letter-spacing: 0.04em;'],
+    lateral: ['text-align: left; font-style: normal; border-left: 1.2pt solid currentColor; padding-left: 2mm;', 'font-weight: 700;']
+  };
+  return Object.entries(R).map(([k, [box, label]]) => `${sel(k)} { ${box} }\n${sel(k, ' .cap-num')} { ${label} }`).join('\n');
+}
+
+// Legenda que já traz o próprio rótulo numerado (“Figura 3 – …”, “Tabela 2. …”, “Quadro 1: …”)
+const OWN_LABEL = /^\s*((?:Figura|Fig\.?|Gr[áa]fico|Tabela|Quadro|Imagem|Ilustra[çc][ãa]o|Mapa|Foto(?:grafia)?)\s*(\d+))\s*([–—:.-])?\s*/i;
+function ownLabel(captionHtml) {
+  const text = String(captionHtml).replace(/<[^>]+>/g, '');
+  const m = OWN_LABEL.exec(text);
+  if (!m) return null;
+  // separa no HTML a parte do rótulo (para destacá-lo) do restante, preservando itálicos etc.
+  const hm = OWN_LABEL.exec(String(captionHtml));
+  const restHtml = hm ? String(captionHtml).slice(hm[0].length) : esc(text.slice(m[0].length));
+  return { n: Number(m[2]), label: m[1].trim(), rest: text.slice(m[0].length).trim(), labelHtml: hm ? hm[1] : esc(m[1]), sepHtml: m[3] ? ` ${m[3]} ` : ' – ', restHtml };
 }
 
 // Tabelas com título (legenda): Tabela N – título, com âncora para a lista de tabelas
@@ -212,6 +249,13 @@ function numberTables(html, ctx) {
   return String(html).replace(/<table\b([^>]*)>(\s*)<caption\b([^>]*)>([\s\S]*?)<\/caption>/gi, (m, attrs, sp, cattrs, cap) => {
     const text = cap.replace(/<[^>]+>/g, '').trim();
     if (!text) return m;
+    const own = ownLabel(cap);
+    if (own) {
+      ctx.counters.tab = Math.max(ctx.counters.tab, own.n);
+      const id = `tab-${ctx.counters.tab}-${ctx.lists.tab.length}`;
+      ctx.lists.tab.push({ id, label: own.label, title: own.rest });
+      return `<table${/\sid="/.test(attrs) ? attrs : ` id="${id}"${attrs}`}>${sp}<caption${cattrs}><span class="cap-num">${own.labelHtml}</span>${own.sepHtml}${own.restHtml}</caption>`;
+    }
     const n = ++ctx.counters.tab;
     const id = `tab-${n}`;
     ctx.lists.tab.push({ id, label: `Tabela ${n}`, title: text });
@@ -241,6 +285,8 @@ function fullBleedHtml(assetId, fit, ctx, extraClass) {
 function processBody(html, ctx) {
   html = html || '';
   html = html.replace(/\ssrc="blob:[^"]*"/g, '');
+  // comentários de revisão nunca saem no livro
+  html = html.replace(/<span class="comment"[^>]*>[\s\S]*?<\/span>/g, '');
   if (!ctx.settings.footnotesVisible) html = stripFootnotes(html);
   html = html.replace(/<figure\b([^>]*class="[^"]*\bimg\b[^"]*"[^>]*)>([\s\S]*?)<\/figure>/gi, (m, attrs, inner) => figureHtml(parseAttrs(attrs), inner, ctx));
   // imagens soltas com data-asset (ex.: dentro de tabelas/caixas)
@@ -503,7 +549,7 @@ function buildHtml(project, ctx) {
     if (toc) parts.splice(tocIndex, 0, toc);
   }
 
-  return `<div class="book kind-${esc(project.kind || 'book')}" lang="${esc(project.meta.language || 'pt-BR')}" data-number-from-first="${settings.numberFromFirstChapter ? 1 : 0}">${parts.join('\n')}</div>`;
+  return `<div class="book kind-${esc(project.kind || 'book')} capstyle-${esc(settings.captionStyle || 'classica')}" lang="${esc(project.meta.language || 'pt-BR')}" data-number-from-first="${settings.numberFromFirstChapter ? 1 : 0}">${parts.join('\n')}</div>`;
 }
 
 // ---------------------------------------------------------------- CSS
@@ -713,6 +759,8 @@ ${s.keepHeadingsWithNext ? '.chapter-body h2, .chapter-body h3, .chapter-body h4
 .chapter-body div.box { ${styleDecl(S.box, body, { noSpace: true })} margin: ${mm(S.box.spaceBefore)} 0 ${mm(S.box.spaceAfter)}; border: 0.6pt solid ${color(S.box.borderColor, '#999')}; padding: 3mm 4mm; break-inside: avoid; }
 .chapter-body div.box p { text-indent: 0; margin: 0 0 0.4em; }
 .chapter-body ul, .chapter-body ol { margin: 0.5em 0 0.5em 1.6em; padding: 0; }
+/* listas, tabelas e citações começam abaixo da letra capitular (não ficam ao lado dela) */
+.chapter-body > ul, .chapter-body > ol, .chapter-body > table, .chapter-body > blockquote, .chapter-body > div.box, .chapter-body > div.poem { clear: left; }
 .chapter-body li { margin-bottom: 0.2em; }
 .chapter-body li p { text-indent: 0; }
 .chapter-body hr.scene-break { border: 0; height: auto; margin: 0.9em 0; text-align: center; break-after: avoid; }
@@ -725,6 +773,8 @@ ${s.keepHeadingsWithNext ? '.chapter-body h2, .chapter-body h3, .chapter-body h4
 .chapter-body table.tb-zebra tr:nth-child(even) td { background: rgba(0,0,0,0.06); }
 .chapter-body table.tb-compact td, .chapter-body table.tb-compact th { padding: 0.6mm 1.2mm; }
 .chapter-body td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.chapter-body p.caption-text { ${styleDecl(S.caption, body)} text-indent: 0; margin: 1.5mm 0 3mm; }
+${captionStyleCss()}
 .chapter-body p.table-source { text-indent: 0; font-size: 0.82em; margin-top: -0.6em; margin-bottom: 1em; text-align: left; }
 .chapter-body figure + p.table-source { margin-top: 0; }
 .chapter-body th, .chapter-body td { border: 0.5pt solid ${color(S.table.borderColor, '#555')}; padding: 1.2mm 2mm; text-align: left; vertical-align: top; text-indent: 0; hyphens: manual; }

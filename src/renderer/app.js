@@ -25,6 +25,33 @@
     return count;
   }
 
+  // gráficos nativos do Word: viram gráficos do livro (editáveis), no mesmo ponto do texto
+  async function convertCharts(chapters, specs) {
+    if (!specs || !specs.length) return 0;
+    let count = 0;
+    const mono = App.project.settings.standard === 'cedet';
+    for (const c of chapters) {
+      if (!/\u27E6GRAFICO:\d+\u27E7/.test(c.html)) continue;
+      const tpl = document.createElement('template');
+      tpl.innerHTML = c.html;
+      for (const p of Array.from(tpl.content.querySelectorAll('p'))) {
+        const m = /^\s*\u27E6GRAFICO:(\d+)\u27E7\s*$/.exec(p.textContent);
+        if (!m) continue;
+        const spec = specs[Number(m[1])];
+        if (!spec) { p.remove(); continue; }
+        const s2 = Object.assign({}, spec, { mono: spec.mono || mono });
+        const url = ChartDraw.draw(s2);
+        const id = await App.addAsset({ dataUrl: url, name: 'Gráfico importado ' + (++count), width: 1800, height: 1100 });
+        App.project.assets[id].chart = ChartDraw.normalize(s2);
+        const t = document.createElement('template');
+        t.innerHTML = App.editor.figureHtml(id, { width: 100, caption: p.dataset.caption || '' });
+        p.replaceWith(t.content.firstChild);
+      }
+      c.html = tpl.innerHTML;
+    }
+    return count;
+  }
+
   const KIND_NAMES = { html: 'Word / HTML', markdown: 'Markdown', doc: 'Word 97-2003 (.doc)', epub: 'EPUB', odt: 'OpenDocument (.odt)', pdf: 'PDF', text: 'Texto' };
 
   async function processImport(res) {
@@ -36,6 +63,7 @@
     const meta = chapters.meta;
     chapters = chapters.filter(c => c.html.replace(/<[^>]+>/g, '').trim() || /<img|<table/.test(c.html));
     const images = await convertImages(chapters);
+    const charts = await convertCharts(chapters, res.charts);
     $('#toast').classList.remove('show');
     if (!chapters.length) return App.toast('Nenhum texto encontrado no arquivo.');
     const noteCount = chapters.reduce((s, c) => s + (c.html.match(/class="footnote"/g) || []).length, 0) || notes;
@@ -61,7 +89,7 @@
     App.modal({
       title: `Importar “${res.name}${res.ext || ''}”`, wide: true,
       body: el('div', {}, [
-        el('p', { text: `${KIND_NAMES[res.kind] || res.kind}: ${chapters.length} capítulo(s), ${words.toLocaleString('pt-BR')} palavras, ${noteCount} nota(s) de rodapé, ${images} imagem(ns). O texto será padronizado com os estilos do livro (fontes, tamanhos e espaçamentos do manuscrito são substituídos pela configuração atual).` }),
+        el('p', { text: `${KIND_NAMES[res.kind] || res.kind}: ${chapters.length} capítulo(s), ${words.toLocaleString('pt-BR')} palavras, ${noteCount} nota(s) de rodapé, ${images} imagem(ns)${charts ? `, ${charts} gráfico(s) do Word (recriados e editáveis)` : ''}${(() => { const n = chapters.reduce((t, c) => t + (c.html.match(/class="comment"/g) || []).length, 0); return n ? `, ${n} comentário(s) de revisão (aparecem no editor, não no livro)` : ''; })()}. O texto será padronizado com os estilos do livro (fontes, tamanhos e espaçamentos do manuscrito são substituídos pela configuração atual).` }),
         warn.length ? el('div', { class: 'warn-box' }, warn.map(w => el('p', { text: '⚠ ' + w }))) : null,
         el('div', { class: 'grid' }, [App.field('Como importar', mode), App.field('Notas de rodapé', notesSel), App.field('Gênero do livro (estilos, títulos e alinhamento)', genreSel, 'Texto justificado; poesia alinhada à esquerda'),
           tocChapters.length ? el('label', { class: 'chk' }, [dropToc, ` Remover o sumário do manuscrito (“${tocChapters[0].title}”) e gerar o sumário automático com as páginas certas`]) : null,

@@ -479,3 +479,29 @@ body[data-view="cover"] .preview, body[data-view="cover"] .splitter { display: n
 .sheet-grid tr:first-child td { font-weight: 600; background: #f3efe8; }
 .sheet-grid td:focus { outline: 2px solid #d9822b; outline-offset: -2px; }
 .ebook-thumb { width: 64px; height: 96px; object-fit: cover; border: 1px solid var(--line); border-radius: 3px; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
+#editor span.comment { display: inline-block; width: 0; position: relative; }
+#editor span.comment::after { content: '💬'; position: absolute; left: 1px; top: -0.9em; font-size: 11px; cursor: help; opacity: .85; }
+#editor p.caption-text, #editor figcaption, #editor table caption { font-size: 0.88em; font-style: italic; color: var(--muted); text-align: center; text-indent: 0; }
+#editor p.table-source { font-size: 0.82em; text-indent: 0; color: var(--muted); }
+/* estilos rápidos (Título / Subtítulo / Corpo / Legenda) */
+.qs-bar { position: fixed; z-index: 60; display: none; gap: 2px; padding: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 22px rgba(0,0,0,.18); }
+.qs-btn { border: 0; background: transparent; color: var(--text); padding: 5px 9px; border-radius: 5px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.qs-btn:hover { background: var(--accent-soft); color: var(--accent); }
+.qs-btn.qs-t { font-weight: 700; } .qs-btn.qs-s { font-style: italic; }
+.qs-inline { display: inline-flex; gap: 1px; margin-left: 4px; border: 1px solid var(--line); border-radius: 6px; padding: 1px; }
+.qs-inline .qs-btn { padding: 3px 7px; font-size: 12px; }
+.qs-menu { position: fixed; z-index: 61; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 22px rgba(0,0,0,.2); padding: 6px; display: grid; gap: 3px; width: 250px; }
+.qs-menu-title { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 2px 4px 4px; }
+.qs-cap { text-align: left; border: 1px solid var(--line); background: #fff; color: #111; border-radius: 5px; padding: 6px 8px; cursor: pointer; font: 13px Georgia, serif; }
+.qs-cap:hover { border-color: var(--accent); }
+.qs-cap-classica { text-align: center; font-style: italic; } .qs-cap-classica .qs-cap-label { font-weight: 700; font-style: normal; }
+.qs-cap-editorial { text-align: center; border-top: 2px solid #111; } .qs-cap-editorial .qs-cap-label { font-variant: small-caps; letter-spacing: .06em; }
+.qs-cap-moderna .qs-cap-label { text-transform: uppercase; letter-spacing: .12em; font-size: 11px; font-weight: 700; }
+.qs-cap-discreta { color: #666; font-style: italic; font-size: 12px; } .qs-cap-discreta .qs-cap-label { font-weight: 600; font-style: normal; }
+.qs-cap-destaque { font-style: italic; } .qs-cap-destaque .qs-cap-label { background: #222; color: #fff; padding: 0 5px; font-style: normal; font-weight: 700; font-size: 11px; }
+.qs-cap-lateral { border-left: 3px solid #111; } .qs-cap-lateral .qs-cap-label { font-weight: 700; }
+#editor [data-cap] { outline: 1px dashed var(--accent-soft); }
+.qs-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.qs-gallery .qs-cap { padding: 10px; }
+.qs-gallery .qs-cap.on { outline: 2px solid var(--accent); }
+.qs-gallery .qs-cap .small { font-family: system-ui, sans-serif; font-style: normal; color: #777; margin-top: 4px; font-size: 11px; }

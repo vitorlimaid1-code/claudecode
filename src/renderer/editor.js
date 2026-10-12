@@ -9,6 +9,7 @@
 
   // ---------------------------------------------------------------- carregar / salvar
   function decorate(root) {
+    root.querySelectorAll('span.comment').forEach(c => { c.setAttribute('contenteditable', 'false'); c.title = `Comentário${c.dataset.author ? ' de ' + c.dataset.author : ''}: ${c.dataset.text || ''} (não sai no livro)`; });
     root.querySelectorAll('figure.img').forEach(styleFigure);
     root.querySelectorAll('div.fullbleed').forEach(fb => {
       fb.setAttribute('contenteditable', 'false');
@@ -57,6 +58,7 @@
     clone.querySelectorAll('img[data-asset]').forEach(i => i.removeAttribute('src'));
     clone.querySelectorAll('.footnote.selected').forEach(n => n.classList.remove('selected'));
     clone.querySelectorAll('[data-fid]').forEach(n => n.removeAttribute('data-fid'));
+    clone.querySelectorAll('span.comment').forEach(c => { c.removeAttribute('contenteditable'); c.removeAttribute('title'); });
     return clone;
   }
 
@@ -1117,7 +1119,7 @@
     return true;
   }
 
-  App.editor = { setup, insertIntoChapter, zoneAt, load, flush, decorate, figureHtml, insertBlocks, assetsFromDrop, chartDialog, styleFigure, renderLookPanel, selectFigure };
+  App.editor = { setup, insertIntoChapter, zoneAt, load, flush, decorate, figureHtml, insertBlocks, assetsFromDrop, chartDialog, styleFigure, renderLookPanel, selectFigure, applyBlockStyle };
   App.hooks.viewRender.chapter = () => {
     const c = App.chapter();
     if (!c) { if (App.project.chapters.length) { App.chapterId = App.project.chapters[0].id; } else return App.setView('book'); }
