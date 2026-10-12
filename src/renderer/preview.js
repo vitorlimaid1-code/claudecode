@@ -48,6 +48,23 @@
     return { pages: flow.total, ms: Math.round(flow.performance), pageInfo, chapterPages: chapterStartPages(), targetPages: targetPages(offset) };
   };
 
+  // O Paged.js 0.5 troca id por data-id quando divide um elemento entre páginas: procura os dois
+  // (o primeiro na ordem do documento é a página onde o elemento começa)
+  function byId(id) {
+    if (!id) return null;
+    const pages = document.querySelector('.pagedjs_pages') || document;
+    return pages.querySelector(`[id="${CSS.escape(id)}"], [data-id="${CSS.escape(id)}"]`);
+  }
+  function eachTarget(selector, fn) {
+    const seen = new Set();
+    const pages = document.querySelector('.pagedjs_pages') || document;
+    pages.querySelectorAll(selector.split(',').map(x => x.trim()).flatMap(x => [x + '[id]', x + '[data-id]']).join(', ')).forEach(el => {
+      const id = el.id || el.dataset.id;
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      fn(el, id);
+    });
+  }
   function pageOf(el) {
     const p = el && el.closest('.pagedjs_page');
     return p ? Number(p.dataset.pageNumber) : null;
@@ -55,22 +72,33 @@
 
   function chapterStartPages() {
     const out = {};
-    document.querySelectorAll('.chapter[id], .back-matter[id]').forEach(el => { out[el.id] = pageOf(el); });
+    eachTarget('.chapter, .back-matter', (el, id) => { out[id] = pageOf(el); });
     return out;
   }
 
   // Página (já com a numeração do livro) de cada capítulo e título com id: usada no editor do sumário
   function targetPages(offset) {
     const out = {};
-    document.querySelectorAll('.chapter[id], .back-matter[id], .chapter-body h2[id], .chapter-body h3[id], .chapter-body h4[id]').forEach(el => { const n = pageOf(el); if (n && !out[el.id]) out[el.id] = n - (offset || 0); });
+    eachTarget('.chapter, .back-matter, .chapter-body h2, .chapter-body h3, .chapter-body h4', (el, id) => { const n = pageOf(el); if (n && !out[id]) out[id] = n - (offset || 0); });
     return out;
   }
 
   // Numeração: opcionalmente começa em 1 no primeiro capítulo; preenche sumário e ficha.
+  // devolve o id ao primeiro fragmento de cada elemento dividido (links do sumário e do PDF, rolagem)
+  function restoreIds() {
+    const pages = document.querySelector('.pagedjs_pages');
+    if (!pages) return;
+    pages.querySelectorAll('[data-id]').forEach(el => {
+      const id = el.dataset.id;
+      if (id && !document.getElementById(id)) el.id = id;
+    });
+  }
   function fixPageNumbers() {
+    restoreIds();
     const book = document.querySelector('.book');
     const first = document.querySelector('.chapter.first-chapter');
     const firstPage = first && first.closest('.pagedjs_page');
+    // (.first-chapter é classe: continua no primeiro fragmento mesmo sem o id)
     let offset = 0;
     if (book && book.dataset.numberFromFirst === '1' && firstPage) offset = Number(firstPage.dataset.pageNumber) - 1;
     offset -= offset % 2; // o deslocamento é sempre par: páginas ímpares continuam à direita
@@ -78,14 +106,14 @@
     style.textContent = `.pagedjs_pages { counter-reset: page ${-offset} pages var(--pagedjs-page-count) !important; }`;
     document.head.appendChild(style);
     document.querySelectorAll('.toc-list a[href^="#"]').forEach(a => {
-      const target = document.getElementById(decodeURIComponent(a.getAttribute('href').slice(1)));
+      const target = byId(decodeURIComponent(a.getAttribute('href').slice(1)));
       const n = pageOf(target);
       const slot = a.querySelector('.toc-page');
       if (n && slot) slot.textContent = String(n - offset);
     });
     document.querySelectorAll('a.xref-page').forEach(a => {
       const id = decodeURIComponent((a.getAttribute('href') || '').slice(1));
-      const n = pageOf(document.getElementById(id) || document.querySelector(`[data-id="${CSS.escape(id)}"]`));
+      const n = pageOf(byId(id));
       const slot = a.querySelector('.xref-n');
       if (slot) slot.textContent = n ? String(n - offset) : '?';
     });

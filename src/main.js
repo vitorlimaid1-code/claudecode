@@ -411,7 +411,7 @@ async function renderPdf(project, opts) {
     const { info } = await renderBookIn(win, project, { spreadsPrint: !!opts.spreads, pageRange: opts.range || '' });
     tm('paginação');
     if (process.env.DEBUG_LAYOUT) {
-      const dbg = await win.webContents.executeJavaScript(`(() => { const t = document.querySelector('.pagedjs_pages').innerText; return { clipped: window.findClippedText().slice(0, 6), chars: t.length, w: innerWidth, h: innerHeight, dpr: devicePixelRatio }; })()`, true);
+      const dbg = await win.webContents.executeJavaScript(`(() => { const t = document.querySelector('.pagedjs_pages').innerText; return { clipped: window.findClippedText().slice(0, 6), chars: t.length, w: innerWidth, h: innerHeight, dpr: devicePixelRatio, notes: [...document.querySelectorAll('.pagedjs_page')].map(p => { const a = p.querySelector('.pagedjs_footnote_area'); const r = a && a.getBoundingClientRect(); const pr = p.getBoundingClientRect(); const f = [...p.querySelectorAll('.pagedjs_footnote_area .footnote')]; return f.length || (r && r.height) ? { n: p.dataset.pageNumber, f: f.map(x => x.innerText.slice(0, 12) + '@' + Math.round(x.getBoundingClientRect().top - pr.top) + '/' + Math.round(pr.height)), ah: r && Math.round(r.height) } : null; }).filter(Boolean) }; })()`, true);
       console.log('DEBUG_LAYOUT', JSON.stringify(dbg));
     }
     let pdf = await win.webContents.printToPDF({
@@ -785,6 +785,9 @@ async function runSmokeTest() {
   const sheet = outputSheetSize(s, bl);
   const expW = sheet && sheet.fits ? sheet.w : s.pageWidth + 2 * bl;
   assert(Math.abs(mb.width - expW * ptmm) < 0.05 && Math.abs(tb.width - s.pageWidth * ptmm) < 0.05 && Math.abs(tb.height - s.pageHeight * ptmm) < 0.05, `caixas ${JSON.stringify([mb, tb])}`);
+  // sumário e mapa de capítulos: cada capítulo precisa ter a página encontrada (Paged.js troca id por data-id ao dividir)
+  const cp = info.chapterPages || {};
+  assert(project.chapters.every(c => cp[c.id] > 0), 'páginas dos capítulos ' + JSON.stringify(cp));
   const cm = await finishPrintPdf(pdf, project, { color: 'cmyk' });
   assert(cm.colorReport && cm.colorReport.mode === 'cmyk' && cm.colorReport.colors > 0 && !cm.colorReport.error, 'conversão CMYK do miolo ' + JSON.stringify(cm.colorReport));
   const d2 = await PDFDocument.load(cm.pdf);
