@@ -392,3 +392,14 @@ body[data-view="cover"] .preview, body[data-view="cover"] .splitter { display: n
 .kdp-table th { text-align: left; font-weight: 600; padding: 4px 10px 4px 0; width: 42%; vertical-align: top; }
 .kdp-table td { padding: 4px 0; }
 .kdp-table tr + tr { border-top: 1px solid var(--line); }
+
+/* ---------- revista e jornal ---------- */
+.kind-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.kind-card { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); min-height: 120px; }
+.kind-card strong { font-size: 16px; }
+.kind-card:hover { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.articles { display: flex; flex-direction: column; gap: 10px; }
+.article-row { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: var(--panel); }
+.article-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.article-head .grow { flex: 1; }
+.article-head .field { flex-direction: row; align-items: center; gap: 6px; margin: 0; }

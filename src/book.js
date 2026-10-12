@@ -371,7 +371,8 @@ function buildHtml(project, ctx) {
   if (front.epigraph && meta.epigraph && meta.epigraph.trim()) {
     parts.push(`<section class="front epigraph"><div class="epi-text">${multiline(meta.epigraph)}</div>${meta.epigraphAuthor ? `<div class="epi-author">${esc(meta.epigraphAuthor)}</div>` : ''}</section>`);
   }
-  if (periodical) parts.push(mastheadHtml(project, ctx));
+  // revista/jornal: o nome da publicação entra no topo da primeira matéria (mesma página)
+  let masthead = periodical ? mastheadHtml(project, ctx) : '';
 
   let n = 0;
   const hyph = settings.hyphenate ? getHyphenator() : null;
@@ -392,6 +393,7 @@ function buildHtml(project, ctx) {
       if (k === 0) {
         const cls = `chapter${i === 0 ? ' first-chapter' : ''}${hasOpening ? ' after-opening' : ''}${periodical ? ' article' + (c.newPage === false ? ' flow' : '') : ''}`;
         parts.push(`<section class="${cls}" id="${esc(c.id)}" data-chapter="${i}" data-cols="${cols}">
+          ${masthead}
           <header class="chapter-head">
             ${c.kicker ? `<div class="kicker">${esc(c.kicker)}</div>` : ''}
             ${label ? `<div class="chapter-label">${esc(label)}</div>` : ''}
@@ -402,6 +404,7 @@ function buildHtml(project, ctx) {
           </header>
           <div class="chapter-body">${seg.html}</div>
         </section>`);
+        masthead = '';
       } else if (seg.html.replace(/<[^>]+>/g, '').trim() || /<img|<figure|<table/.test(seg.html)) {
         parts.push(`<section class="chapter chapter-cont" data-chapter="${i}" data-cols="${cols}"><div class="chapter-body">${seg.html}</div></section>`);
       }

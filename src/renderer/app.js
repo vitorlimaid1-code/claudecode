@@ -129,9 +129,21 @@
 
   async function newBook() {
     if (!(await confirmDiscard())) return;
+    const kind = await new Promise(res => {
+      let done = false;
+      const pick = k => { if (!done) { done = true; res(k); } App.closeModal(); };
+      const opt = (k, title, desc) => el('button', { class: 'kind-card', onclick: () => pick(k) }, [el('strong', { text: title }), el('span', { class: 'small muted', text: desc })]);
+      App.modal({ title: 'Novo projeto', body: el('div', { class: 'kind-cards' }, [
+        opt('book', '📖 Livro', 'Romance, poesia, contos, não ficção… Página de rosto, ficha, sumário e capítulos.'),
+        opt('magazine', '📰 Revista', 'Matérias em 2 colunas, nome da revista, chapéu, linha fina e assinatura.'),
+        opt('newspaper', '🗞 Jornal', 'Tabloide em 3 colunas com fios, nome do jornal, edição e data.')
+      ]), buttons: [{ label: 'Cancelar', onClick: () => { done = true; res(null); } }], onClose: () => { if (!done) { done = true; res(null); } } });
+    });
+    if (!kind) return;
     loadProject(await api.newProject(), null, false);
     api.autosaveClear();
-    App.setView('book');
+    if (kind !== 'book') { App.periodical.applyKind(kind); App.resetHistory('Novo projeto'); App.changed(null); App.dirty = false; App.updateTitle(); App.setView('periodical'); }
+    else App.setView('book');
   }
 
   async function open(filePath) {

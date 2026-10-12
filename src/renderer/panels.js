@@ -13,6 +13,8 @@
   App.renderChapterList = function () {
     const list = $('#chapterList');
     list.innerHTML = '';
+    const head = document.querySelector('.chapters-head > span');
+    if (head) head.textContent = ['magazine', 'newspaper'].includes(App.project.kind) ? 'Matérias' : 'Capítulos';
     let n = 0;
     list.classList.toggle('selecting', App.selectMode);
     App.project.chapters.forEach((c, i) => {
