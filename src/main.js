@@ -642,6 +642,13 @@ async function askFolder(title) {
   return res.canceled || !res.filePaths.length ? null : res.filePaths[0];
 }
 
+// Capa do livro digital: JPEG RGB, sem transparência, lado maior até 2560 px (recomendação da Amazon)
+function ebookCover(dataUrl) {
+  const bin = dataUrl && exporters.dataUrlToBuffer(dataUrl);
+  if (!bin) return null;
+  return require('./main/mobi').toJpeg(bin.buf, 2560, 8 * 1024 * 1024);
+}
+
 async function runExport(req) {
   const { kind, project } = req;
   const opts = req.opts || {};
@@ -665,14 +672,18 @@ async function runExport(req) {
     });
     return { files, pages: files.length };
   }
-  const formats = { epub: ['EPUB', 'epub'], docx: ['Word', 'docx'], odt: ['OpenDocument', 'odt'], txt: ['Texto', 'txt'] };
+  const formats = { epub: ['EPUB', 'epub'], mobi: ['MOBI (Kindle)', 'mobi'], docx: ['Word', 'docx'], odt: ['OpenDocument', 'odt'], txt: ['Texto', 'txt'] };
   if (formats[kind]) {
     const file = opts.target || await askSavePath(`Exportar ${formats[kind][0]}`, `${base}.${formats[kind][1]}`, [{ name: formats[kind][0], extensions: [formats[kind][1]] }]);
     if (!file) return null;
     const s = project.settings;
     const page = { width: s.pageWidth, height: s.pageHeight, marginTop: s.marginTop, marginBottom: s.marginBottom, marginInner: s.marginInner, marginOuter: s.marginOuter };
     let buf;
-    if (kind === 'epub') buf = await exporters.exportEpub(Object.assign({ uuid: crypto.randomUUID() }, req.epub), project.assets || {});
+    if (kind === 'epub' || kind === 'mobi') {
+      const e = Object.assign({ uuid: crypto.randomUUID() }, req.epub);
+      e.coverJpeg = ebookCover(e.cover);
+      buf = kind === 'epub' ? await exporters.exportEpub(e, project.assets || {}) : require('./main/mobi').buildMobi(e, project.assets || {}).mobi;
+    }
     else if (kind === 'docx') buf = await exporters.exportDocx(req.doc, project.assets || {}, page);
     else if (kind === 'odt') buf = await exporters.exportOdt(req.doc, project.assets || {}, page);
     else buf = exporters.exportTxt(req.doc);
@@ -686,7 +697,7 @@ async function runExport(req) {
     const { pdf, pages } = await renderPdf(project, opts);
     files.push({ name: opts.fileBase ? `${safeName(opts.fileBase, 140)}.pdf` : `${base}-miolo.pdf`, data: pdf });
     if (opts.includeCover && project.cover) files.push({ name: opts.fileBase ? `${safeName(opts.fileBase.replace('_MIOLO_', '_CAPA_'), 140)}.pdf` : `${base}-capa-cmyk.pdf`, data: (await cmyk.buildCoverPdf(APP_ROOT, project.cover, project.assets || {}, project.meta, CoverGeometry.geometry(project.cover), { bleed: true })).pdf });
-    if (opts.includeEpub && req.epub) files.push({ name: `${base}.epub`, data: await exporters.exportEpub(Object.assign({ uuid: crypto.randomUUID() }, req.epub), project.assets || {}) });
+    if (opts.includeEpub && req.epub) files.push({ name: `${base}.epub`, data: await exporters.exportEpub(Object.assign({ uuid: crypto.randomUUID(), coverJpeg: ebookCover(req.epub.cover) }, req.epub), project.assets || {}) });
     if (req.report) files.push({ name: 'relatorio-pre-impressao.txt', data: Buffer.from('﻿' + req.report, 'utf8') });
     if (req.specs) files.push({ name: 'especificacoes-tecnicas.txt', data: Buffer.from('﻿' + req.specs, 'utf8') });
     if (opts.includeProject) files.push({ name: `${base}.livro`, data: Buffer.from(JSON.stringify(normalizeProject(project))) });

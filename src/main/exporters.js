@@ -199,6 +199,45 @@ async function exportOdt(doc, assets, page) {
 }
 
 // ---------------------------------------------------------------- EPUB 3
+// Papéis MARC dos créditos (leitores e lojas mostram “tradução de…”, “ilustrações de…”)
+const MARC = [[/tradu/i, 'trl'], [/ilustra/i, 'ill'], [/edi[çc][ãa]o|editor/i, 'edt'], [/revis/i, 'pfr'], [/diagrama|projeto gr[áa]fico/i, 'bkd'], [/capa/i, 'cov'], [/organiza/i, 'edt'], [/pref[áa]cio/i, 'aui'], [/fotograf/i, 'pht']];
+const marcOf = role => (MARC.find(([re]) => re.test(role || '')) || [null, 'ctb'])[1];
+
+// Metadados completos da obra (EPUB 3 + compatibilidade EPUB 2/Kindle)
+function opfMetadata(epub, uid, hasCover) {
+  const m = epub.meta || {};
+  const x = epub.extra || {};
+  const L = [];
+  L.push(`<dc:identifier id="bookid">${xmlEsc(uid)}</dc:identifier>`);
+  if (m.isbn) L.push(`<meta refines="#bookid" property="identifier-type" scheme="onix:codelist5">15</meta>`);
+  L.push(`<dc:title id="t1">${xmlEsc(m.title || 'Sem título')}</dc:title>`, `<meta refines="#t1" property="title-type">main</meta>`, `<meta refines="#t1" property="display-seq">1</meta>`);
+  if (m.subtitle) L.push(`<dc:title id="t2">${xmlEsc(m.subtitle)}</dc:title>`, `<meta refines="#t2" property="title-type">subtitle</meta>`, `<meta refines="#t2" property="display-seq">2</meta>`);
+  (m.author ? String(m.author).split(/\s*;\s*/)  /* vários autores: separe com ponto e vírgula (nomes como “Sousa e Silva” ficam inteiros) */.filter(Boolean) : []).forEach((a, i) => {
+    L.push(`<dc:creator id="aut${i}">${xmlEsc(a)}</dc:creator>`, `<meta refines="#aut${i}" property="role" scheme="marc:relators">aut</meta>`);
+    const fa = i === 0 && x.fileAs ? x.fileAs : (/\s/.test(a) ? a.replace(/^(.*)\s(\S+)$/, '$2, $1') : a);
+    L.push(`<meta refines="#aut${i}" property="file-as">${xmlEsc(fa)}</meta>`);
+  });
+  (x.contributors || []).forEach((c, i) => { if (!c.name) return; L.push(`<dc:contributor id="ctb${i}">${xmlEsc(c.name)}</dc:contributor>`, `<meta refines="#ctb${i}" property="role" scheme="marc:relators">${marcOf(c.role)}</meta>`); });
+  L.push(`<dc:language>${xmlEsc(m.language || 'pt-BR')}</dc:language>`);
+  if (m.publisher) L.push(`<dc:publisher>${xmlEsc(m.publisher)}</dc:publisher>`);
+  const year = String(m.year || '').match(/\d{4}/);
+  if (year) L.push(`<dc:date>${year[0]}</dc:date>`);
+  if (m.description) L.push(`<dc:description>${xmlEsc(m.description)}</dc:description>`);
+  (x.subjects || []).forEach(sj => L.push(`<dc:subject>${xmlEsc(sj)}</dc:subject>`));
+  if (x.rights) L.push(`<dc:rights>${xmlEsc(x.rights)}</dc:rights>`);
+  if (x.series) L.push(`<meta property="belongs-to-collection" id="series">${xmlEsc(x.series)}</meta>`, `<meta refines="#series" property="collection-type">series</meta>`, `<meta name="calibre:series" content="${xmlEsc(x.series)}"/>`);
+  if (m.edition) L.push(`<meta property="schema:bookEdition">${xmlEsc(m.edition)}</meta>`);
+  if (m.isbn) L.push(`<meta property="schema:isbn">${xmlEsc(String(m.isbn).replace(/[^0-9Xx]/g, ''))}</meta>`);
+  // acessibilidade (exigida por várias lojas e bibliotecas digitais)
+  L.push('<meta property="schema:accessMode">textual</meta>', '<meta property="schema:accessModeSufficient">textual</meta>',
+    '<meta property="schema:accessibilityFeature">tableOfContents</meta>', '<meta property="schema:accessibilityFeature">readingOrder</meta>',
+    '<meta property="schema:accessibilityFeature">structuralNavigation</meta>', '<meta property="schema:accessibilityHazard">none</meta>',
+    '<meta property="schema:accessibilitySummary">Livro com sumário navegável, ordem de leitura e títulos estruturados.</meta>');
+  L.push(`<meta property="dcterms:modified">${new Date().toISOString().replace(/\.\d+Z$/, 'Z')}</meta>`);
+  if (hasCover) L.push('<meta name="cover" content="cover-img"/>');
+  return L.join('\n');
+}
+
 async function exportEpub(epub, assets) {
   const JSZip = require('jszip');
   const zip = new JSZip();
@@ -209,23 +248,24 @@ async function exportEpub(epub, assets) {
   const manifest = [];
   const spine = [];
   const usedImages = new Set();
-  const page = (title, body, extraHead) => `<?xml version="1.0" encoding="UTF-8"?>
+  const lang = xmlEsc(m.language || 'pt-BR');
+  const page = (title, body, extraHead, bodyAttrs) => `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="${xmlEsc(m.language || 'pt-BR')}" lang="${xmlEsc(m.language || 'pt-BR')}">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="${lang}" lang="${lang}">
 <head><meta charset="utf-8"/><title>${xmlEsc(title)}</title><link rel="stylesheet" type="text/css" href="style.css"/>${extraHead || ''}</head>
-<body>${body}</body></html>`;
-
+<body${bodyAttrs || ''}>${body}</body></html>`;
   const fixImages = html => html.replace(/data-asset="([^"]+)"/g, (mm, id) => { usedImages.add(id); return mm; });
 
-  if (epub.cover) {
-    const bin = dataUrlToBuffer(epub.cover);
-    if (bin) {
-      zip.file(`OEBPS/images/cover.${EXT[bin.mime] || 'jpg'}`, bin.buf);
-      manifest.push(`<item id="cover-img" href="images/cover.${EXT[bin.mime] || 'jpg'}" media-type="${bin.mime}" properties="cover-image"/>`);
-      zip.file('OEBPS/cover.xhtml', page('Capa', `<section epub:type="cover" class="cover"><img src="images/cover.${EXT[bin.mime] || 'jpg'}" alt="Capa"/></section>`));
-      manifest.push('<item id="cover" href="cover.xhtml" media-type="application/xhtml+xml"/>');
-      spine.push('<itemref idref="cover" linear="yes"/>');
-    }
+  // Capa: imagem da capa da obra (vira a capa nos aplicativos de leitura e na Amazon) e primeira página,
+  // em página inteira sem margens (SVG ajustado à tela, sem distorcer)
+  const cv = epub.coverJpeg;
+  if (cv && cv.buf) {
+    zip.file('OEBPS/images/cover.jpg', cv.buf);
+    manifest.push('<item id="cover-img" href="images/cover.jpg" media-type="image/jpeg" properties="cover-image"/>');
+    zip.file('OEBPS/cover.xhtml', page('Capa', `<div class="cover-page" epub:type="cover" role="doc-cover"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="100%" height="100%" viewBox="0 0 ${cv.w} ${cv.h}" preserveAspectRatio="xMidYMid meet"><image width="${cv.w}" height="${cv.h}" xlink:href="images/cover.jpg"><title>${xmlEsc(m.title)} — capa</title></image></svg></div>`,
+      '<style>html, body { margin: 0; padding: 0; height: 100%; } .cover-page { margin: 0; padding: 0; height: 100%; text-align: center; page-break-after: always; } svg { display: block; }</style>', ' class="cover-body"'));
+    manifest.push('<item id="cover" href="cover.xhtml" media-type="application/xhtml+xml" properties="svg"/>');
+    spine.push('<itemref idref="cover" linear="yes"/>');
   }
   zip.file('OEBPS/title.xhtml', page(m.title, `<section epub:type="titlepage" class="titlepage"><p class="tp-author">${xmlEsc(m.author)}</p><h1 class="tp-title">${xmlEsc(m.title)}</h1>${m.subtitle ? `<p class="tp-sub">${xmlEsc(m.subtitle)}</p>` : ''}${m.publisher ? `<p class="tp-pub">${xmlEsc(m.publisher)}</p>` : ''}</section>`));
   manifest.push('<item id="title" href="title.xhtml" media-type="application/xhtml+xml"/>');
@@ -235,6 +275,8 @@ async function exportEpub(epub, assets) {
     manifest.push('<item id="copyright" href="copyright.xhtml" media-type="application/xhtml+xml"/>');
     spine.push('<itemref idref="copyright"/>');
   }
+  // sumário também como página do livro (depois dos créditos), como no impresso
+  spine.push('<itemref idref="nav"/>');
   epub.docs.forEach((d, i) => {
     const file = `chap${String(i + 1).padStart(3, '0')}.xhtml`;
     zip.file(`OEBPS/${file}`, page(d.title, fixImages(d.xhtml)));
@@ -262,27 +304,28 @@ async function exportEpub(epub, assets) {
     });
     zip.file(`OEBPS/${d.file}`, s);
   }
-  const nav = page('Sumário', `<nav epub:type="toc" id="toc"><h1>${xmlEsc(epub.tocTitle || 'Sumário')}</h1><ol>${epub.docs.map(d => `<li><a href="${d.file}">${xmlEsc(d.tocLabel || d.title)}</a></li>`).join('')}</ol></nav>`);
+  const first = epub.docs[0] && epub.docs[0].file;
+  const landmarks = `<nav epub:type="landmarks" id="landmarks" hidden="hidden"><h2>Guia</h2><ol>${cv ? '<li><a epub:type="cover" href="cover.xhtml">Capa</a></li>' : ''}<li><a epub:type="toc" href="nav.xhtml">${xmlEsc(epub.tocTitle || 'Sumário')}</a></li>${first ? `<li><a epub:type="bodymatter" href="${first}">Início da leitura</a></li>` : ''}</ol></nav>`;
+  const nav = page('Sumário', `<nav epub:type="toc" id="toc" role="doc-toc"><h1>${xmlEsc(epub.tocTitle || 'Sumário')}</h1><ol>${epub.docs.map(d => `<li><a href="${d.file}">${xmlEsc(d.tocLabel || d.title)}</a></li>`).join('')}</ol></nav>${landmarks}`);
   zip.file('OEBPS/nav.xhtml', nav);
   manifest.push('<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>');
+  // NCX: sumário para leitores EPUB 2 e Kindle antigos
+  const ncx = `<?xml version="1.0" encoding="UTF-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1" xml:lang="${lang}"><head><meta name="dtb:uid" content="${xmlEsc(uid)}"/><meta name="dtb:depth" content="1"/><meta name="dtb:totalPageCount" content="0"/><meta name="dtb:maxPageNumber" content="0"/></head>
+<docTitle><text>${xmlEsc(m.title)}</text></docTitle><docAuthor><text>${xmlEsc(m.author)}</text></docAuthor>
+<navMap>${epub.docs.map((d, i) => `<navPoint id="np${i + 1}" playOrder="${i + 1}"><navLabel><text>${xmlEsc(d.tocLabel || d.title)}</text></navLabel><content src="${d.file}"/></navPoint>`).join('')}</navMap></ncx>`;
+  zip.file('OEBPS/toc.ncx', ncx);
+  manifest.push('<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>');
   zip.file('OEBPS/style.css', epub.css);
   manifest.push('<item id="css" href="style.css" media-type="text/css"/>');
-  const now = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   zip.file('OEBPS/content.opf', `<?xml version="1.0" encoding="UTF-8"?>
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="${xmlEsc(m.language || 'pt-BR')}">
-<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-<dc:identifier id="bookid">${xmlEsc(uid)}</dc:identifier>
-<dc:title>${xmlEsc(m.title)}</dc:title>
-<dc:creator>${xmlEsc(m.author)}</dc:creator>
-<dc:language>${xmlEsc(m.language || 'pt-BR')}</dc:language>
-${m.publisher ? `<dc:publisher>${xmlEsc(m.publisher)}</dc:publisher>` : ''}
-${m.description ? `<dc:description>${xmlEsc(m.description)}</dc:description>` : ''}
-${m.year ? `<dc:date>${xmlEsc(m.year)}</dc:date>` : ''}
-<meta property="dcterms:modified">${now}</meta>
-${epub.cover ? '<meta name="cover" content="cover-img"/>' : ''}
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="${lang}" prefix="schema: http://schema.org/ onix: http://www.editeur.org/ONIX/book/codelists/current.html#">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
+${opfMetadata(epub, uid, !!(cv && cv.buf))}
 </metadata>
 <manifest>${manifest.join('\n')}</manifest>
-<spine>${spine.join('\n')}</spine>
+<spine toc="ncx">${spine.join('\n')}</spine>
+<guide>${cv ? '<reference type="cover" title="Capa" href="cover.xhtml"/>' : ''}<reference type="toc" title="${xmlEsc(epub.tocTitle || 'Sumário')}" href="nav.xhtml"/>${first ? `<reference type="text" title="Início" href="${first}"/>` : ''}</guide>
 </package>`);
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', mimeType: 'application/epub+zip' });
 }

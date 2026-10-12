@@ -212,12 +212,22 @@ aside p { text-indent: 0; }
       m.isbn ? `<p>ISBN ${esc(m.isbn)}</p>` : '',
       m.edition ? `<p>${esc(m.edition)}</p>` : ''
     ].join('');
-    let cover = null;
-    if (opts && opts.includeCover && project.cover) {
+    // capa: a imagem escolhida para o livro digital ou, se pedido, a frente montada no módulo Capa
+    let cover = (opts && opts.coverDataUrl) || null;
+    if (!cover && opts && opts.includeCover && project.cover) {
       const r = await App.api.exportRun({ kind: 'coverFront', project });
       if (r && r.dataUrl) cover = r.dataUrl;
     }
-    return { meta: m, docs, css: epubCss(s), copyright, cover, tocTitle: project.front.tocTitle };
+    // metadados completos: assuntos, colaboradores, série, direitos e autor na forma de catálogo
+    const roles = { translator: 'Tradução', illustrator: 'Ilustrações' };
+    const contributors = Object.entries(roles).filter(([k]) => cat[k]).map(([k, role]) => ({ name: cat[k], role }))
+      .concat((cat.credits || []).filter(c => c && c.name && c.name.trim()).map(c => ({ name: c.name.trim(), role: c.role || 'Colaboração' })));
+    const extra = {
+      subjects: String(cat.subjects || '').split(/[\n;]+/).map(x => x.trim()).filter(Boolean),
+      contributors, series: cat.series || '', fileAs: cat.authorEntry ? cat.authorEntry.replace(/,?\s*\d{4}-?\s*$/, '').trim() : '',
+      rights: (cat.rights || `© ${m.year || ''} ${m.author || ''}. Todos os direitos reservados.`).replace(/\s+/g, ' ').trim()
+    };
+    return { meta: m, extra, docs, css: epubCss(s), copyright, cover, tocTitle: project.front.tocTitle };
   }
 
   App.exportPrep = { buildDoc, buildEpub, blocksOf };

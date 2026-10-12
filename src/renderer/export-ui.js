@@ -11,11 +11,12 @@
     { id: 'pod', name: 'Impressão sob demanda (Clube de Autores, UICLAP…)', kind: 'pdf', purpose: 'print', bleed: null, color: 'rgb', cropMarks: false, spreads: false, minDpi: 300, errDpi: 150, notes: 'PDF com a sangria padrão do livro, sem marcas de corte. Confira as exigências atuais da plataforma.' },
     { id: 'digital', name: 'PDF para leitura digital', kind: 'pdf', purpose: 'digital', bleed: 0, cropMarks: false, spreads: false, outline: true, minDpi: 150, errDpi: 96, notes: 'Sem sangria, com marcadores (sumário navegável no leitor de PDF).' },
     { id: 'prova', name: 'Prova editorial (páginas duplas)', kind: 'pdf', purpose: 'digital', bleed: 0, cropMarks: false, spreads: true, outline: true, minDpi: 150, errDpi: 96, notes: 'Páginas lado a lado, como o livro aberto, para revisão. Não é imposição de cadernos.' },
-    { id: 'epub', name: 'EPUB para leitura digital', kind: 'epub', includeCover: true, minDpi: 72, errDpi: 0, notes: 'EPUB 3 com sumário navegável, metadados, imagens e notas.' },
+    { id: 'epub', name: 'EPUB para leitura digital (Amazon KDP, Apple, Google, Kobo)', kind: 'epub', includeCover: true, minDpi: 72, errDpi: 0, notes: 'EPUB 3 com a capa como abertura em página inteira (e capa nos aplicativos de leitura), sumário navegável, todos os metadados da obra (ISBN, autor, colaboradores, editora, data, idioma, assuntos, série, direitos), imagens e notas. É o formato que a Amazon KDP recebe.' },
+    { id: 'mobi', name: 'MOBI para Kindle', kind: 'mobi', includeCover: true, minDpi: 72, errDpi: 0, notes: 'MOBI com a capa marcada para a biblioteca do Kindle, sumário com links, metadados e imagens. Para publicar na Amazon KDP use o EPUB; o MOBI serve para Kindles e aplicativos que leem MOBI.' },
     { id: 'imagens', name: 'Imagens das páginas (PNG 300 dpi)', kind: 'png', dpi: 300, minDpi: 300, errDpi: 150, imageBleed: true },
     { id: 'word', name: 'Documento editável (DOCX)', kind: 'docx' }
   ];
-  const KINDS = [['pdf', 'PDF'], ['epub', 'EPUB 3'], ['png', 'PNG'], ['jpeg', 'JPEG'], ['tiff', 'TIFF'], ['docx', 'DOCX (Word)'], ['odt', 'ODT (LibreOffice)'], ['txt', 'TXT'], ['package', 'Pacote de produção (ZIP)']];
+  const KINDS = [['pdf', 'PDF'], ['epub', 'EPUB 3'], ['mobi', 'MOBI (Kindle)'], ['png', 'PNG'], ['jpeg', 'JPEG'], ['tiff', 'TIFF'], ['docx', 'DOCX (Word)'], ['odt', 'ODT (LibreOffice)'], ['txt', 'TXT'], ['package', 'Pacote de produção (ZIP)']];
 
   const state = { profiles: null, current: null, opts: null, report: null, rangeMode: 'all', range: '', running: false };
 
@@ -125,6 +126,48 @@
     issues.push({ level: 'info', type: 'cedet', msg: 'Saída CEDET: sGray sem perfis incorporados, só tinta preta (as separações são conferidas na exportação), sangria de 5 mm, marcas de corte de 0,25 pt a 5 mm do corte, páginas individuais.' });
   }
 
+  // ---------------------------------------------------------------- capa do livro digital (EPUB/MOBI)
+  const ebook = () => { const p = App.project; p.ebook = p.ebook || { coverAsset: null }; return p.ebook; };
+  async function chooseEbookCover() {
+    const l = await api.pickImages({ title: 'Imagem da capa do livro digital (JPEG ou PNG — ideal 1600 × 2560 px)' });
+    if (!l || !l.length) return null;
+    const id = await App.addAsset(l[0]);
+    ebook().coverAsset = id;
+    App.changed('Capa do livro digital', { preview: false });
+    return id;
+  }
+  function ebookCoverCard() {
+    const e = ebook();
+    const a = e.coverAsset && App.project.assets[e.coverAsset];
+    const w = a && a.width, h = a && a.height;
+    const ratio = w && h ? h / w : 0;
+    const warn = a ? (Math.max(w, h) < 1000 ? '⚠ Imagem pequena: use pelo menos 1000 px no lado maior (ideal 2560 px).' : Math.abs(ratio - 1.6) > 0.25 ? `Proporção ${App.fmtNum(ratio, 2)}:1 — a Amazon recomenda 1,6:1 (ex.: 1600 × 2560 px); a imagem não é distorcida.` : '✓ Tamanho e proporção adequados.') : '';
+    return el('div', { class: 'field wide ebook-cover' }, [
+      el('span', { class: 'flabel', text: 'Capa do livro digital (abre o livro em página inteira e é a capa nas lojas e aplicativos)' }),
+      el('div', { class: 'inline wrap' }, [
+        a ? el('img', { class: 'ebook-thumb', src: App.assetUrl(e.coverAsset) }) : el('span', { class: 'muted small', text: 'Nenhuma imagem escolhida.' }),
+        el('button', { text: a ? 'Trocar imagem…' : 'Escolher imagem da capa…', onclick: async () => { if (await chooseEbookCover()) render(); } }),
+        App.project.cover ? el('button', { text: 'Usar a frente do módulo Capa', onclick: async () => { const r = await api.exportRun({ kind: 'coverFront', project: App.serialize() }); if (r && r.dataUrl) { e.coverAsset = await App.addAsset({ dataUrl: r.dataUrl, name: 'Capa do livro digital', width: 1600, height: 2400 }); App.changed('Capa do livro digital', { preview: false }); render(); } } }) : null,
+        a ? el('button', { class: 'ghost', text: '✕', title: 'Remover', onclick: () => { e.coverAsset = null; App.changed('Capa do livro digital removida', { preview: false }); render(); } }) : null
+      ]),
+      a ? el('span', { class: 'hint', text: `${w} × ${h} px. ${warn}` }) : el('span', { class: 'hint', text: 'Ideal: JPEG ou PNG de 1600 × 2560 px (proporção 1,6:1), RGB. A imagem é convertida para JPEG RGB sem transparência.' })
+    ]);
+  }
+  // pede a capa se ainda não houver: devolve dataUrl, '' (sem capa) ou false (cancelar)
+  async function ebookCoverFor(o) {
+    const e = ebook();
+    if (!(e.coverAsset && App.project.assets[e.coverAsset])) {
+      const opts = ['Escolher imagem da capa…'].concat(App.project.cover ? ['Usar a frente do módulo Capa'] : [], ['Exportar sem capa', 'Cancelar']);
+      const b = await api.confirm('O livro digital precisa de uma capa', 'A imagem da capa abre o livro em página inteira e é a capa mostrada na Amazon, na biblioteca do Kindle e nos aplicativos de leitura. Ideal: 1600 × 2560 px.', opts);
+      const pick = opts[b];
+      if (pick === 'Escolher imagem…' || pick === 'Escolher imagem da capa…') { if (!(await chooseEbookCover())) return false; }
+      else if (pick === 'Usar a frente do módulo Capa') { const r = await api.exportRun({ kind: 'coverFront', project: App.serialize() }); if (!r || !r.dataUrl) return false; e.coverAsset = await App.addAsset({ dataUrl: r.dataUrl, name: 'Capa do livro digital', width: 1600, height: 2400 }); }
+      else if (pick === 'Exportar sem capa') return '';
+      else return false;
+    }
+    return App.project.assets[e.coverAsset].dataUrl;
+  }
+
   function cedetFileName(part) {
     const p = App.project;
     const r = window.Isbn ? window.Isbn.parse(p.meta.isbn) : null;
@@ -196,7 +239,11 @@
     try {
       const proj = projectForExport();
       const req = { kind: o.kind, project: proj, opts: { spreads: !!o.spreads, outline: !!o.outline, tagged: o.purpose === 'digital', dpi: o.dpi || 300, quality: o.quality || 92, bleed: !!o.imageBleed, color: o.purpose === 'digital' ? 'rgb' : (o.color || 'rgb'), colorProfile: o.colorProfile || 'fogra39', range: rangeSpec(), noProfile: !!o.noProfile && o.color === 'gray', fileBase: o.cedet && (o.kind === 'pdf' || o.kind === 'package') ? cedetFileName('MIOLO') : '', cedet: !!o.cedet, includeCover: !!o.includeCover, includeEpub: !!o.includeEpub, includeProject: !!o.includeProject, suffix: o.purpose === 'digital' ? '-digital' : '' } };
-      if (o.kind === 'epub' || (o.kind === 'package' && o.includeEpub)) req.epub = await App.exportPrep.buildEpub(proj, { includeCover: o.includeCover !== false });
+      if (o.kind === 'epub' || o.kind === 'mobi' || (o.kind === 'package' && o.includeEpub)) {
+        const coverDataUrl = await ebookCoverFor(o);
+        if (coverDataUrl === false) { state.running = false; $('#toast').classList.remove('show'); return; }
+        req.epub = await App.exportPrep.buildEpub(proj, { includeCover: false, coverDataUrl: coverDataUrl || null });
+      }
       if (['docx', 'odt', 'txt'].includes(o.kind)) req.doc = App.exportPrep.buildDoc(proj);
       if (o.kind === 'package') { req.report = reportText() || (await preflight(), reportText()); req.specs = specsText(proj); }
       const r = await api.exportRun(req);
@@ -349,7 +396,8 @@
         isImg ? num('dpi', 'Resolução (dpi)', 1) : null,
         o.kind === 'jpeg' ? num('quality', 'Qualidade JPEG (30–100)', 1) : null,
         isImg ? chk('imageBleed', 'Incluir área de sangria (recomendado para impressão)') : null,
-        o.kind === 'epub' || o.kind === 'package' ? chk('includeCover', 'Incluir capa') : null,
+        o.kind === 'package' ? chk('includeCover', 'Incluir capa') : null,
+        o.kind === 'epub' || o.kind === 'mobi' || (o.kind === 'package' && o.includeEpub) ? ebookCoverCard() : null,
         o.kind === 'package' ? chk('includeEpub', 'Incluir EPUB') : null,
         o.kind === 'package' ? chk('includeProject', 'Incluir o arquivo .livro') : null,
         num('minDpi', 'Resolução mínima recomendada (dpi)'),

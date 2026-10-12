@@ -529,6 +529,7 @@
       assets: {},
       overlays: [],
       cover: null,
+      ebook: { coverAsset: null },
       settings
     };
   }
@@ -623,6 +624,8 @@
       // cores de páginas isoladas: { "<nº da página>": { bg, color } }
       pageStyles: p.pageStyles && typeof p.pageStyles === 'object' ? p.pageStyles : {},
       cover: p.cover || null,
+      // livro digital (EPUB/MOBI): imagem da capa escolhida para as lojas e aplicativos de leitura
+      ebook: Object.assign({ coverAsset: null }, p.ebook || {}),
       fontSubstitutions: Array.isArray(p.fontSubstitutions) ? p.fontSubstitutions : [],
       exportLog: Array.isArray(p.exportLog) ? p.exportLog : [],
       settings
