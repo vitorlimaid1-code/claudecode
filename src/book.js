@@ -193,7 +193,43 @@ function figureHtml(attrs, inner, ctx) {
   const frame = `<div class="fig-frame" style="aspect-ratio: ${A.toFixed(5)}; opacity: ${opacity};${wrap === 'behind' ? ' position:absolute; left:0; right:0; top:0; z-index:-1;' : ''}">${imgHtml}</div>`;
   const printW = colW * width / 100;
   ctx.figures.push({ asset: id, widthMM: printW });
-  return `<figure class="fig fig-${wrap}${align === 'full' ? ' fig-full' : ''}" data-asset="${esc(id)}" data-print-width="${printW.toFixed(2)}" data-px-width="${Math.round(iw * cw)}" style="${figStyle.join('; ')}">${frame}${caption && wrap !== 'behind' ? `<figcaption>${caption}</figcaption>` : ''}</figure>`;
+  // numeração automática (Figura N / Gráfico N) e entrada nas listas, para figuras com legenda
+  let capHtml = caption, figId = '';
+  if (caption && wrap !== 'behind' && ctx.numbering) {
+    const kind = asset.chart ? 'graf' : 'fig';
+    const n = ++ctx.counters[kind];
+    figId = `${kind}-${n}`;
+    const label = `${kind === 'graf' ? 'Gráfico' : 'Figura'} ${n}`;
+    ctx.lists[kind].push({ id: figId, label, title: caption.replace(/<[^>]+>/g, '').trim() });
+    capHtml = `<span class="cap-num">${label}</span> – ${caption}`;
+  }
+  return `<figure${figId ? ` id="${figId}"` : ''} class="fig fig-${wrap}${align === 'full' ? ' fig-full' : ''}${asset.chart ? ' fig-chart' : ''}" data-asset="${esc(id)}" data-print-width="${printW.toFixed(2)}" data-px-width="${Math.round(iw * cw)}" style="${figStyle.join('; ')}">${frame}${capHtml && wrap !== 'behind' ? `<figcaption>${capHtml}</figcaption>` : ''}</figure>`;
+}
+
+// Tabelas com título (legenda): Tabela N – título, com âncora para a lista de tabelas
+function numberTables(html, ctx) {
+  if (!ctx.numbering) return html;
+  return String(html).replace(/<table\b([^>]*)>(\s*)<caption\b([^>]*)>([\s\S]*?)<\/caption>/gi, (m, attrs, sp, cattrs, cap) => {
+    const text = cap.replace(/<[^>]+>/g, '').trim();
+    if (!text) return m;
+    const n = ++ctx.counters.tab;
+    const id = `tab-${n}`;
+    ctx.lists.tab.push({ id, label: `Tabela ${n}`, title: text });
+    return `<table${/\sid="/.test(attrs) ? attrs : ` id="${id}"${attrs}`}>${sp}<caption${cattrs}><span class="cap-num">Tabela ${n}</span> – ${cap}</caption>`;
+  });
+}
+
+// Listas de figuras, gráficos e tabelas (mesma aparência e numeração de páginas do sumário)
+function listsHtml(project, ctx) {
+  const f = project.front || {};
+  const out = [];
+  [['listFigures', 'fig', 'Lista de figuras', 'lista-figuras'], ['listCharts', 'graf', 'Lista de gráficos', 'lista-graficos'], ['listTables', 'tab', 'Lista de tabelas', 'lista-tabelas']].forEach(([key, kind, title, id]) => {
+    const items = ctx.lists[kind];
+    if (!f[key] || !items.length) return;
+    const li = items.map(it => `<li class="toc-l1"><a href="#${esc(it.id)}"><span class="toc-label">${esc(it.label)}</span><span class="toc-title">${esc(it.title)}</span><span class="toc-dots"></span><span class="toc-page"></span></a></li>`).join('');
+    out.push(`<section class="front toc list-of" id="${id}"><h2 class="toc-heading">${esc(f[key + 'Title'] || title)}</h2><ul class="toc-list">${li}</ul></section>`);
+  });
+  return out;
 }
 
 function fullBleedHtml(assetId, fit, ctx, extraClass) {
@@ -413,7 +449,7 @@ function buildHtml(project, ctx) {
     const hasOpening = !!(c.openingImage && c.openingImage.asset && ctx.assets[c.openingImage.asset]);
     if (hasOpening) parts.push(fullBleedHtml(c.openingImage.asset, c.openingImage.fit, ctx));
     const heads = [];
-    let body = processBody(anchorHeadings(c.html, c.id, heads), ctx);
+    let body = numberTables(processBody(anchorHeadings(c.html, c.id, heads), ctx), ctx);
     heads.forEach(h => tocItems.push({ id: h.id, label: '', title: h.title, level: h.level }));
     if (hyph) { try { body = hyph(body); } catch (e) { /* sem hifenização */ } }
     const segments = splitFullBleed(body);
@@ -459,6 +495,9 @@ function buildHtml(project, ctx) {
   }
 
   ctx.tocItems = tocItems;
+  // listas de figuras/gráficos/tabelas logo depois do sumário
+  const lists = listsHtml(project, ctx);
+  if (lists.length) parts.splice(tocIndex, 0, ...lists);
   if (front.toc) {
     const toc = tocHtml(project, tocItems);
     if (toc) parts.splice(tocIndex, 0, toc);
@@ -681,7 +720,13 @@ ${s.keepHeadingsWithNext ? '.chapter-body h2, .chapter-body h3, .chapter-body h4
 .chapter-body hr:not(.scene-break) { border: 0; border-top: 0.5pt solid currentColor; width: 30%; margin: 1em auto; }
 .chapter-body .page-break { break-after: page; height: 0; }
 .chapter-body table { width: 100%; border-collapse: collapse; margin: 1em 0; ${styleDecl(Object.assign({}, S.table, { background: undefined }), body, { noSpace: true })} }
-.chapter-body table caption { caption-side: bottom; ${styleDecl(S.caption, body)} padding-top: 1.5mm; }
+.chapter-body table caption { caption-side: top; ${styleDecl(S.caption, body)} padding-bottom: 1.5mm; }
+.chapter-body .cap-num { font-weight: 700; font-style: normal; }
+.chapter-body table.tb-zebra tr:nth-child(even) td { background: rgba(0,0,0,0.06); }
+.chapter-body table.tb-compact td, .chapter-body table.tb-compact th { padding: 0.6mm 1.2mm; }
+.chapter-body td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.chapter-body p.table-source { text-indent: 0; font-size: 0.82em; margin-top: -0.6em; margin-bottom: 1em; text-align: left; }
+.chapter-body figure + p.table-source { margin-top: 0; }
 .chapter-body th, .chapter-body td { border: 0.5pt solid ${color(S.table.borderColor, '#555')}; padding: 1.2mm 2mm; text-align: left; vertical-align: top; text-indent: 0; hyphens: manual; }
 .chapter-body th { background: ${color(S.table.background, '#eee')}; font-weight: 700; }
 .chapter-body tr { break-inside: avoid; }
@@ -769,7 +814,8 @@ async function buildBook(rawProject) {
   const contentH = num(s.pageHeight, 210) - num(s.marginTop, 20) - num(s.marginBottom, 22);
   const colW = num(s.pageWidth, 140) - num(s.marginInner, 22) - num(s.marginOuter, 16);
   const bleed = effectiveBleed(s);
-  const ctx = { assets: project.assets || {}, settings: s, contentH, colW, bleed, missing: [], figures: [], qrImages: [] };
+  const ctx = { assets: project.assets || {}, settings: s, contentH, colW, bleed, missing: [], figures: [], qrImages: [],
+    numbering: s.captionNumbering !== false, counters: { fig: 0, graf: 0, tab: 0 }, lists: { fig: [], graf: [], tab: [] } };
 
   // QR codes da ficha catalográfica (gerados localmente)
   const qrs = (project.catalog.qrcodes || []).filter(q => q && q.text);

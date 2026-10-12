@@ -776,6 +776,14 @@ ipcMain.handle('barcode:save', async (e, { isbn, opts, format }) => {
   }
   return { file, isbn13: lay.isbn13 };
 });
+// QR code para inserir no texto (PNG em alta resolução, preto puro)
+ipcMain.handle('qr:dataUrl', async (e, text) => { try { return await require('qrcode').toDataURL(String(text || ''), { margin: 1, width: 1000, errorCorrectionLevel: 'M' }); } catch (err) { return null; } });
+// Planilha (CSV, TSV, XLSX, ODS) para virar tabela ou gráfico no livro
+ipcMain.handle('sheet:import', async () => {
+  const res = await dialog.showOpenDialog(mainWindow, { title: 'Importar planilha', filters: [{ name: 'Planilhas', extensions: ['xlsx', 'xlsm', 'ods', 'csv', 'tsv', 'txt'] }], properties: ['openFile'] });
+  if (res.canceled || !res.filePaths.length) return null;
+  try { return await require('./main/sheets').readSheet(res.filePaths[0]); } catch (e) { return { error: e.message }; }
+});
 // Perfil ICC CMYK escolhido pelo usuário para a capa (ex.: U.S. Web Coated (SWOP) v2 pedido pelo Cedet)
 ipcMain.handle('cover:pickIcc', async () => {
   const res = await dialog.showOpenDialog(mainWindow, { title: 'Escolha o perfil ICC CMYK (ex.: USWebCoatedSWOP.icc)', filters: [{ name: 'Perfil ICC', extensions: ['icc', 'icm'] }], properties: ['openFile'] });

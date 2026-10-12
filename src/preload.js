@@ -59,6 +59,8 @@ contextBridge.exposeInMainWorld('api', {
   saveText: (name, text) => inv('dialog:saveText', { name, text }),
   barcodeSave: (isbn, opts, format) => inv('barcode:save', { isbn, opts, format }),
   coverPickIcc: () => inv('cover:pickIcc'),
+  sheetImport: () => inv('sheet:import'),
+  qrDataUrl: text => inv('qr:dataUrl', text),
   formatsGet: () => inv('formats:get'),
   formatsSet: data => inv('formats:set', data),
   systemCustomizations: () => inv('system:customizations'),

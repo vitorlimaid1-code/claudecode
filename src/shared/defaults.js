@@ -344,6 +344,8 @@
     separatorWidth: 30,
     separatorColor: '#000000',
 
+    // legendas numeradas: Figura N, Gráfico N, Tabela N (com listas opcionais nas páginas iniciais)
+    captionNumbering: true,
     footnotesVisible: true,
     footnoteNumbering: 'book',
 
@@ -516,7 +518,7 @@
         dedication: 'Para quem sempre acreditou nesta história.', epigraph: '', epigraphAuthor: '',
         language: 'pt-BR', description: ''
       },
-      front: { halfTitle: false, titlePage: true, copyright: true, toc: true, tocTitle: 'Sumário', tocMode: 'auto', tocLevels: 1, tocEntries: [], dedication: false, epigraph: false },
+      front: { halfTitle: false, titlePage: true, copyright: true, toc: true, tocTitle: 'Sumário', tocMode: 'auto', tocLevels: 1, tocEntries: [], dedication: false, epigraph: false, listFigures: false, listCharts: false, listTables: false },
       titlePage: { logo: null, logoWidth: 25, showPublisher: true, showYear: true },
       catalog: Object.assign(emptyCatalog(), isCedet(settings) ? { distribution: CEDET.distribution } : {}),
       back: {
@@ -583,6 +585,7 @@
       if (ps.numberFromFirstChapter === undefined) ps.numberFromFirstChapter = true;
       if (ps.outputSheet === undefined) ps.outputSheet = { mode: 'trim', w: 210, h: 297, marks: true };
       if (ps.safety === undefined) ps.safety = 5;
+      if (ps.captionNumbering === undefined) ps.captionNumbering = false;
     }
     mergeSettings(settings, ps);
     const chapters = Array.isArray(p.chapters)

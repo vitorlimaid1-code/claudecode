@@ -274,7 +274,7 @@
         }),
         btn('Substituir…', () => replaceImage(fig, false), 'Troca só esta imagem, mantendo tamanho, posição, recorte e contorno'),
         btn('Substituir em todo o livro…', () => replaceImage(fig, true), 'Troca todas as ocorrências desta imagem'),
-        a && a.chart ? btn('Editar gráfico…', () => App.editor.chartDialog(fig)) : null,
+        a && a.chart ? btn('Editar gráfico…', () => App.elements.chartDialog(fig).then(r => { if (r === 'updated') { onInput(); App.changed('Gráfico atualizado'); } })) : null,
         btn('Restaurar padrão', () => { ['data-rot', 'data-flipx', 'data-flipy', 'data-crop', 'data-ratio', 'data-opacity'].forEach(k => fig.removeAttribute(k)); figDefaults(fig); styleFigure(fig); onInput(); App.commit('Restaurar imagem'); renderPanel(); }),
         btn('Mover para capítulo…', () => moveFigureDialog(fig)),
         btn('Excluir imagem', () => { fig.remove(); selectFigure(null); onInput(); App.commit('Exclusão de imagem'); }, '', 'danger')
@@ -796,6 +796,7 @@
   function dragKind(dt) {
     const types = Array.from(dt.types || []);
     if (types.includes('application/x-dl-figure')) return 'figure';
+    if (types.includes('application/x-dl-element')) return 'element';
     if (types.includes('application/x-dl-separator')) return 'separator';
     if (types.includes('application/x-dl-library') || types.includes('application/x-dl-asset')) return 'image';
     if (types.includes('Files')) return 'files';
@@ -835,6 +836,16 @@
       if (kind === 'separator') return App.toast('Imagens da biblioteca de separadores só podem ser usadas abaixo dos títulos — arraste para o título do capítulo ou use “Aparência”.', 5000);
       const pos = blockAtPoint(e.clientY);
       const zone = zoneAt(e.clientX, ed.getBoundingClientRect());
+      if (kind === 'element') {
+        // elemento da gaveta Elementos: abre o diálogo (se houver) e entra exatamente onde foi solto
+        const k = e.dataTransfer.getData('application/x-dl-element');
+        let html = await App.elements.makeElement(k);
+        if (!html || html === 'updated') return;
+        if (pos.before) html = html.replace(/<p><br><\/p>$/, ''); // no meio do texto não precisa de linha vazia depois
+        insertBlocks(html, pos.before, pos.after);
+        App.changed('Elemento inserido: ' + App.elements.byKind(k).label);
+        return;
+      }
       if (kind === 'figure') {
         const fid = e.dataTransfer.getData('application/x-dl-figure');
         const fig = ed.querySelector(`[data-fid="${fid}"]`);
@@ -845,9 +856,14 @@
           if (z.width && Number(fig.dataset.width) > 50) fig.dataset.width = String(z.width);
           styleFigure(fig);
         }
-        if (pos.before !== fig && pos.after !== fig) { if (pos.before) ed.insertBefore(fig, pos.before); else if (pos.after) pos.after.after(fig); }
+        // a fonte de uma tabela/gráfico (“Fonte: …”) acompanha o elemento
+        const src = fig.nextElementSibling && fig.nextElementSibling.matches('p.table-source') ? fig.nextElementSibling : null;
+        if (pos.before !== fig && pos.after !== fig && pos.before !== src && pos.after !== src) {
+          if (pos.before) ed.insertBefore(fig, pos.before); else if (pos.after) pos.after.after(fig);
+          if (src) fig.after(src);
+        }
         onInput();
-        App.commit('Imagem movida');
+        App.commit(fig.tagName === 'TABLE' ? 'Tabela movida' : 'Imagem movida');
         return;
       }
       const ids = await App.editor.assetsFromDrop(e.dataTransfer, 'corpo');
@@ -856,6 +872,28 @@
       insertBlocks(ids.map(id => figureHtml(id, zoneOpts(zone))).join(''), pos.before, pos.after);
       App.toast(ids.length > 1 ? `${ids.length} imagens inseridas.` : 'Imagem inserida.');
     });
+    // tabelas: alça “⠿ mover” sobre a tabela (as células continuam editáveis normalmente)
+    const handle = el('div', { class: 'table-handle', draggable: 'true', title: 'Arraste para mover a tabela', text: '⠿ mover' });
+    scroll.appendChild(handle);
+    let handleTable = null;
+    const placeHandle = t => {
+      handleTable = t;
+      if (!t) { handle.style.display = 'none'; return; }
+      const sr = scroll.getBoundingClientRect(), tr = t.getBoundingClientRect();
+      handle.style.display = 'block';
+      handle.style.top = (tr.top - sr.top + scroll.scrollTop - 22) + 'px';
+      handle.style.left = (tr.left - sr.left + scroll.scrollLeft) + 'px';
+    };
+    ed.addEventListener('mousemove', e => { const t = e.target.closest && e.target.closest('table'); if (t && t.parentNode === ed && !(App.chapter() && App.chapter().locked)) placeHandle(t); });
+    scroll.addEventListener('mouseleave', e => { if (e.relatedTarget !== handle) placeHandle(null); });
+    scroll.addEventListener('scroll', () => placeHandle(null));
+    handle.addEventListener('dragstart', e => {
+      if (!handleTable) return e.preventDefault();
+      if (!handleTable.dataset.fid) handleTable.dataset.fid = D.uid('f');
+      e.dataTransfer.setData('application/x-dl-figure', handleTable.dataset.fid);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    handle.addEventListener('dragend', () => placeHandle(null));
     // separadores podem ser soltos no título do capítulo
     const meta = $('.chapter-meta');
     meta.addEventListener('dragover', e => { if (dragKind(e.dataTransfer) === 'separator' || dragKind(e.dataTransfer) === 'image') { e.preventDefault(); meta.classList.add('drop-ok'); } });
@@ -918,8 +956,8 @@
     if (action === 'removenotes') return App.removeAllNotes();
     if (action === 'split') return splitChapter();
     if (action === 'newsection') return newSection();
-    if (action === 'table') return tableDialog();
-    if (action === 'chart') return chartDialog(null);
+    if (action === 'table') return App.elements.tableDialog(null, 'Nova tabela').then(h => { if (h) { insertBlocks(h); App.changed('Tabela inserida'); } });
+    if (action === 'chart') return App.elements.chartDialog(null).then(h => { if (h && h !== 'updated') { insertBlocks(h); App.changed('Gráfico inserido'); } });
     if (action === 'invisibles') { editor().classList.toggle('show-invisibles'); return; }
     if (action === 'noindent') { const b = currentBlock(); if (b && b.tagName === 'P') { b.classList.toggle('no-indent'); onInput(); App.commit('Recuo de parágrafo'); } return; }
     if (action === 'smallcaps') {

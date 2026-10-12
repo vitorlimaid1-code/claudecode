@@ -231,7 +231,7 @@
     // soltar imagens numa página cria uma camada fixa naquela posição
     d.addEventListener('dragover', e => {
       const types = Array.from(e.dataTransfer.types);
-      if (!types.some(t => /x-dl-library|x-dl-asset|x-dl-separator|Files/.test(t))) return;
+      if (!types.some(t => /x-dl-library|x-dl-asset|x-dl-separator|x-dl-element|Files/.test(t))) return;
       e.preventDefault();
       const pg = pageAt(d, e.clientX, e.clientY);
       d.querySelectorAll('.drop-ghost').forEach(g => g.remove());
@@ -251,6 +251,7 @@
       if (!pg) return;
       e.preventDefault();
       if (Array.from(e.dataTransfer.types).includes('application/x-dl-separator')) return App.toast('Separadores são usados abaixo dos títulos dos capítulos.');
+      const elKind = e.dataTransfer.getData('application/x-dl-element');
       const p = mmIn(pg, e.clientX, e.clientY);
       const n = Number(pg.dataset.pageNumber);
       // solto sobre o texto de um capítulo: a imagem entra no fluxo e o texto se reorganiza
@@ -262,6 +263,19 @@
         while (blk && blk.parentElement !== body) blk = blk.parentElement;
         const ch = App.project.chapters[Number(sec.dataset.chapter)];
         if (ch && ch.locked) return App.toast('Capítulo bloqueado: desbloqueie no cadeado para inserir imagens.');
+        if (elKind) {
+          // tabela, gráfico ou elemento extra: entra no fluxo do texto onde foi solto
+          const r0 = blk ? blk.getBoundingClientRect() : null;
+          const before0 = r0 ? e.clientY < r0.top + r0.height / 2 : false;
+          const probe = blk ? blk.textContent : '';
+          const html = await App.elements.makeElement(elKind);
+          if (!html || html === 'updated') return;
+          if (App.elements.insertHtmlIntoChapter(ch, probe, before0, html)) {
+            App.changed(App.elements.byKind(elKind).label + ' inserido(a) em “' + ch.title + '”');
+            App.toast('Elemento inserido no texto. A paginação é refeita.');
+          }
+          return;
+        }
         const ids = await App.editor.assetsFromDrop(e.dataTransfer, 'corpo');
         if (!ids || !ids.length) return;
         const r = blk ? blk.getBoundingClientRect() : null;
@@ -273,6 +287,7 @@
         }
         return;
       }
+      if (elKind) return App.toast('Solte o elemento sobre o texto de um capítulo: ele entra no fluxo naquele ponto.', 5000);
       const ids = await App.editor.assetsFromDrop(e.dataTransfer, 'corpo');
       if (!ids || !ids.length) return;
       let off = 0;

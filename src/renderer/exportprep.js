@@ -68,7 +68,7 @@
   }
 
   // ---------------------------------------------------------------- EPUB 3
-  function xhtmlOf(c, label, settings) {
+  function xhtmlOf(c, label, settings, ctr) {
     const doc = document.implementation.createHTMLDocument('x');
     const sec = doc.createElement('section');
     sec.setAttribute('epub:type', 'chapter');
@@ -105,7 +105,12 @@
       img.setAttribute('style', `width:${f.dataset.align === 'full' ? 100 : Number(f.dataset.width) || 60}%`);
       fig.appendChild(img);
       const cap = f.querySelector('figcaption');
-      if (cap && cap.textContent.trim()) { const fc = doc.createElement('figcaption'); fc.innerHTML = cap.innerHTML; fig.appendChild(fc); }
+      if (cap && cap.textContent.trim()) {
+        const fc = doc.createElement('figcaption'); fc.innerHTML = cap.innerHTML;
+        // mesma numeração do livro impresso (Figura N / Gráfico N)
+        if (ctr && settings.captionNumbering !== false) { const a = App.project.assets[f.dataset.asset]; const k = a && a.chart ? 'graf' : 'fig'; const n = ++ctr[k]; fig.id = `${k}-${n}`; fc.innerHTML = `<b>${k === 'graf' ? 'Gráfico' : 'Figura'} ${n}</b> – ` + fc.innerHTML; }
+        fig.appendChild(fc);
+      }
       f.replaceWith(fig);
     });
     body.querySelectorAll('div.fullbleed').forEach(f => {
@@ -117,6 +122,7 @@
       fig.appendChild(img);
       f.replaceWith(fig);
     });
+    if (ctr && settings.captionNumbering !== false) body.querySelectorAll('table > caption').forEach(cap => { if (!cap.textContent.trim()) return; const n = ++ctr.tab; cap.parentElement.id = cap.parentElement.id || `tab-${n}`; cap.innerHTML = `<b>Tabela ${n}</b> – ` + cap.innerHTML; });
     body.querySelectorAll('div.page-break').forEach(p => p.remove());
     body.querySelectorAll('hr.scene-break').forEach(hr => { const p = doc.createElement('p'); p.className = 'scene'; p.textContent = settings.sceneBreak || '* * *'; hr.replaceWith(p); });
     body.querySelectorAll('[style]').forEach(e => { if (!e.matches('img')) { const ta = e.style.textAlign; e.removeAttribute('style'); if (ta) e.setAttribute('style', `text-align:${ta}`); } });
@@ -167,6 +173,10 @@ figcaption { font-size: 0.85em; font-style: italic; }
 table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 0.9em; }
 td, th { border: 1px solid #777; padding: 0.3em 0.5em; text-align: left; }
 th { background: #eee; }
+caption { caption-side: top; font-size: 0.85em; padding-bottom: 0.3em; }
+table.tb-zebra tr:nth-child(even) td { background: #f2f2f2; }
+td.num { text-align: right; }
+p.table-source { text-indent: 0; font-size: 0.8em; margin-bottom: 1em; }
 td p, th p { text-indent: 0; }
 .smallcaps { font-variant: small-caps; }
 sup a { text-decoration: none; }
@@ -181,10 +191,11 @@ aside p { text-indent: 0; }
   async function buildEpub(project, opts) {
     const s = project.settings;
     let n = 0;
+    const ctr = { fig: 0, graf: 0, tab: 0 };
     const docs = project.chapters.map(c => {
       let label = '';
       if (c.numbered && s.chapterNumbering !== 'none') { n++; label = `${s.chapterLabel || ''} ${n}`.trim(); }
-      return { title: c.title, tocLabel: label ? `${label} — ${c.title}` : c.title, xhtml: xhtmlOf(c, label, s) };
+      return { title: c.title, tocLabel: label ? `${label} — ${c.title}` : c.title, xhtml: xhtmlOf(c, label, s, ctr) };
     });
     if (project.back.bio.enabled) docs.push({ title: project.back.bio.title, xhtml: xhtmlOf({ id: 'bio', title: project.back.bio.title, html: project.back.bio.html }, '', s) });
     if (project.back.extra.enabled) docs.push({ title: project.back.extra.title, xhtml: xhtmlOf({ id: 'extra', title: project.back.extra.title, html: project.back.extra.html }, '', s) });

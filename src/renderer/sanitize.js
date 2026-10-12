@@ -5,7 +5,7 @@
   const INLINE = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'S', 'SUP', 'SUB', 'BR', 'SPAN', 'IMG']);
   const DROP = new Set(['SCRIPT', 'STYLE', 'META', 'LINK', 'TITLE', 'HEAD', 'IFRAME', 'OBJECT', 'EMBED', 'SVG', 'MATH', 'TEMPLATE', 'NOSCRIPT', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA', 'FORM', 'NAV', 'COL', 'COLGROUP']);
   const RENAME = { STRONG: 'b', EM: 'i', H1: 'h2', H5: 'h4', H6: 'h4', DEL: 's', STRIKE: 's', INS: 'u', CITE: 'i', DFN: 'i', VAR: 'i', ASIDE: 'div', DT: 'p', DD: 'p' };
-  const P_CLASSES = new Set(['no-indent', 'phrase', 'reference', 'epigraph-inline']);
+  const P_CLASSES = new Set(['no-indent', 'phrase', 'reference', 'epigraph-inline', 'table-source']);
   const DIV_CLASSES = ['page-break', 'poem', 'box', 'fullbleed'];
   const FIG_ATTRS = ['data-asset', 'data-align', 'data-wrap', 'data-width', 'data-gap', 'data-rot', 'data-flipx', 'data-flipy', 'data-opacity', 'data-crop', 'data-ratio', 'data-fit'];
 
@@ -120,6 +120,8 @@
     }
     const e = doc.createElement(outTag);
     if (outTag === 'p') cls.forEach(c => { if (P_CLASSES.has(c)) e.classList.add(c); });
+    if (outTag === 'table') cls.forEach(c => { if (/^tb-(zebra|compact)$/.test(c)) e.classList.add(c); });
+    if (outTag === 'td' && cls.contains('num')) e.classList.add('num');
     if (outTag === 'p' && (cls.contains('caption') || cls.contains('legenda'))) e.classList.add('caption-import');
     if ((tag === 'TD' || tag === 'TH') && node.getAttribute('colspan')) e.setAttribute('colspan', node.getAttribute('colspan'));
     if ((tag === 'TD' || tag === 'TH') && node.getAttribute('rowspan')) e.setAttribute('rowspan', node.getAttribute('rowspan'));

@@ -88,6 +88,16 @@
       field('Modo', bind(f, 'tocMode', 'select', { options: [{ value: 'auto', label: 'Automático — a partir dos títulos do livro' }, { value: 'manual', label: 'Manual — lista editável' }], onChange: rerender })),
       f.tocMode !== 'manual' ? field('Títulos incluídos', bind(f, 'tocLevels', 'select', { options: [{ value: 1, label: 'Somente capítulos' }, { value: 2, label: 'Capítulos + T1 (títulos de seção)' }, { value: 3, label: 'Capítulos + T1 + T2 (subtítulos)' }], onChange: v => { f.tocLevels = Number(v); rerender(); } })) : null,
       el('div', { class: 'field wide' }, [
+        el('span', { class: 'flabel', text: 'Legendas numeradas e listas (tabelas, gráficos e figuras)' }),
+        el('label', { class: 'chk' }, [bind(App.project.settings, 'captionNumbering', 'checkbox', { onChange: rerender }), ' Numerar automaticamente: Tabela 1, Gráfico 1, Figura 1 (só os que têm título/legenda)']),
+        App.project.settings.captionNumbering !== false ? el('div', { class: 'inline wrap' }, [
+          el('label', { class: 'chk' }, [bind(f, 'listFigures', 'checkbox'), ' Lista de figuras']),
+          el('label', { class: 'chk' }, [bind(f, 'listCharts', 'checkbox'), ' Lista de gráficos']),
+          el('label', { class: 'chk' }, [bind(f, 'listTables', 'checkbox'), ' Lista de tabelas'])
+        ]) : null,
+        el('span', { class: 'hint', text: 'As listas entram logo depois do sumário, com o número da página de cada item (e o link no PDF).' })
+      ]),
+      el('div', { class: 'field wide' }, [
         el('div', { class: 'inline wrap' }, [
           el('button', { text: '⟳ Gerar a partir dos títulos', title: 'Cria a lista manual com os títulos atuais (capítulos e T1/T2 conforme “Títulos incluídos”)', onclick: async () => { if (f.tocEntries.length && !(await App.confirmPreview('Gerar sumário', 'Substituir a lista manual atual pelos títulos do livro?', auto.map(e => e.title).slice(0, 30)))) return; generate(); } }),
           f.tocMode === 'manual' ? el('button', { text: '+ Entrada', onclick: () => { f.tocEntries.push({ label: '', title: 'Nova entrada', level: 1, target: '' }); App.changed('Entrada no sumário'); rerender(); } }) : null,

@@ -183,6 +183,7 @@
       const open = show === undefined ? !d.classList.contains('open') : show;
       d.classList.toggle('open', open);
       $('#btnLibrary').classList.toggle('on', open);
+      if (open && $('#elementsDrawer')) { $('#elementsDrawer').classList.remove('open'); const be = $('#btnElements'); if (be) be.classList.remove('on'); }
       if (open) load().then(renderDrawer);
     },
     pick, refresh, assetFromItem
