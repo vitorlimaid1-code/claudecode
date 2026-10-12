@@ -82,6 +82,12 @@
       const slot = a.querySelector('.toc-page');
       if (n && slot) slot.textContent = String(n - offset);
     });
+    document.querySelectorAll('a.xref-page').forEach(a => {
+      const id = decodeURIComponent((a.getAttribute('href') || '').slice(1));
+      const n = pageOf(document.getElementById(id) || document.querySelector(`[data-id="${CSS.escape(id)}"]`));
+      const slot = a.querySelector('.xref-n');
+      if (slot) slot.textContent = n ? String(n - offset) : '?';
+    });
     const total = document.querySelectorAll('.pagedjs_page').length;
     document.querySelectorAll('.cat-pages').forEach(s => { s.textContent = String(total); });
     return offset;

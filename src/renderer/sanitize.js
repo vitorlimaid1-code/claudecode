@@ -27,6 +27,18 @@
       s.className = 'footnote';
       return children(node, doc, s);
     }
+    // ligações: internas (#id), sites e e-mails; o resto vira texto
+    if (tag === 'A') {
+      const href = (node.getAttribute('href') || '').trim();
+      const frag = children(node, doc, doc.createDocumentFragment());
+      if (!/^(#[\w:.-]+|https?:\/\/\S+|mailto:\S+)$/i.test(href)) return frag;
+      if (/^#/.test(href) && !cls.contains('xref')) return frag; // âncoras de arquivos importados (índices, notas) não são mantidas
+      const a = doc.createElement('a');
+      a.setAttribute('href', href);
+      a.className = /^#/.test(href) ? (cls.contains('xref-page') ? 'xref xref-page' : 'xref') : 'ext';
+      a.appendChild(frag);
+      return a;
+    }
     // blocos especiais
     if (tag === 'DIV' || tag === 'SECTION' || tag === 'ASIDE') {
       const special = DIV_CLASSES.find(c => cls.contains(c));
@@ -115,6 +127,7 @@
     // parágrafos alinhados à esquerda no original seguem o padrão do livro (justificado)
     if (align && /^(center|right|left)$/i.test(align) && ['p', 'h2', 'h3', 'h4'].includes(outTag) && !(outTag === 'p' && /^left$/i.test(align))) e.style.textAlign = align.toLowerCase();
     if (outTag === 'h2' && tag === 'H1') e.setAttribute('data-h1', '1');
+    if (/^h[234]$/.test(outTag) && /^ref-[\w-]+$/.test(node.id || '')) e.id = node.id;
     return children(node, doc, e);
   }
 

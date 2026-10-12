@@ -210,6 +210,8 @@ function processBody(html, ctx) {
     if (!asset) { ctx.missing.push(id); return ''; }
     return `<img${a}src="${asset.dataUrl}"${b}>`;
   });
+  // ligação interna com número de página: reserva o espaço do número (preenchido após a paginação)
+  html = html.replace(/(<a\b[^>]*class="[^"]*\bxref-page\b[^"]*"[^>]*>)([\s\S]*?)<\/a>/gi, (m, open, inner) => `${open}${inner}<span class="xref-num">, p.&nbsp;<span class="xref-n">00</span></span></a>`);
   return html;
 }
 

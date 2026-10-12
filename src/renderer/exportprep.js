@@ -73,6 +73,7 @@
     const sec = doc.createElement('section');
     sec.setAttribute('epub:type', 'chapter');
     sec.setAttribute('role', 'doc-chapter');
+    if (c.id) sec.id = c.id;
     const h = doc.createElement('h1');
     if (label) { const l = doc.createElement('span'); l.className = 'label'; l.textContent = label; h.appendChild(l); h.appendChild(doc.createElement('br')); }
     h.appendChild(doc.createTextNode(c.title));
@@ -187,6 +188,10 @@ aside p { text-indent: 0; }
     });
     if (project.back.bio.enabled) docs.push({ title: project.back.bio.title, xhtml: xhtmlOf({ id: 'bio', title: project.back.bio.title, html: project.back.bio.html }, '', s) });
     if (project.back.extra.enabled) docs.push({ title: project.back.extra.title, xhtml: xhtmlOf({ id: 'extra', title: project.back.extra.title, html: project.back.extra.html }, '', s) });
+    // ligações internas entre capítulos: cada capítulo é um arquivo no EPUB
+    const owner = {};
+    docs.forEach((d, i) => { const file = `chap${String(i + 1).padStart(3, '0')}.xhtml`; d.xhtml.replace(/\sid="([^"]+)"/g, (mm, id) => { owner[id] = { file, i }; return mm; }); });
+    docs.forEach((d, i) => { d.xhtml = d.xhtml.replace(/href="#([^"]+)"/g, (mm, id) => (owner[id] && owner[id].i !== i ? `href="${owner[id].file}#${id}"` : mm)); });
     const m = project.meta;
     const cat = project.catalog;
     const esc = App.escape;

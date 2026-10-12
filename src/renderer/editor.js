@@ -48,12 +48,16 @@
   function serialize() {
     // remove estilos visuais do editor antes de guardar
     const clone = editor().cloneNode(true);
+    undecorate(clone);
+    return clone.innerHTML;
+  }
+  function undecorate(clone) {
     clone.querySelectorAll('figure.img').forEach(f => { f.removeAttribute('style'); f.removeAttribute('contenteditable'); f.removeAttribute('draggable'); f.classList.remove('selected'); const img = f.querySelector('img'); if (img) { img.removeAttribute('style'); img.removeAttribute('src'); } const cap = f.querySelector('figcaption'); if (cap) cap.removeAttribute('contenteditable'); });
     clone.querySelectorAll('div.fullbleed').forEach(f => { f.removeAttribute('style'); f.removeAttribute('contenteditable'); f.removeAttribute('title'); f.classList.remove('selected'); });
     clone.querySelectorAll('img[data-asset]').forEach(i => i.removeAttribute('src'));
     clone.querySelectorAll('.footnote.selected').forEach(n => n.classList.remove('selected'));
     clone.querySelectorAll('[data-fid]').forEach(n => n.removeAttribute('data-fid'));
-    return clone.innerHTML;
+    return clone;
   }
 
   function onInput() {
@@ -402,6 +406,121 @@
       onInput();
       App.commit('Inserção de nota');
     });
+  }
+
+  // ---------------------------------------------------------------- ligações (links) e seções
+  // Ligação interna: aponta para um capítulo ou título (T1/T2/T3) do livro; pode mostrar o número
+  // da página de destino ("ver p. 23"), preenchido depois da paginação. Ligação externa: URL.
+  function ensureHeadingId(target) {
+    // os ids automáticos (capítulo-sN) dependem da posição; um id fixo mantém a ligação
+    const m = /^(.+)-s(\d+)$/.exec(target);
+    if (!m) return target;
+    const ch = App.project.chapters.find(c => c.id === m[1]);
+    if (!ch) return target;
+    const fresh = 'ref-' + D.uid();
+    const fix = root => { const h = root.querySelectorAll('h2, h3, h4')[Number(m[2]) - 1]; if (!h) return null; if (h.id) return h.id; h.id = fresh; return fresh; };
+    if (ch.id === App.editorChapterId) { const id = fix(editor()); if (id) { onInput(); return id; } return target; }
+    const tpl = document.createElement('template');
+    tpl.innerHTML = ch.html || '';
+    const id = fix(tpl.content);
+    if (!id) return target;
+    ch.html = tpl.innerHTML;
+    return id;
+  }
+  function linkDialog() {
+    const sel = window.getSelection();
+    if (!sel.rangeCount || !editor().contains(sel.anchorNode)) return App.toast('Selecione o texto da ligação (ou posicione o cursor).');
+    const range = sel.getRangeAt(0).cloneRange();
+    const node = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+    const existing = node && node.closest('a');
+    const targets = App.toc.collect();
+    const kind = el('select', {}, [['internal', 'Capítulo ou título deste livro'], ['url', 'Endereço da internet (site, e-mail)']].map(([a, b]) => el('option', { value: a, text: b })));
+    const tgt = el('select', {}, targets.map(t => el('option', { value: t.target, text: `${'   '.repeat(t.level - 1)}${t.level > 1 ? '↳ ' : ''}${t.label ? t.label + ' — ' : ''}${t.title}`.slice(0, 100) })));
+    const url = el('input', { type: 'text', placeholder: 'https://… ou mailto:…' });
+    const showPage = el('input', { type: 'checkbox', checked: true });
+    if (existing) {
+      const href = existing.getAttribute('href') || '';
+      if (href.startsWith('#')) { kind.value = 'internal'; tgt.value = href.slice(1); showPage.checked = existing.classList.contains('xref-page'); }
+      else { kind.value = 'url'; url.value = href; }
+    }
+    const rows = el('div', {}, []);
+    const sync = () => { rows.innerHTML = ''; rows.append(kind.value === 'internal' ? el('div', {}, [App.field('Destino', tgt), el('label', { class: 'chk' }, [showPage, ' Mostrar o número da página de destino (ex.: “ver Capítulo 3, p. 41”)'])]) : App.field('Endereço', url)); };
+    kind.addEventListener('change', sync);
+    sync();
+    const restore = () => { editor().focus(); sel.removeAllRanges(); sel.addRange(range); };
+    App.modal({
+      title: existing ? 'Editar ligação' : 'Inserir ligação',
+      body: el('div', {}, [App.field('Tipo', kind), rows, el('p', { class: 'muted small', text: 'No PDF e no EPUB a ligação é clicável; no livro impresso, a ligação interna pode mostrar a página do destino.' })]),
+      buttons: [
+        existing ? { label: 'Remover ligação', danger: true, onClick: () => { existing.replaceWith(...Array.from(existing.childNodes).filter(n => !(n.classList && n.classList.contains('xref-num')))); onInput(); App.commit('Ligação removida'); } } : null,
+        { label: 'Cancelar' },
+        { label: existing ? 'Salvar' : 'Inserir', primary: true, onClick: () => {
+          let href;
+          if (kind.value === 'url') {
+            href = url.value.trim();
+            if (!href) return false;
+            if (!/^(https?:|mailto:)/i.test(href)) href = (/@/.test(href) && !/\//.test(href) ? 'mailto:' : 'https://') + href;
+          } else {
+            if (!tgt.value) return false;
+            href = '#' + ensureHeadingId(tgt.value);
+          }
+          const cls = kind.value === 'internal' ? (showPage.checked ? 'xref xref-page' : 'xref') : 'ext';
+          if (existing) { existing.setAttribute('href', href); existing.className = cls; onInput(); App.commit('Ligação alterada'); return; }
+          restore();
+          const r = sel.getRangeAt(0);
+          const a = document.createElement('a');
+          a.setAttribute('href', href);
+          a.className = cls;
+          if (r.collapsed) {
+            const t = kind.value === 'url' ? href.replace(/^mailto:/, '') : (targets.find(x => x.target === tgt.value) || {}).title || 'ligação';
+            a.textContent = t;
+          } else a.appendChild(r.extractContents());
+          r.insertNode(a);
+          r.setStartAfter(a); r.collapse(true); sel.removeAllRanges(); sel.addRange(r);
+          onInput();
+          App.commit('Ligação inserida');
+        } }
+      ].filter(Boolean)
+    });
+  }
+
+  // Divide o capítulo no parágrafo do cursor: daí em diante vira um novo capítulo/seção
+  async function splitChapter() {
+    const c = App.chapter();
+    const b = topBlock();
+    if (!c || !b) return App.toast('Posicione o cursor no parágrafo onde o novo capítulo deve começar.');
+    if (!b.previousElementSibling) return App.toast('O cursor já está no início do capítulo.');
+    const isHead = /^H[234]$/.test(b.tagName);
+    const title = await App.prompt('Dividir capítulo', 'Título do novo capítulo (o texto a partir do cursor vai para ele)', isHead ? b.textContent.trim() : 'Novo capítulo');
+    if (title == null) return;
+    const tail = [];
+    for (let n = b; n; n = n.nextElementSibling) tail.push(n);
+    if (isHead && title.trim() === b.textContent.trim()) tail.shift().remove();
+    const tpl = document.createElement('div');
+    tail.forEach(n => tpl.appendChild(n));
+    App.editor.flush();
+    onInput();
+    const clean = tpl.cloneNode(true);
+    undecorate(clean);
+    const idx = App.project.chapters.indexOf(c);
+    const nc = { id: D.uid(), title: title.trim() || 'Novo capítulo', numbered: c.numbered, html: clean.innerHTML || '<p><br></p>', locked: false, style: {}, separator: 'default', openingImage: null };
+    App.project.chapters.splice(idx + 1, 0, nc);
+    App.editorChapterId = null;
+    App.changed('Capítulo dividido');
+    App.setView('chapter', nc.id);
+    App.toast('Capítulo dividido. O restante do texto continua igual, só que no novo capítulo.', 4000);
+  }
+  function topBlock() {
+    const sel = window.getSelection();
+    if (!sel.rangeCount) return null;
+    let n = sel.anchorNode;
+    while (n && n.parentNode !== editor()) n = n.parentNode;
+    return n && n.nodeType === 1 ? n : null;
+  }
+  async function newSection() {
+    const title = await App.prompt('Nova seção / capítulo', 'Título da nova página (entra logo depois deste capítulo)', 'Nova seção');
+    if (title == null) return;
+    App.chapters.add(title.trim() || 'Nova seção');
   }
 
   // ---------------------------------------------------------------- tabelas
@@ -775,6 +894,9 @@
     if (action === 'scene') return insertBlocks('<hr class="scene-break"><p><br></p>');
     if (action === 'pagebreak') return insertBlocks('<div class="page-break"></div><p><br></p>');
     if (action === 'footnote') return insertFootnote();
+    if (action === 'link') return linkDialog();
+    if (action === 'split') return splitChapter();
+    if (action === 'newsection') return newSection();
     if (action === 'table') return tableDialog();
     if (action === 'chart') return chartDialog(null);
     if (action === 'invisibles') { editor().classList.toggle('show-invisibles'); return; }
@@ -829,6 +951,7 @@
     });
     ed.addEventListener('keydown', e => {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); insertBlocks('<div class="page-break"></div><p><br></p>'); }
+      if ((e.key === 'k' || e.key === 'K') && (e.ctrlKey || e.metaKey)) { e.preventDefault(); toolbarAction('link'); }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedFig && document.activeElement === ed && window.getSelection().isCollapsed) {
         const cap = e.target.closest && e.target.closest('figcaption');
         if (!cap) { e.preventDefault(); selectedFig.remove(); selectFigure(null); onInput(); App.commit('Exclusão de imagem'); }

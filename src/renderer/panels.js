@@ -31,7 +31,8 @@
         c.locked ? el('span', { class: 'lock', text: '🔒', title: 'Bloqueado' }) : null,
         el('span', { class: 'move' }, [
           el('button', { class: 'mini', title: 'Mover para cima', text: '▲', onclick: e => { e.stopPropagation(); move(i, -1); } }),
-          el('button', { class: 'mini', title: 'Mover para baixo', text: '▼', onclick: e => { e.stopPropagation(); move(i, 1); } })
+          el('button', { class: 'mini', title: 'Mover para baixo', text: '▼', onclick: e => { e.stopPropagation(); move(i, 1); } }),
+          el('button', { class: 'mini', title: 'Nova página/seção com título logo depois deste', text: '＋', onclick: async e => { e.stopPropagation(); const t = await App.prompt('Nova seção', 'Título da nova página (entra depois de “' + (c.title || '') + '”)', 'Nova seção'); if (t == null) return; App.chapters.insertAt(i + 1, t.trim() || 'Nova seção'); } })
         ])
       ]);
       li.addEventListener('click', e => {
@@ -158,6 +159,15 @@
     const t = $('#chapterTitle');
     t.focus();
     t.select();
+    return c;
+  };
+
+  App.chapters.insertAt = function (index, title, html) {
+    App.flush();
+    const c = { id: D.uid(), title: title || 'Nova seção', numbered: App.project.kind === 'book', html: html || '<p><br></p>', locked: false, style: {}, separator: 'default', openingImage: null };
+    App.project.chapters.splice(Math.max(0, Math.min(index, App.project.chapters.length)), 0, c);
+    App.changed('Nova seção: ' + c.title);
+    App.setView('chapter', c.id);
     return c;
   };
 
