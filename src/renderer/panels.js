@@ -398,6 +398,22 @@
       el('h2', { text: 'Créditos e ficha catalográfica' }),
       el('p', { class: 'muted', text: 'Página de créditos (verso da página de rosto). A quantidade de páginas e as dimensões são preenchidas automaticamente a partir da diagramação.' }),
       App.catalogUi.gallery(rerender),
+      (() => {
+        // ficha pronta (do bibliotecário/CBL): colar aqui substitui a ficha montada pelos campos
+        const ta = el('textarea', { class: 'cat-paste', rows: 13, spellcheck: 'false', placeholder: 'Cole aqui a ficha catalográfica pronta, exatamente como recebeu (Ctrl+V).\n\nEx.:\nS586c    Silva, Maria, 1980-\n           O caminho das águas / Maria Silva. – São Paulo : Editora, 2026.\n           240 p. ; 14 × 21 cm.\n\n           ISBN 978-65-00-00000-0\n\n           1. Ficção brasileira. I. Título.\n\n                                                    CDD B869.3' });
+        ta.value = c.manualText || '';
+        const save = () => { c.manualText = ta.value; if (ta.value.trim()) c.mode = 'manual'; App.changed('Ficha catalográfica colada'); };
+        ta.addEventListener('input', () => { c.manualText = ta.value; App.changed(null); clearTimeout(ta._t); ta._t = setTimeout(() => App.commit('Ficha catalográfica colada'), 1200); });
+        ta.addEventListener('paste', () => setTimeout(() => { save(); rerender(); App.toast('Ficha colada: ela será usada no livro, com o espaçamento e a caixa padrão da ficha.'); }, 0));
+        return card('Colar ficha catalográfica pronta', [
+          el('div', { class: 'field wide' }, [ta]),
+          el('label', { class: 'chk' }, [el('input', { type: 'checkbox', checked: c.mode === 'manual', onchange: e => { c.mode = e.target.checked ? 'manual' : 'fields'; App.changed(e.target.checked ? 'Usar a ficha colada' : 'Usar a ficha montada pelos campos'); rerender(); } }), ' Usar esta ficha no livro (em vez da ficha montada pelos campos)']),
+          el('div', { class: 'inline wrap' }, [
+            el('button', { text: 'Colar da área de transferência', onclick: async () => { try { const t = await navigator.clipboard.readText(); if (t) { ta.value = t; save(); rerender(); } } catch (e) { App.toast('Use Ctrl+V dentro da caixa.'); } } }),
+            el('button', { class: 'ghost', text: 'Limpar', onclick: () => { c.manualText = ''; c.mode = 'fields'; App.changed('Ficha colada removida'); rerender(); } })
+          ])
+        ], 'Quebras de linha, recuos e o alinhamento do número de chamada são mantidos. A ficha usa a fonte, o tamanho e o espaçamento padrão da ficha catalográfica, dentro da caixa escolhida em “Aparência”. Se o texto não trouxer “Dados Internacionais de Catalogação na Publicação (CIP)”, o cabeçalho é acrescentado. Logotipos, selos e QR codes podem ser adicionados logo abaixo, em “Imagens e QR codes”.', 'span-all');
+      })(),
       card('Créditos do desenvolvimento do livro', [
         credits,
         el('div', { class: 'inline wrap' }, roles.map(r => el('button', { class: 'chip', text: '+ ' + r, onclick: () => { c.credits.push({ role: r, name: '' }); App.changed('Crédito adicionado'); rerender(); } }))
@@ -490,7 +506,12 @@
     v.innerHTML = '';
     const rerender = () => App.hooks.viewRender.layout();
     const n = (key, label, step, min, max, hint) => field(label, bind(s, key, 'number', { step, min, max }), hint);
-    const len = (key, label, min, max, hint) => field(`${label} (${App.unitLabel()})`, bind(s, key, 'number', { len: true, min, max, step: 0.5 }), hint);
+    const len = (key, label, min, max, hint) => {
+      // larguras/alturas da folha de saída ficam dentro de settings.outputSheet
+      const sheetKey = { outputSheetW: 'w', outputSheetH: 'h' }[key];
+      const obj = sheetKey ? s.outputSheet : s;
+      return field(`${label} (${App.unitLabel()})`, bind(obj, sheetKey || key, 'number', { len: true, min, max, step: 0.5, onChange: sheetKey ? rerender : undefined }), hint);
+    };
     const fmt = D.PAGE_FORMATS.find(f => f.id === s.pageFormat);
     const groups = D.FORMAT_GROUPS.concat(['Outro']).map(g => ({ group: g, items: D.PAGE_FORMATS.filter(f => f.group === g).map(f => ({ value: f.id, label: f.label + (f.use ? ' — ' + f.use : '') })) }));
     const formatSel = bind(s, 'pageFormat', 'select', {
@@ -541,6 +562,22 @@
         len('safety', 'Área de segurança', 0, 20, 'Distância mínima da borda para textos importantes'),
         el('label', { class: 'chk' }, [bind(s, 'cropMarks', 'checkbox'), ' Marcas de corte no PDF'])
       ], 'Automática: 3 mm na maioria dos formatos, 5 mm em formatos grandes (A3 ou maior) e 3,175 mm (0,125 pol.) para Amazon KDP. Desmarque para digitar a medida pedida pela sua gráfica (0 = sem sangria). A sangria não altera o formato final de corte; o PDF sai com TrimBox e BleedBox.'),
+      (() => {
+        // folha de saída: tamanho pedido pela gráfica; a página vai centralizada, nada é reduzido nem cortado
+        if (!s.outputSheet) s.outputSheet = { mode: 'trim', w: 210, h: 297, marks: true };
+        const o = s.outputSheet;
+        const sh = D.outputSheetSize(s, App.bleedOf ? App.bleedOf(s) : D.autoBleed(s));
+        const status = !sh ? `Saída no formato do livro: ${App.fmtNum(s.pageWidth)} × ${App.fmtNum(s.pageHeight)} mm + sangria.`
+          : sh.fits ? `✓ Folha ${App.fmtNum(sh.w)} × ${App.fmtNum(sh.h)} mm: a página de ${App.fmtNum(s.pageWidth)} × ${App.fmtNum(s.pageHeight)} mm fica centralizada, em tamanho real${o.marks ? ', com marcas de corte' : ''}.`
+            : `⚠ A folha ${App.fmtNum(sh.w)} × ${App.fmtNum(sh.h)} mm é menor que o necessário (${App.fmtNum(sh.needW)} × ${App.fmtNum(sh.needH)} mm com sangria${o.marks ? ' e marcas' : ''}). Nada será cortado: a exportação usa o formato do livro até você aumentar a folha.`;
+        return card('Folha de saída para a gráfica', [
+          field('Tamanho da folha', bind(o, 'mode', 'select', { options: Object.entries(D.OUTPUT_SHEETS).map(([k, v]) => ({ value: k, label: v.label })), onChange: rerender }), '', 'wide'),
+          o.mode === 'custom' ? len('outputSheetW', 'Largura da folha', 50, 2000) : null,
+          o.mode === 'custom' ? len('outputSheetH', 'Altura da folha', 50, 2000) : null,
+          o.mode !== 'trim' ? el('label', { class: 'chk' }, [bind(o, 'marks', 'checkbox', { onChange: rerender }), ' Marcas de corte fora da sangria']) : null,
+          el('p', { class: 'small ' + (sh && !sh.fits ? 'warn' : 'muted'), text: status })
+        ], 'Use quando a gráfica pedir o PDF numa folha maior que o livro (ex.: A4 ou SRA3). O formato final de corte, as margens, a sangria e todo o conteúdo continuam exatamente iguais — a página só é posicionada no centro da folha.');
+      })(),
       card('Texto e paginação', [
         el('label', { class: 'chk' }, [bind(s, 'hyphenate', 'checkbox'), ' Hifenização (português)']),
         el('label', { class: 'chk' }, [bind(s, 'indentFirstParagraph', 'checkbox'), ' Recuo no 1º parágrafo']),

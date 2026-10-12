@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { buildBook, effectiveBleed } = require('./book');
-const { normalizeProject, newProject, BUNDLED_FONTS, PAGE_FORMATS } = require('./shared/defaults');
+const { normalizeProject, newProject, BUNDLED_FONTS, PAGE_FORMATS, outputSheetSize } = require('./shared/defaults');
 const { importAny } = require('./main/importers');
 const { FontManager } = require('./main/fonts');
 const { ImageLibrary, analyzeImage, hashBuffer } = require('./main/library');
@@ -405,6 +405,9 @@ async function renderPdf(project, opts) {
   const tm = label => { if (process.env.DEBUG_TIMING) console.log('TIMING', label, Date.now() - t0, 'ms'); };
   return withRenderWindow(async win => {
     tm('janela');
+    const ns = normalizeProject(project).settings;
+    const sh = outputSheetSize(ns, effectiveBleed(ns));
+    if (sh && sh.fits && !opts.spreads) project = Object.assign({}, project, { settings: Object.assign({}, project.settings, { cropMarks: false }) });
     const { info } = await renderBookIn(win, project, { spreadsPrint: !!opts.spreads, pageRange: opts.range || '' });
     tm('paginação');
     if (process.env.DEBUG_LAYOUT) {
@@ -439,9 +442,12 @@ async function finishPrintPdf(pdfBuf, project, opts) {
 }
 async function finishBoxes(pdfBuf, project, opts) {
   try {
-    const { PDFDocument } = require('pdf-lib');
+    const { PDFDocument, rgb, cmyk: cmykColor, grayscale } = require('pdf-lib');
     const doc = await PDFDocument.load(pdfBuf, { updateMetadata: false });
     const s = normalizeProject(project).settings;
+    // folha de saída personalizada (pedido da gráfica): a página vai centralizada, sem redução
+    const sheet = outputSheetSize(s, effectiveBleed(s));
+    const useSheet = sheet && sheet.fits;
     const ptmm = 72 / 25.4;
     const tw = s.pageWidth * ptmm;
     const th = s.pageHeight * ptmm;
@@ -452,7 +458,8 @@ async function finishBoxes(pdfBuf, project, opts) {
     const H = th + 2 * b;
     // KDP: a sangria do miolo existe só nas bordas externas (a lombada não tem sangria)
     const fmt = PAGE_FORMATS.find(f => f.id === s.pageFormat);
-    const outerOnly = b > 0 && ((s.kdp && s.kdp.enabled) || (fmt && /KDP/.test(fmt.group)));
+    const outerOnly = !useSheet && b > 0 && ((s.kdp && s.kdp.enabled) || (fmt && /KDP/.test(fmt.group)));
+    const markColor = opts && opts.color === 'cmyk' ? cmykColor(1, 1, 1, 1) : opts && opts.color === 'gray' ? grayscale(0) : rgb(0, 0, 0);
     const first = opts && opts.range ? Math.max(1, Math.min(...String(opts.range).match(/\d+/g).map(Number))) : 1;
     doc.getPages().forEach((pg, i) => {
       const { height } = pg.getSize();
@@ -460,11 +467,30 @@ async function finishBoxes(pdfBuf, project, opts) {
       const recto = (first + i) % 2 === 1; // página ímpar = direita: a lombada fica à esquerda
       const mx = outerOnly && recto ? b : 0;
       const mw = outerOnly ? W - b : W;
-      pg.setMediaBox(mx, y0, mw, H);
-      pg.setCropBox(mx, y0, mw, H);
-      pg.setBleedBox(mx, y0, mw, H);
       pg.setTrimBox(b, y0 + b, tw, th);
       pg.setArtBox(b, y0 + b, tw, th);
+      if (useSheet) {
+        const SW = sheet.w * ptmm, SH = sheet.h * ptmm;
+        const cx = b + tw / 2, cy = y0 + b + th / 2;
+        pg.setMediaBox(cx - SW / 2, cy - SH / 2, SW, SH);
+        pg.setCropBox(cx - SW / 2, cy - SH / 2, SW, SH);
+        pg.setBleedBox(0, y0, W, H);
+        if (s.outputSheet.marks) {
+          // marcas de corte fora da sangria: 5 mm de comprimento, a 2 mm da sangria
+          const off = b + 2 * ptmm, len = 5 * ptmm;
+          const x1 = b, x2 = b + tw, yb = y0 + b, yt = y0 + b + th;
+          const line = (a, c) => pg.drawLine({ start: { x: a[0], y: a[1] }, end: { x: c[0], y: c[1] }, thickness: 0.25, color: markColor });
+          [[x1, yb], [x2, yb], [x1, yt], [x2, yt]].forEach(([x, y]) => {
+            const sx = x === x1 ? -1 : 1, sy = y === yb ? -1 : 1;
+            line([x + sx * off, y], [x + sx * (off + len), y]);
+            line([x, y + sy * off], [x, y + sy * (off + len)]);
+          });
+        }
+      } else {
+        pg.setMediaBox(mx, y0, mw, H);
+        pg.setCropBox(mx, y0, mw, H);
+        pg.setBleedBox(mx, y0, mw, H);
+      }
     });
     const m = project.meta || {};
     doc.setTitle(m.title || '');

@@ -264,7 +264,12 @@ function catalogHtml(project, ctx) {
   parts.push(`<div class="cat-rights">${multiline(c.rights || `© ${meta.year || ''} ${meta.author || ''}\nTodos os direitos reservados. Nenhuma parte desta obra pode ser reproduzida sem autorização prévia, exceto em citações breves com indicação da fonte.`)}</div>`);
   if (c.enabled !== false) {
     if (c.mode === 'manual') {
-      if (c.manualText) parts.push(`<div class="cat-box">${catHead(c)}<div class="cat-manual">${multiline(c.manualText)}</div></div>`);
+      if (c.manualText && c.manualText.trim()) {
+        // ficha colada: mantém quebras de linha e recuos; o cabeçalho CIP só entra se não vier no texto
+        const txt = String(c.manualText).replace(/\r\n?/g, '\n').replace(/[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n').replace(/^\n+|\n+$/g, '');
+        const hasHead = /dados\s+internacionais\s+de\s+cataloga/i.test(txt);
+        parts.push(`<div class="cat-box">${hasHead ? '' : catHead(c)}<div class="cat-manual">${esc(txt)}</div></div>`);
+      }
     } else {
       const wcm = (num(s.pageWidth, 140) / 10).toLocaleString('pt-BR');
       const hcm = (num(s.pageHeight, 210) / 10).toLocaleString('pt-BR');
@@ -561,6 +566,7 @@ ${pageNames}
 .cat-style-compact .cat-box { padding: 1.5mm 2mm; }
 .cat-box { border: 0.5pt solid currentColor; padding: 2.5mm 3mm; }
 .cat-head { text-align: center; font-weight: 700; margin-bottom: 1.5mm; }
+.cat-manual { white-space: pre-wrap; tab-size: 4; hyphens: manual; overflow-wrap: break-word; }
 .cat-cutter { float: left; width: 12mm; }
 .cat-indent { padding-left: 4mm; }
 .cat-class { text-align: right; margin-top: 1.5mm; }

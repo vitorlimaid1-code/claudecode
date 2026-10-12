@@ -128,6 +128,31 @@
     spineTextMinPages: 79
   };
 
+  // Folhas de saída comuns em gráficas (mm, retrato)
+  const OUTPUT_SHEETS = {
+    trim: { label: 'Formato do livro (padrão: página + sangria)' },
+    a4: { label: 'A4 — 210 × 297 mm', w: 210, h: 297 },
+    a3: { label: 'A3 — 297 × 420 mm', w: 297, h: 420 },
+    sra4: { label: 'SRA4 — 225 × 320 mm', w: 225, h: 320 },
+    sra3: { label: 'SRA3 — 320 × 450 mm', w: 320, h: 450 },
+    letter: { label: 'Carta — 215,9 × 279,4 mm', w: 215.9, h: 279.4 },
+    custom: { label: 'Personalizado (digite a largura e a altura)' }
+  };
+  // Medidas da folha (mm) para uma configuração; null quando é o próprio formato do livro.
+  // A orientação é escolhida para caber a página com sangria e marcas.
+  function outputSheetSize(s, bleed) {
+    const o = s.outputSheet || {};
+    if (!o.mode || o.mode === 'trim') return null;
+    const p = OUTPUT_SHEETS[o.mode] || {};
+    let w = Number(o.mode === 'custom' ? o.w : p.w), h = Number(o.mode === 'custom' ? o.h : p.h);
+    if (!(w > 0 && h > 0)) return null;
+    const extra = bleed + (o.marks ? 8 : 0); // sangria + espaço das marcas de corte
+    const needW = s.pageWidth + 2 * extra;
+    const needH = s.pageHeight + 2 * extra;
+    if ((w < needW || h < needH) && h >= needW && w >= needH) [w, h] = [h, w];
+    return { w, h, needW, needH, fits: w >= needW - 0.01 && h >= needH - 0.01 };
+  }
+
   // Sangria automática conforme o formato (pode ser ajustada manualmente)
   function autoBleed(s) {
     const fmt = PAGE_FORMATS.find(p => p.id === s.pageFormat);
@@ -227,6 +252,8 @@
     chapterLabel: 'Capítulo',
     chapterNumbering: 'arabic',
     chapterStartRight: false, // páginas em branco nunca são inseridas
+    // folha de saída pedida pela gráfica: a página do livro vai centralizada, sem reduzir nem cortar nada
+    outputSheet: { mode: 'trim', w: 210, h: 297, marks: true },
     dropCap: true,
     dropCapLines: 2,
     smallCapsFirstLine: false,
@@ -522,6 +549,6 @@
     PAGE_FORMATS, FORMAT_GROUPS, DEFAULT_FORMAT_ID, BUNDLED_FONTS, SYSTEM_FONTS,
     STYLE_DEFS, DEFAULT_STYLES, DEFAULT_SETTINGS, GENRE_PRESETS,
     uid, newProject, normalizeProject, mergeSettings, applyGenrePreset, emptyCatalog,
-    toUnit, fromUnit, MM, KDP, autoBleed
+    toUnit, fromUnit, MM, KDP, autoBleed, OUTPUT_SHEETS, outputSheetSize
   };
 });

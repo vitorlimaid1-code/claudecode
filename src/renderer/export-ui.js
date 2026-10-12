@@ -70,7 +70,12 @@
     }
     if (o.minPages && r.pages < o.minPages) issues.push({ level: 'error', type: 'pages', msg: `O livro tem ${r.pages} páginas; o perfil exige no mínimo ${o.minPages}.` });
     if (o.maxPages && r.pages > o.maxPages) issues.push({ level: 'error', type: 'pages', msg: `O livro tem ${r.pages} páginas; o perfil aceita no máximo ${o.maxPages}.` });
-    if (r.pages % 2) issues.push({ level: 'info', type: 'pages', msg: `Número ímpar de páginas (${r.pages}); a gráfica acrescentará uma página em branco no fim.` });
+    if (o.purpose === 'print' && o.kind !== 'cover') {
+      const sh = App.D.outputSheetSize(s, bleedOf(s));
+      if (sh && !sh.fits) issues.push({ level: 'error', type: 'size', msg: `A folha de saída (${App.fmtNum(sh.w)} × ${App.fmtNum(sh.h)} mm) é menor que a página com sangria${s.outputSheet.marks ? ' e marcas' : ''} (${App.fmtNum(sh.needW)} × ${App.fmtNum(sh.needH)} mm). Para não cortar nada, o PDF sairá no formato do livro. Ajuste em Formato e diagramação › Folha de saída.` });
+      else if (sh) issues.push({ level: 'info', type: 'size', msg: `Folha de saída ${App.fmtNum(sh.w)} × ${App.fmtNum(sh.h)} mm: cada página fica centralizada em tamanho real${s.outputSheet.marks ? ', com marcas de corte' : ''} (TrimBox e BleedBox mantidas).` });
+    }
+        if (r.pages % 2) issues.push({ level: 'info', type: 'pages', msg: `Número ímpar de páginas (${r.pages}); a gráfica acrescentará uma página em branco no fim.` });
     if (o.purpose === 'print' && needsBleed(proj) && !bleedOf(s)) issues.push({ level: 'error', type: 'bleed', msg: 'Há imagens ou fundos até a borda da página, mas a exportação está sem sangria: pode aparecer filete branco após o corte.', fix: 'bleed' });
     (r.fontReport || []).forEach(f => { if (!f.embeddable) issues.push({ level: 'error', type: 'font', msg: `A licença da fonte “${f.family}” não permite incorporação no PDF. Escolha outra fonte (Estilos de texto ou Fontes).` }); });
     (r.missingFonts || []).forEach(f => issues.push({ level: 'error', type: 'font', msg: `Fonte “${f}” ausente neste computador: o texto seria mostrado em outra fonte.`, fix: 'fonts' }));

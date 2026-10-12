@@ -447,3 +447,4 @@ body[data-view="cover"] .preview, body[data-view="cover"] .splitter { display: n
 .c3d-stage { width: 100%; height: min(62vh, 620px); border-radius: 8px; background: #3a3632; overflow: hidden; cursor: grab; }
 .c3d-stage:active { cursor: grabbing; }
 .c3d-stage.checker { background: repeating-conic-gradient(#d8d4cc 0% 25%, #f2efe9 0% 50%) 50% / 24px 24px; }
+.cat-paste { width: 100%; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12px; line-height: 1.45; white-space: pre; overflow-x: auto; tab-size: 4; }
