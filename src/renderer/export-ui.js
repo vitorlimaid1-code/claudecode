@@ -123,6 +123,8 @@
     if (!isbn.ok) issues.push({ level: 'warn', type: 'cedet', msg: `CEDET: ISBN ${proj.meta.isbn ? 'inválido — ' + isbn.error : 'não informado'}. Ele dá nome ao arquivo (ISBN_MIOLO_NOME DO LIVRO) e deve ser o mesmo do pré-cadastro.` });
     const colored = proj.chapters.some(c => c.style && (c.style.pageColor || c.style.textColor || c.style.titleColor)) || Object.keys(proj.pageStyles || {}).length || (s.pageColor && s.pageColor.toLowerCase() !== '#ffffff');
     if (colored) issues.push({ level: 'warn', type: 'cedet', msg: 'CEDET: o miolo é só preto e branco. Há cores de página ou de texto: elas sairão convertidas em tons de cinza (tinta preta).' });
+    const cv = proj.cover;
+    if (cv && cv.cedet && cv.spineMode === 'manual' && cv.spineFor && cv.spineFor.pages && r && r.pages && r.pages !== cv.spineFor.pages) issues.push({ level: 'warn', type: 'cedet', msg: `CEDET: a lombada da capa (${App.fmtNum(cv.spine)} mm) foi calculada para ${cv.spineFor.pages} páginas, mas o miolo tem ${r.pages}. Refaça o cálculo na calculadora do Cedet e atualize a capa.` });
     issues.push({ level: 'info', type: 'cedet', msg: 'Saída CEDET: sGray sem perfis incorporados, só tinta preta (as separações são conferidas na exportação), sangria de 5 mm, marcas de corte de 0,25 pt a 5 mm do corte, páginas individuais.' });
   }
 

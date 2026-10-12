@@ -188,6 +188,19 @@
     if (b === 0) api.openPath(r.files[0]); else if (b === 1) api.showItem(r.files[0]);
   }
 
+  const BARCODE_EDGE = 5; // distância mínima do quadro do código até o corte/dobra (igual à marca de corte)
+  const chapadaNow = c => (c.chapada === 'yes' ? true : c.chapada === 'no' ? false : hasChapada());
+  // A lombada da calculadora vale para um número de páginas e uma gráfica: se o miolo mudou, refaça o cálculo
+  function spineStale(c) {
+    const f = c.spineFor;
+    if (!f) return '';
+    const pages = App.lastRender ? App.lastRender.pages : c.pages;
+    const parts = [];
+    if (pages && f.pages && pages !== f.pages) parts.push(`o miolo passou de ${f.pages} para ${pages} páginas`);
+    if (typeof f.chapada === 'boolean' && f.chapada !== chapadaNow(c)) parts.push(`o miolo agora ${chapadaNow(c) ? 'tem' : 'não tem'} página chapada (muda a gráfica e a calculadora)`);
+    return parts.length ? `A lombada de ${App.fmtNum(c.spine)} mm foi digitada antes da última mudança: ${parts.join(' e ')}. Refaça o cálculo na calculadora do Cedet.` : '';
+  }
+
   // Problemas que o manual Cedet considera obrigatórios na capa
   function cedetCoverIssues(c) {
     const out = [];
@@ -197,6 +210,10 @@
     if (!okFmt) out.push(`Formato ${App.fmtNum(c.trimW / 10)} × ${App.fmtNum(c.trimH / 10)} cm fora dos formatos Cedet (15,5 × 23, 13,7 × 21, 11,5 × 17,5 cm).`);
     if (Math.abs(c.trimW - s.pageWidth) > 0.3 || Math.abs(c.trimH - s.pageHeight) > 0.3) out.push('A capa não está no mesmo formato do miolo.');
     if (c.spineMode !== 'manual') out.push('Lombada ainda estimada: digite a lombada calculada na calculadora do Cedet indicada pelo critério de página chapada.');
+    else {
+      const st = spineStale(c);
+      if (st) out.push(st);
+    }
     const b = c.isbnBarcode || {};
     const isbnTxt = b.isbn || App.project.meta.isbn;
     if (!b.enabled || !isbnTxt) out.push('Sem código de barras do ISBN: o manual Cedet pede o código na contracapa (digite o ISBN quando tiver o número).');
@@ -207,6 +224,11 @@
         const pos = window.Isbn.place(g, lay, b);
         const [bx, bw] = g.backTrim;
         if (pos.x < bx || pos.x + lay.w > bx + bw || pos.y < g.outer || pos.y + lay.h > g.outer + g.H) out.push('O código de barras sai da contracapa: diminua as distâncias ou mude a posição.');
+        else {
+          // o quadro branco não deve encostar no corte nem na dobra da lombada (o corte e a dobra variam alguns milímetros)
+          const gap = Math.min(pos.x - bx, bx + bw - (pos.x + lay.w), pos.y - g.outer, g.outer + g.H - (pos.y + lay.h));
+          if (gap < BARCODE_EDGE - 0.01) out.push(`O código de barras está a ${App.fmtNum(gap)} mm do corte ou da dobra da lombada: deixe pelo menos ${BARCODE_EDGE} mm para que o corte não atinja o código.`);
+        }
       }
     }
     if (c.hardcover) out.push('O manual Cedet trata de capa em cartão 250 g (brochura); a capa dura não faz parte do padrão.');
@@ -256,12 +278,12 @@
     const ch = c.chapada === 'yes' ? true : c.chapada === 'no' ? false : det;
     const issues = c.cedet ? cedetCoverIssues(c) : [];
     const spineIn = el('input', { type: 'number', step: 0.1, min: 0, placeholder: 'mm', value: c.spineMode === 'manual' ? c.spine : '' });
-    spineIn.addEventListener('change', () => { const v2 = parseFloat(spineIn.value); if (isFinite(v2) && v2 > 0) { c.spineMode = 'manual'; c.spine = v2; } else { c.spineMode = 'auto'; } App.changed('Lombada (calculadora Cedet)', { preview: false }); proof = null; render(); });
+    spineIn.addEventListener('change', () => { const v2 = parseFloat(spineIn.value); if (isFinite(v2) && v2 > 0) { c.spineMode = 'manual'; c.spine = v2; c.spineFor = { pages: App.lastRender ? App.lastRender.pages : c.pages, chapada: chapadaNow(c) }; } else { c.spineMode = 'auto'; c.spineFor = null; } App.changed('Lombada (calculadora Cedet)', { preview: false }); proof = null; render(); });
     return App.card('Padrão CEDET (manual de preparação de arquivos)', [
       el('label', { class: 'chk' }, [on(c, 'cedet', 'checkbox', { onChange: v2 => { if (v2) { c.marks.enabled = true; c.hardcover = false; c.flaps = 0; c.totalsManual = false; } proof = null; render(); } }), ' Capa no padrão CEDET (sem orelhas)']),
       c.cedet ? el('div', { class: 'small', text: `Capa sem orelhas (o Cedet não usa orelhas): capa e contracapa com ${App.fmtNum(g.W / 10)} × ${App.fmtNum(g.H / 10)} cm, o mesmo formato do miolo; capa aberta ${App.fmtNum(g.trimTotalW)} × ${App.fmtNum(g.H)} mm sem sangria, ${App.fmtNum(g.totalW)} × ${App.fmtNum(g.totalH)} mm com 5 mm de sangria.` }) : null,
       c.cedet ? App.field('Página chapada no miolo', on(c, 'chapada', 'select', { options: [{ value: 'auto', label: `Detectar automaticamente (${det ? 'há' : 'não há'} página chapada)` }, { value: 'yes', label: 'Sim — há pelo menos uma página chapada' }, { value: 'no', label: 'Não — nenhuma página chapada' }], onChange: () => { proof = null; render(); } }), ch ? 'Com página chapada: gráfica externa · miolo Pólen Bold 70 g · capa cartão 250 g → use a calculadora de lombada da gráfica externa.' : 'Sem página chapada: gráfica interna · miolo Avena 80 g · capa cartão 250 g → use a calculadora de lombada da gráfica interna.') : null,
-      c.cedet ? App.field('Lombada pela calculadora Cedet (mm)', spineIn, c.spineMode === 'manual' ? `Usando ${App.fmtNum(g.spine)} mm.` : `Obrigatório: a lombada não pode ser calculada manualmente. Estimativa só de referência: ${App.fmtNum(g.autoSpine)} mm.`) : null,
+      c.cedet ? App.field('Lombada pela calculadora Cedet (mm)', spineIn, c.spineMode === 'manual' ? `Usando ${App.fmtNum(g.spine)} mm${c.spineFor && c.spineFor.pages ? ` (calculada para ${c.spineFor.pages} páginas)` : ''}.` : `Obrigatório: a lombada não pode ser calculada manualmente. Estimativa só de referência: ${App.fmtNum(g.autoSpine)} mm.`) : null,
       c.cedet ? el('div', { class: 'small muted', text: 'Sangria 5 mm · marcas de corte e de dobra de 0,25 pt a 5 mm do corte (capa, contracapa e lombada) · CMYK · 300 dpi · capa aberta em um único PDF (páginas espelhadas). Dúvidas sobre a lombada: editoras-parceiras@cedet.com.br.' }) : null,
       c.cedet && issues.length ? el('ul', { class: 'small warn' }, issues.map(x => el('li', { text: x }))) : c.cedet ? el('div', { class: 'good small', text: '✓ Capa conforme o manual Cedet.' }) : null
     ], '', 'span-all');
