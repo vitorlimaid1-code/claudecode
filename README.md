@@ -86,6 +86,16 @@ Todo livro novo nasce no padrão do **Manual de Preparação de Arquivos do Cede
 - **Gráficos** com várias séries: colunas, colunas empilhadas, barras horizontais, linhas, área, pizza e rosca; tons de cinza com tracejado para P&B (padrão no CEDET); números no padrão brasileiro.
 - **Numeração automática** (Tabela 1, Gráfico 1, Figura 1) e **listas de tabelas, gráficos e figuras** com número de página, logo depois do sumário; a mesma numeração no EPUB.
 
+### Estilos rápidos e legendas
+- **Barra rápida** ao selecionar um texto no editor: **Título**, **Subtítulo**, **Corpo**, **Legenda ▾**, Citação e Destaque (também fixos na barra do editor; atalhos Ctrl+1, Ctrl+2, Ctrl+0 e Ctrl+9).
+- **Legendas**: o parágrafo selecionado vira a legenda da figura ou tabela vizinha (ou uma legenda solta). Seis estilos elegantes — Clássica, Editorial, Moderna, Discreta, Destaque e Lateral —, com um padrão para o livro (Estilos de texto) e estilo próprio por legenda. Legendas que já vêm numeradas são mantidas como estão.
+
+### Importação completa
+- **Word (.docx)**: imagens, **gráficos nativos do Word** (recriados como gráficos editáveis), notas de rodapé, **comentários de revisão** (ficam no editor como 💬 e na Revisão do texto, nunca no livro), listas, tabelas, legendas ligadas à figura/tabela/gráfico e “Fonte:” — tudo no estilo definido do livro e indexado nas listas.
+
+### Aparência do sistema
+- **Modo noturno** (botão 🌙 no topo), claro ou automático (segue o Windows) e **nove cores** do sistema (Terracota, Azul-marinho, Verde-floresta, Vinho, Roxo, Petróleo, Âmbar, Rosa, Grafite). As páginas do livro continuam brancas na prévia; restaurável em Restaurar padrões.
+
 ### Notas de rodapé
 - A nota fica **inteira na página da chamada**: se não couber, o texto desce para a página seguinte (padrão editorial). Só notas maiores que a página inteira continuam na seguinte. A paginação é conferida palavra por palavra (nada some).
 
