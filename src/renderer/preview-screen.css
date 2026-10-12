@@ -1,16 +1,19 @@
 /* Aparência da prévia na tela (não afeta o PDF) */
+.guide { display: none; position: absolute; pointer-events: none; z-index: 40; }
+.pagedjs_pagebox > .pagedjs_area { position: relative; z-index: 1; }
+.ov { pointer-events: none; }
+.ov-behind { z-index: 0; }
+
 @media screen {
   html, body { margin: 0; padding: 0; }
   body { background: #e4e2dd; }
-  body.single .pagedjs_pages { flex-direction: column; align-items: center; width: auto; }
-  body.single .pagedjs_first_page { margin-left: 0 !important; }
   .pagedjs_pages {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-start;
     width: calc(var(--pagedjs-width) * 2);
     margin: 24px auto;
-    row-gap: 22px;
+    row-gap: 24px;
   }
   .pagedjs_page {
     background: #fff;
@@ -20,15 +23,37 @@
     position: relative;
   }
   .pagedjs_first_page { margin-left: var(--pagedjs-width) !important; }
-  .pagedjs_left_page { box-shadow: -1px 1px 3px rgba(0,0,0,.18), -4px 6px 18px rgba(0,0,0,.10); }
   .pagedjs_page::after {
     content: attr(data-page-number);
     position: absolute;
-    bottom: -18px;
+    bottom: -19px;
     left: 0; right: 0;
     text-align: center;
     font: 11px system-ui, sans-serif;
     color: #77736b;
   }
-  body.guides .pagedjs_area { outline: 1px dashed rgba(70, 130, 220, .55); }
+  .pagedjs_page.flash { outline: 4px solid #d9822b; outline-offset: 3px; }
+
+  body.single .pagedjs_pages { flex-direction: column; align-items: center; width: auto; }
+  body.single .pagedjs_first_page { margin-left: 0 !important; }
+
+  body.overview .pagedjs_pages { width: auto; max-width: none; justify-content: center; column-gap: 0; padding: 0 20px; }
+  body.overview .pagedjs_first_page { margin-left: var(--pagedjs-width) !important; }
+  body.overview .pagedjs_left_page { margin-left: 30px !important; }
+  body.overview .pagedjs_first_page.pagedjs_right_page { margin-left: calc(var(--pagedjs-width) + 30px) !important; }
+
+  body.gray .pagedjs_pages { filter: grayscale(1); }
+
+  body.guides .guide { display: block; }
+  body.guides .guide-trim { outline: 1px solid rgba(220, 40, 40, .8); }
+  body.guides .guide-bleed { outline: 1px dashed rgba(220, 40, 40, .45); }
+  body.guides .guide-safe { outline: 1px dashed rgba(30, 150, 80, .75); }
+  body.guides .guide-margin { outline: 1px dashed rgba(60, 120, 220, .6); }
+  body.guides .guide-center { border-left: 1px dotted rgba(150, 80, 200, .5); }
+
+  /* edição de camadas na prévia */
+  body.edit-layers .ov { pointer-events: auto; cursor: move; outline: 1px dashed rgba(217, 130, 43, .7); }
+  body.edit-layers .ov.selected { outline: 2px solid #d9822b; }
+  .snap-line { position: absolute; z-index: 60; pointer-events: none; background: #e0338a; }
+  .drop-ghost { position: absolute; z-index: 61; pointer-events: none; outline: 2px dashed #d9822b; background: rgba(217,130,43,.12); }
 }

@@ -20,7 +20,7 @@ for (let i = 0; i < args.length; i++) {
   else targetName = args[i];
 }
 platform = platform || Platform.WINDOWS;
-targets.set(platform, new Map([[require('builder-util').archFromString(arch), [targetName || (platform === Platform.WINDOWS ? 'nsis' : 'AppImage')]]]));
+targets.set(platform, new Map([[require('builder-util').archFromString(arch), (targetName || (platform === Platform.WINDOWS ? 'nsis' : 'AppImage')).split(',')]]));
 
 build({ targets, publish: 'never' })
   .then(files => { console.log('\nArquivos gerados:\n' + files.map(f => '  ' + f).join('\n')); })

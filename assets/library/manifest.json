@@ -1,0 +1,350 @@
+{
+ "separadores": [
+  {
+   "id": "linha-simples",
+   "name": "Linha simples",
+   "tags": "filete liso padrão",
+   "file": "separadores/linha-simples.png",
+   "width": 2400,
+   "height": 400
+  },
+  {
+   "id": "linha-fina-afinada",
+   "name": "Filete afinado",
+   "tags": "linha clássica elegante",
+   "file": "separadores/linha-fina-afinada.png",
+   "width": 2400,
+   "height": 400
+  },
+  {
+   "id": "linha-dupla",
+   "name": "Linha dupla",
+   "tags": "suspense policial clássico",
+   "file": "separadores/linha-dupla.png",
+   "width": 2400,
+   "height": 400
+  },
+  {
+   "id": "linha-ponto",
+   "name": "Linha com ponto",
+   "tags": "moderno negócios",
+   "file": "separadores/linha-ponto.png",
+   "width": 2400,
+   "height": 400
+  },
+  {
+   "id": "losango",
+   "name": "Losango central",
+   "tags": "contos clássico",
+   "file": "separadores/losango.png",
+   "width": 2400,
+   "height": 400
+  },
+  {
+   "id": "tres-losangos",
+   "name": "Três losangos",
+   "tags": "clássico",
+   "file": "separadores/tres-losangos.png",
+   "width": 2400,
+   "height": 400
+  },
+  {
+   "id": "estrelas",
+   "name": "Estrelas",
+   "tags": "infantil fantasia",
+   "file": "separadores/estrelas.png",
+   "width": 2400,
+   "height": 400
+  },
+  {
+   "id": "coracao-linhas",
+   "name": "Coração com linhas",
+   "tags": "romance amor",
+   "file": "separadores/coracao-linhas.png",
+   "width": 2400,
+   "height": 400
+  },
+  {
+   "id": "pena",
+   "name": "Pena",
+   "tags": "poesia escrita",
+   "file": "separadores/pena.png",
+   "width": 2400,
+   "height": 400
+  },
+  {
+   "id": "folhas",
+   "name": "Ramo de folhas",
+   "tags": "biografia natureza",
+   "file": "separadores/folhas.png",
+   "width": 2400,
+   "height": 400
+  },
+  {
+   "id": "arabesco",
+   "name": "Arabesco",
+   "tags": "fantasia ornamental clássico",
+   "file": "separadores/arabesco.png",
+   "width": 2400,
+   "height": 400
+  },
+  {
+   "id": "cruz-flor",
+   "name": "Cruz florida",
+   "tags": "religioso espiritual",
+   "file": "separadores/cruz-flor.png",
+   "width": 2400,
+   "height": 400
+  },
+  {
+   "id": "espinhos",
+   "name": "Espinhos",
+   "tags": "terror sombrio gótico",
+   "file": "separadores/espinhos.png",
+   "width": 2400,
+   "height": 400
+  },
+  {
+   "id": "caveira",
+   "name": "Caveira",
+   "tags": "terror horror",
+   "file": "separadores/caveira.png",
+   "width": 2400,
+   "height": 400
+  },
+  {
+   "id": "lua",
+   "name": "Lua e estrelas",
+   "tags": "noite fantasia romance",
+   "file": "separadores/lua.png",
+   "width": 2400,
+   "height": 400
+  },
+  {
+   "id": "ondas",
+   "name": "Ondas",
+   "tags": "mar viagem",
+   "file": "separadores/ondas.png",
+   "width": 2400,
+   "height": 400
+  },
+  {
+   "id": "art-deco",
+   "name": "Art déco",
+   "tags": "moderno elegante anos 20",
+   "file": "separadores/art-deco.png",
+   "width": 2400,
+   "height": 400
+  },
+  {
+   "id": "orbita",
+   "name": "Órbita",
+   "tags": "ficção científica espaço",
+   "file": "separadores/orbita.png",
+   "width": 2400,
+   "height": 400
+  },
+  {
+   "id": "chave",
+   "name": "Chave antiga",
+   "tags": "mistério suspense",
+   "file": "separadores/chave.png",
+   "width": 2400,
+   "height": 400
+  },
+  {
+   "id": "floral",
+   "name": "Floral",
+   "tags": "romance delicado",
+   "file": "separadores/floral.png",
+   "width": 2400,
+   "height": 400
+  },
+  {
+   "id": "gotico",
+   "name": "Arco gótico",
+   "tags": "terror medieval",
+   "file": "separadores/gotico.png",
+   "width": 2400,
+   "height": 400
+  },
+  {
+   "id": "pontos",
+   "name": "Três pontos",
+   "tags": "minimalista",
+   "file": "separadores/pontos.png",
+   "width": 2400,
+   "height": 400
+  }
+ ],
+ "corpo": [
+  {
+   "id": "rosa",
+   "name": "Rosa",
+   "tags": "romance flor amor",
+   "file": "corpo/rosa.png",
+   "width": 1200,
+   "height": 1200
+  },
+  {
+   "id": "folha",
+   "name": "Folha",
+   "tags": "natureza outono",
+   "file": "corpo/folha.png",
+   "width": 1200,
+   "height": 1200
+  },
+  {
+   "id": "lua",
+   "name": "Lua crescente",
+   "tags": "noite sonho fantasia",
+   "file": "corpo/lua.png",
+   "width": 1200,
+   "height": 1200
+  },
+  {
+   "id": "estrelas",
+   "name": "Céu estrelado",
+   "tags": "infantil fantasia sonho",
+   "file": "corpo/estrelas.png",
+   "width": 1200,
+   "height": 1200
+  },
+  {
+   "id": "caveira",
+   "name": "Caveira",
+   "tags": "terror horror morte",
+   "file": "corpo/caveira.png",
+   "width": 1200,
+   "height": 1200
+  },
+  {
+   "id": "coracao",
+   "name": "Coração",
+   "tags": "romance amor",
+   "file": "corpo/coracao.png",
+   "width": 1200,
+   "height": 1200
+  },
+  {
+   "id": "pena-tinteiro",
+   "name": "Pena e tinteiro",
+   "tags": "poesia escrita escritor",
+   "file": "corpo/pena-tinteiro.png",
+   "width": 1200,
+   "height": 1200
+  },
+  {
+   "id": "arvore",
+   "name": "Árvore",
+   "tags": "natureza vida família",
+   "file": "corpo/arvore.png",
+   "width": 1200,
+   "height": 1200
+  },
+  {
+   "id": "montanhas",
+   "name": "Montanhas",
+   "tags": "viagem aventura natureza",
+   "file": "corpo/montanhas.png",
+   "width": 1200,
+   "height": 1200
+  },
+  {
+   "id": "ondas",
+   "name": "Ondas do mar",
+   "tags": "mar praia viagem",
+   "file": "corpo/ondas.png",
+   "width": 1200,
+   "height": 1200
+  },
+  {
+   "id": "vela",
+   "name": "Vela",
+   "tags": "terror mistério religioso",
+   "file": "corpo/vela.png",
+   "width": 1200,
+   "height": 1200
+  },
+  {
+   "id": "chave",
+   "name": "Chave antiga",
+   "tags": "mistério segredo",
+   "file": "corpo/chave.png",
+   "width": 1200,
+   "height": 1200
+  },
+  {
+   "id": "borboleta",
+   "name": "Borboleta",
+   "tags": "infantil natureza delicado",
+   "file": "corpo/borboleta.png",
+   "width": 1200,
+   "height": 1200
+  },
+  {
+   "id": "gato",
+   "name": "Gato",
+   "tags": "infantil mistério animal",
+   "file": "corpo/gato.png",
+   "width": 1200,
+   "height": 1200
+  },
+  {
+   "id": "xicara",
+   "name": "Xícara de café",
+   "tags": "cotidiano crônica conforto",
+   "file": "corpo/xicara.png",
+   "width": 1200,
+   "height": 1200
+  },
+  {
+   "id": "livro-aberto",
+   "name": "Livro aberto",
+   "tags": "leitura estudo acadêmico",
+   "file": "corpo/livro-aberto.png",
+   "width": 1200,
+   "height": 1200
+  },
+  {
+   "id": "castelo",
+   "name": "Castelo",
+   "tags": "fantasia medieval infantil",
+   "file": "corpo/castelo.png",
+   "width": 1200,
+   "height": 1200
+  },
+  {
+   "id": "foguete",
+   "name": "Foguete",
+   "tags": "ficção científica espaço infantil",
+   "file": "corpo/foguete.png",
+   "width": 1200,
+   "height": 1200
+  },
+  {
+   "id": "coroa",
+   "name": "Coroa",
+   "tags": "fantasia realeza",
+   "file": "corpo/coroa.png",
+   "width": 1200,
+   "height": 1200
+  },
+  {
+   "id": "bussola",
+   "name": "Bússola",
+   "tags": "viagem aventura",
+   "file": "corpo/bussola.png",
+   "width": 1200,
+   "height": 1200
+  },
+  {
+   "id": "ornamento-canto",
+   "name": "Ornamento de canto",
+   "tags": "moldura clássico decoração",
+   "file": "corpo/ornamento-canto.png",
+   "width": 1200,
+   "height": 1200
+  }
+ ]
+}
