@@ -456,3 +456,10 @@ body[data-view="cover"] .preview, body[data-view="cover"] .splitter { display: n
 .cover-spread-slots > .field { border: 1px dashed var(--line); border-radius: 6px; padding: 6px; }
 .reset-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .reset-row:last-of-type { border-bottom: 0; }
+.cat-parse-preview { grid-column: 1 / -1; display: grid; gap: 6px; }
+.cat-mini-sheet { font: 11px/1.45 Georgia, serif; color: #111; background: #fff; border: 1px solid #222; padding: 10px 12px; max-width: 520px; }
+.cat-mini-sheet.cat-style-plain { border: 0; } .cat-mini-sheet.cat-style-double { border: 3px double #222; } .cat-mini-sheet.cat-style-rounded { border-radius: 8px; }
+.cat-mini-sheet .cps-head { text-align: center; font-weight: 700; margin-bottom: 6px; }
+.cat-mini-sheet .cps-main { display: flex; gap: 10px; } .cat-mini-sheet .cps-cutter { width: 44px; flex: none; }
+.cat-mini-sheet .cps-ind { padding-left: 14px; } .cat-mini-sheet .cps-class { text-align: right; margin-top: 6px; }
+.cat-mini-sheet .cps-class.split { display: flex; justify-content: space-between; } .cat-mini-sheet .cps-b { font-weight: 700; margin-top: 6px; } .cat-mini-sheet .cps-lib { margin-top: 6px; font-size: 0.92em; }

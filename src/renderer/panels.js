@@ -405,14 +405,33 @@
         const save = () => { c.manualText = ta.value; if (ta.value.trim()) c.mode = 'manual'; App.changed('Ficha catalográfica colada'); };
         ta.addEventListener('input', () => { c.manualText = ta.value; App.changed(null); clearTimeout(ta._t); ta._t = setTimeout(() => App.commit('Ficha catalográfica colada'), 1200); });
         ta.addEventListener('paste', () => setTimeout(() => { save(); rerender(); App.toast('Ficha colada: ela será usada no livro, com o espaçamento e a caixa padrão da ficha.'); }, 0));
-        return card('Colar ficha catalográfica pronta', [
+        // como a ficha colada foi entendida: mesma organização do modelo (cabeçalho, chamada, entrada, recuos, assuntos, CDD)
+        const pc = c.manualText && c.manualText.trim() && window.CatalogParse ? window.CatalogParse.parse(c.manualText) : null;
+        const preview = pc && pc.ok && !c.manualRaw ? el('div', { class: 'cat-parse-preview' }, [
+          el('div', { class: 'small muted', text: 'Como a ficha sai no livro (organização do modelo selecionado):' }),
+          el('div', { class: 'cat-mini-sheet cat-style-' + (c.style || 'box') }, [
+            el('div', { class: 'cps-head', text: 'Dados Internacionais de Catalogação na Publicação (CIP)' + (c.style === 'cbl' ? ' (Câmara Brasileira do Livro, SP, Brasil)' : '') }),
+            el('div', { class: 'cps-main' }, [
+              pc.cutter ? el('div', { class: 'cps-cutter', text: pc.cutter }) : null,
+              el('div', {}, [el('div', { text: pc.entry })].concat(pc.paras.map(x => el('div', { class: 'cps-ind', text: x }))).concat(pc.subjects ? [el('div', { class: 'cps-ind', text: pc.subjects })] : []))
+            ]),
+            ...pc.cls.map(p2 => el('div', { class: 'cps-class' + (p2.length > 1 ? ' split' : '') }, p2.map(x => el('span', { text: x })))),
+            ...pc.indices.map((x, i) => el('div', { class: i ? '' : 'cps-b', text: x })),
+            ...pc.librarian.map(x => el('div', { class: 'cps-lib', text: x }))
+          ]),
+          el('div', { class: 'small muted', text: `Entendido: ${[pc.cutter && 'número de chamada', 'entrada', pc.paras.length + ' parágrafo(s)', pc.subjects && 'assuntos', pc.cls.length && 'classificação', pc.indices.length && 'índices', pc.librarian.length && 'bibliotecário'].filter(Boolean).join(' · ')}` })
+        ]) : null;
+        return card('Colar ficha catalográfica pronta (opcional)', [
+          el('p', { class: 'small muted wide', text: 'Módulo à parte: se você já tem a ficha pronta, cole aqui e não precisa preencher os campos abaixo. A ficha colada sai com a mesma organização visual do modelo selecionado na galeria — cabeçalho, número de chamada, entrada, recuos, assuntos e CDD nos mesmos lugares da ficha montada pelos campos.' }),
           el('div', { class: 'field wide' }, [ta]),
-          el('label', { class: 'chk' }, [el('input', { type: 'checkbox', checked: c.mode === 'manual', onchange: e => { c.mode = e.target.checked ? 'manual' : 'fields'; App.changed(e.target.checked ? 'Usar a ficha colada' : 'Usar a ficha montada pelos campos'); rerender(); } }), ' Usar esta ficha no livro (em vez da ficha montada pelos campos)']),
+          el('label', { class: 'chk' }, [el('input', { type: 'checkbox', checked: c.mode === 'manual', onchange: e => { c.mode = e.target.checked ? 'manual' : 'fields'; App.changed(e.target.checked ? 'Usar a ficha colada' : 'Usar a ficha montada pelos campos'); rerender(); } }), ' Usar a ficha colada no livro (em vez da montada pelos campos)']),
+          el('label', { class: 'chk' }, [el('input', { type: 'checkbox', checked: !!c.manualRaw, onchange: e => { c.manualRaw = e.target.checked; App.changed(e.target.checked ? 'Ficha colada sem reorganizar' : 'Ficha colada no padrão do modelo'); rerender(); } }), ' Manter exatamente como colei (sem reorganizar no padrão do modelo)']),
+          preview,
           el('div', { class: 'inline wrap' }, [
             el('button', { text: 'Colar da área de transferência', onclick: async () => { try { const t = await navigator.clipboard.readText(); if (t) { ta.value = t; save(); rerender(); } } catch (e) { App.toast('Use Ctrl+V dentro da caixa.'); } } }),
             el('button', { class: 'ghost', text: 'Limpar', onclick: () => { c.manualText = ''; c.mode = 'fields'; App.changed('Ficha colada removida'); rerender(); } })
           ])
-        ], 'Quebras de linha, recuos e o alinhamento do número de chamada são mantidos. A ficha usa a fonte, o tamanho e o espaçamento padrão da ficha catalográfica, dentro da caixa escolhida em “Aparência”. Se o texto não trouxer “Dados Internacionais de Catalogação na Publicação (CIP)”, o cabeçalho é acrescentado. Logotipos, selos e QR codes podem ser adicionados logo abaixo, em “Imagens e QR codes”.', 'span-all');
+        ], '', 'span-all');
       })(),
       card('Créditos do desenvolvimento do livro', [
         credits,

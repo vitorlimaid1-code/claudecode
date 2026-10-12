@@ -1,5 +1,6 @@
 // Monta o HTML e o CSS paginável (Paged.js) a partir de um projeto de livro.
 const { normalizeProject, BUNDLED_FONTS, autoBleed, CEDET } = require('./shared/defaults');
+const CatalogParse = require('./shared/catalog-parse');
 
 function effectiveBleed(s) {
   if (s.bleedAuto) return autoBleed(s);
@@ -267,8 +268,21 @@ function catalogHtml(project, ctx) {
       if (c.manualText && c.manualText.trim()) {
         // ficha colada: mantém quebras de linha e recuos; o cabeçalho CIP só entra se não vier no texto
         const txt = String(c.manualText).replace(/\r\n?/g, '\n').replace(/[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n').replace(/^\n+|\n+$/g, '');
-        const hasHead = /dados\s+internacionais\s+de\s+cataloga/i.test(txt);
-        parts.push(`<div class="cat-box">${hasHead ? '' : catHead(c)}<div class="cat-manual">${esc(txt)}</div></div>`);
+        const pc = c.manualRaw ? null : CatalogParse.parse(txt);
+        if (pc && pc.ok) {
+          // ficha colada reorganizada com a mesma estrutura (e o mesmo cabeçalho) do modelo escolhido
+          const clsHtml = pc.cls.map(parts2 => `<div class="cat-class${parts2.length > 1 ? ' cat-class-split' : ''}">${parts2.map(x => `<span>${esc(x)}</span>`).join('')}</div>`).join('');
+          parts.push(`<div class="cat-box cat-pasted">${catHead(c)}
+            ${pc.cutter ? `<div class="cat-cutter">${esc(pc.cutter)}</div>` : ''}
+            <div class="cat-body"${pc.cutter ? ' style="margin-left:12mm"' : ''}><div class="cat-entry">${esc(pc.entry)}</div>${pc.paras.map(x => `<div class="cat-indent">${esc(x)}</div>`).join('')}${pc.subjects ? `<div class="cat-indent cat-subjects">${esc(pc.subjects)}</div>` : ''}</div>
+            ${clsHtml}
+            ${pc.indices.length ? `<div class="cat-indices">${pc.indices.map((x, i) => `<div${i ? '' : ' class="cat-indices-head"'}>${esc(x)}</div>`).join('')}</div>` : ''}
+            ${pc.librarian.map(x => `<div class="cat-lib">${esc(x)}</div>`).join('')}
+          </div>`);
+        } else {
+          const hasHead = /dados\s+internacionais\s+de\s+cataloga/i.test(txt);
+          parts.push(`<div class="cat-box">${hasHead ? '' : catHead(c)}<div class="cat-manual">${esc(txt)}</div></div>`);
+        }
       }
     } else {
       const wcm = (num(s.pageWidth, 140) / 10).toLocaleString('pt-BR');
@@ -278,7 +292,7 @@ function catalogHtml(project, ctx) {
       const subjects = String(c.subjects || '').split(/[\n;]+/).map(x => x.trim()).filter(Boolean);
       const lines = [];
       lines.push(`<div class="cat-entry">${esc(c.authorEntry || invertName(meta.author))}</div>`);
-      lines.push(`<div class="cat-indent">${esc(meta.title)}${meta.subtitle ? ` : ${esc(meta.subtitle)}` : ''}${resp ? ` / ${esc(resp)}` : ''}.${meta.edition ? ` — ${esc(meta.edition)}.` : ''} — ${esc(meta.city || '[S.l.]')} : ${esc(meta.publisher || '[s.n.]')}, ${esc(meta.year || '')}.</div>`);
+      lines.push(`<div class="cat-indent">${esc(meta.title)}${meta.subtitle ? ` : ${esc(meta.subtitle)}` : ''}${resp ? ` / ${esc(resp)}` : ''}.${meta.edition ? ` — ${esc(String(meta.edition).replace(/\.\s*$/, ''))}.` : ''} — ${esc(meta.city || '[S.l.]')} : ${esc(meta.publisher || '[s.n.]')}, ${esc(meta.year || '')}.</div>`);
       lines.push(`<div class="cat-indent">${pages} p. ; ${wcm} × ${hcm} cm.${c.series ? ` — (${esc(c.series)})` : ''}</div>`);
       if (c.originalTitle) lines.push(`<div class="cat-indent">Título original: ${esc(c.originalTitle)}</div>`);
       if (c.notes) lines.push(`<div class="cat-indent">${multiline(c.notes)}</div>`);
@@ -579,9 +593,12 @@ ${pageNames}
 .cat-cutter { float: left; width: 12mm; }
 .cat-indent { padding-left: 4mm; }
 .cat-class { text-align: right; margin-top: 1.5mm; }
+.cat-class-split { display: flex; justify-content: space-between; gap: 4mm; }
+.cat-indices { margin-top: 1.5mm; }
+.cat-indices-head { font-weight: 700; }
 .cat-lib { margin-top: 1.5mm; font-size: 0.9em; }
 .cat-dist { margin-top: 3mm; font-size: 0.9em; line-height: 1.35; text-align: left; hyphens: manual; }
-.cat-dist-head { font-weight: bold; letter-spacing: 0.04em; }
+.cat-dist-head { font-weight: bold; }
 .cat-medias { display: flex; flex-wrap: wrap; gap: 4mm; align-items: flex-end; }
 .cat-media { text-align: center; font-size: 0.9em; }
 .cat-media img { display: block; margin: 0 auto 1mm; }
