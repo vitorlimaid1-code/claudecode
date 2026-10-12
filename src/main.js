@@ -4,8 +4,8 @@ const { app, BrowserWindow, Menu, dialog, ipcMain, protocol, session, shell } = 
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const { buildBook } = require('./book');
-const { normalizeProject, newProject, BUNDLED_FONTS } = require('./shared/defaults');
+const { buildBook, effectiveBleed } = require('./book');
+const { normalizeProject, newProject, BUNDLED_FONTS, PAGE_FORMATS } = require('./shared/defaults');
 const { importAny } = require('./main/importers');
 const { FontManager } = require('./main/fonts');
 const { ImageLibrary, analyzeImage, hashBuffer } = require('./main/library');
@@ -415,9 +415,9 @@ async function finishPrintPdf(pdfBuf, project, opts) {
       colorReport = r.report;
     } catch (e) { console.error('convertPdfColor', e); colorReport = { error: String(e.message || e) }; }
   }
-  return { pdf: await finishBoxes(pdfBuf, project), colorReport };
+  return { pdf: await finishBoxes(pdfBuf, project, opts), colorReport };
 }
-async function finishBoxes(pdfBuf, project) {
+async function finishBoxes(pdfBuf, project, opts) {
   try {
     const { PDFDocument } = require('pdf-lib');
     const doc = await PDFDocument.load(pdfBuf, { updateMetadata: false });
@@ -425,13 +425,26 @@ async function finishBoxes(pdfBuf, project) {
     const ptmm = 72 / 25.4;
     const tw = s.pageWidth * ptmm;
     const th = s.pageHeight * ptmm;
-    doc.getPages().forEach(pg => {
-      const { width, height } = pg.getSize();
-      const ix = Math.max(0, (width - tw) / 2);
-      const iy = Math.max(0, (height - th) / 2);
-      pg.setBleedBox(0, 0, width, height);
-      pg.setTrimBox(ix, iy, width - 2 * ix, height - 2 * iy);
-      pg.setArtBox(ix, iy, width - 2 * ix, height - 2 * iy);
+    const b = effectiveBleed(s) * ptmm;
+    // O Chromium arredonda o tamanho da folha para pontos inteiros, mas desenha a página a partir
+    // do canto superior esquerdo no tamanho exato: as caixas são gravadas com as medidas exatas.
+    const W = tw + 2 * b;
+    const H = th + 2 * b;
+    // KDP: a sangria do miolo existe só nas bordas externas (a lombada não tem sangria)
+    const fmt = PAGE_FORMATS.find(f => f.id === s.pageFormat);
+    const outerOnly = b > 0 && ((s.kdp && s.kdp.enabled) || (fmt && /KDP/.test(fmt.group)));
+    const first = opts && opts.range ? Math.max(1, Math.min(...String(opts.range).match(/\d+/g).map(Number))) : 1;
+    doc.getPages().forEach((pg, i) => {
+      const { height } = pg.getSize();
+      const y0 = height - H;
+      const recto = (first + i) % 2 === 1; // página ímpar = direita: a lombada fica à esquerda
+      const mx = outerOnly && recto ? b : 0;
+      const mw = outerOnly ? W - b : W;
+      pg.setMediaBox(mx, y0, mw, H);
+      pg.setCropBox(mx, y0, mw, H);
+      pg.setBleedBox(mx, y0, mw, H);
+      pg.setTrimBox(b, y0 + b, tw, th);
+      pg.setArtBox(b, y0 + b, tw, th);
     });
     const m = project.meta || {};
     doc.setTitle(m.title || '');
@@ -678,6 +691,24 @@ async function runSmokeTest() {
     const insp = await withRenderWindow(async win => { await renderBookIn(win, project, {}); return win.webContents.executeJavaScript('window.inspectBook({})', true); });
     console.log('INSPECT', JSON.stringify(insp.issues.slice(0, 8)), 'images', JSON.stringify(insp.images.slice(0, 2)));
   }
+  // verificações de saída para gráfica: caixas exatas, cor do miolo e capa CMYK (PDF/X-1a)
+  const { PDFDocument, PDFName } = require('pdf-lib');
+  const assert = (cond, msg) => { if (!cond) throw new Error('verificação falhou: ' + msg); };
+  const d1 = await PDFDocument.load(pdf);
+  const s = normalizeProject(project).settings;
+  const ptmm = 72 / 25.4;
+  const bl = effectiveBleed(s);
+  const mb = d1.getPage(0).getMediaBox();
+  const tb = d1.getPage(0).getTrimBox();
+  assert(Math.abs(mb.width - (s.pageWidth + 2 * bl) * ptmm) < 0.05 && Math.abs(tb.width - s.pageWidth * ptmm) < 0.05 && Math.abs(tb.height - s.pageHeight * ptmm) < 0.05, `caixas ${JSON.stringify([mb, tb])}`);
+  const cm = await finishPrintPdf(pdf, project, { color: 'cmyk' });
+  assert(cm.colorReport && cm.colorReport.mode === 'cmyk' && cm.colorReport.colors > 0 && !cm.colorReport.error, 'conversão CMYK do miolo ' + JSON.stringify(cm.colorReport));
+  const d2 = await PDFDocument.load(cm.pdf);
+  assert(d2.catalog.get(PDFName.of('OutputIntents')), 'OutputIntent do miolo');
+  const cover = { trimW: s.pageWidth, trimH: s.pageHeight, pages, paper: 'polen80', bleedAuto: true, images: { front: { asset: 'rosa', fit: 'cover' } }, bg: { back: '#203040' }, profile: 'fogra39' };
+  const cv = await cmyk.buildCoverPdf(APP_ROOT, cover, project.assets, project.meta, CoverGeometry.geometry(cover), { bleed: true, dpi: 100 });
+  assert(cv.pdf.slice(0, 8).toString('latin1') === '%PDF-1.3' && /DeviceCMYK/.test(cv.pdf.toString('latin1')) && /GTS_PDFX/.test(cv.pdf.toString('latin1')), 'capa PDF/X-1a CMYK');
+  console.log(`SMOKE_CHECKS caixas=ok miolo_cmyk=${cm.colorReport.colors}cores capa=${cv.report.widthPx}x${cv.report.heightPx}px`);
   console.log(`SMOKE_OK pages=${pages} bytes=${pdf.length} out=${out}`);
 }
 

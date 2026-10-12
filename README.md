@@ -22,8 +22,10 @@ Como os executáveis não têm assinatura digital, o Windows SmartScreen pode av
 ### Manuscrito
 - Importação de **DOCX, DOC, EPUB, PDF, ODT, TXT, Markdown, HTML e RTF**, inclusive arrastando o arquivo para a janela. Títulos viram capítulos (“Capítulo 3 — Nome” vira “Nome”, numerado automaticamente).
 - **Notas de rodapé preservadas** (Word, EPUB, ODT, DOC, Markdown e, por reconstrução, PDF). Painel **Notas de rodapé**: ocultar todas sem apagar, remover todas ou só as escolhidas; no editor, clique numa nota para removê-la ou transformá-la em texto.
-- O texto importado é **padronizado** com os estilos do livro (fontes, tamanhos e espaçamentos do manuscrito são trocados pela configuração escolhida).
-- **Paginação automática** (Paged.js): o texto que não cabe é empurrado para a página seguinte sem mudar o tamanho da fonte; controle de viúvas/órfãs e de títulos isolados.
+- O texto importado é **padronizado** com os estilos do livro (fontes, tamanhos, espaçamentos, títulos e subtítulos do manuscrito são trocados pela configuração escolhida). Na importação dá para escolher o **gênero do livro** e remover o sumário que já vinha no manuscrito (o livro gera o seu, com as páginas certas).
+- Todo o texto é **justificado** (exceto poesia, alinhada à esquerda); o botão **Gênero do livro**, na barra superior, aplica fontes, títulos e alinhamento de uma vez.
+- **Paginação automática** (Paged.js, com correção própria para parágrafos longos com frases repetidas): o texto que não cabe é empurrado para a página seguinte sem mudar o tamanho da fonte; controle de viúvas/órfãs e de títulos isolados.
+- No editor: **notas de rodapé** no cursor (¹ Nota), **ligações** (🔗, Ctrl+K) para outro capítulo ou título — com o número da página de destino (“p. 41”) preenchido após a paginação — ou para sites/e-mails, **＋ Seção** (nova página com título logo depois do capítulo atual, também pelo ＋ na lista) e **✂ Dividir** (o texto a partir do cursor vira um novo capítulo, sem alterar o resto).
 
 ### Texto e estilos
 - Estilos nomeados e totalmente configuráveis: texto principal, título de capítulo, rótulo, **T1, T2, T3**, citação longa, frase em destaque, **poesia**, epígrafe, **referências**, legenda, nota de rodapé, caixa de destaque, tabela, cabeçalho, número de página e sumário (fonte, tamanho, cor, entrelinha, espaço entre letras/palavras, recuos, espaços antes/depois, alinhamento, itálico, negrito, maiúsculas, versalete).
@@ -50,22 +52,33 @@ Como os executáveis não têm assinatura digital, o Windows SmartScreen pode av
 - Painel de camadas: renomear, ocultar, bloquear, agrupar/desagrupar, duplicar, ordem (frente/trás), **alinhar e distribuir**, mesmo tamanho; **composições em grade/mosaico** com legendas alinhadas.
 
 ### Páginas iniciais e finais
-- Falsa folha de rosto, **página de rosto** (título, autor e **logotipo da editora**), dedicatória, epígrafe e **sumário automático** com números de página.
+- Ordem padrão: **página de rosto › ficha catalográfica › sumário › capítulos › páginas finais** (falsa folha de rosto, dedicatória e epígrafe opcionais).
+- **Sumário automático** a partir dos títulos (só capítulos, + T1, + T2) ou **manual**: “Gerar a partir dos títulos” cria uma lista editável (rótulo, título, nível, ordem, destino); os números de página são preenchidos sozinhos.
 - **Créditos e ficha catalográfica (CIP)**: todos os campos (entrada, título, subtítulo, autor, tradução, ilustração, edição, cidade, editora, ano, páginas automáticas, dimensões, série, ISBN, assuntos, CDD, CDU, Cutter, notas, bibliotecário/CRB), créditos de toda a equipe, direitos, contato, **imagens e QR codes** — ou ficha manual.
+- **Galeria de modelos de ficha** (romance, poesia, contos, crônicas, terror, fantasia, infantojuvenil, ficção traduzida, autoajuda, biografia, religioso, acadêmico, compacta…) com aparências diferentes (caixa, sem borda, borda dupla, cantos arredondados, padrão CBL), e os seus próprios modelos.
+- **Ficha fixa**: salve a ficha (créditos, editora, direitos, bibliotecário, logotipo) e todo livro novo já começa com ela preenchida.
 - **Biografia do autor** (com foto) e **conteúdo extra** no fim do livro (opcionais).
 
 ### Formato
 - 14 × 21 cm por padrão e todos os formatos pedidos: pequenos (miniatura a 13 × 20), médios (13,8 × 21 a 17 × 24), grandes (18 × 24 a A3), quadrados, paisagem, lista do **Amazon KDP**, e qualquer medida personalizada (com decimais e conversão de unidades).
-- **Margens espelhadas** automáticas, sangria por borda, área de segurança, marcas de corte; guias de corte, sangria, área segura e margens na prévia; prévia em tons de cinza; visualização individual, dupla ou geral.
+- **Margens espelhadas** automáticas, **sangria automática pelo formato** (3 mm; 5 mm em formatos grandes; 0,125 pol. no KDP) ou digitada, área de segurança, marcas de corte; guias de corte, sangria, área segura e margens na prévia; prévia em tons de cinza; visualização individual, dupla ou geral.
+
+### Amazon KDP
+- **Brochura** (16 tamanhos: 5 × 8 a A4, incluindo 8,25 × 6 horizontal e quadrados) e **capa dura** (5,5 × 8,5, 6 × 9, 6,14 × 9,21, 7 × 10 e 8,25 × 11; de 75 a 550 páginas).
+- Confere o número de páginas pelo papel/tinta, calcula a **margem interna mínima pelo número de páginas**, margens externas, sangria de 0,125 pol. (no miolo, só nas bordas externas, como o KDP exige), lombada e se é permitido texto na lombada; **aplica ao livro** e **envia as medidas para a capa**.
+
+### Revista e jornal
+- Em **Novo**, escolha Livro, **Revista** ou **Jornal**. Colunas fixas (**2 ou 3**), espaço e fio entre colunas, nome da publicação com logotipo, edição e data (também no cabeçalho), e por matéria: **chapéu**, **linha fina**, **assinatura**, colunas próprias e “começa em página nova” ou continua na mesma página.
 
 ### Capa e lombada
-- Recebe automaticamente as dimensões e o número de páginas do miolo; botão **Confirmar as dimensões** (avisa se o miolo mudar depois).
-- **Lombada calculada** pelo papel (offset, pólen, couchê, KDP ou espessura personalizada), capa dura, orelhas, sangria própria da capa.
-- Imagens de capa, contracapa, lombada, orelhas ou envolvente; textos (título, autor, lombada, sinopse, orelhas); área do código de barras; prévia em tempo real com guias de dobra.
-- Exportação em **PDF, PNG, JPG ou TIFF, com ou sem sangria**.
+- Para **montar capas prontas** (já editadas em outro programa): imagem envolvente ou capa, lombada, contracapa e orelhas separadas; cor de fundo; **área do código de barras opcional**; prévia em tempo real com guias de corte, dobra e área segura.
+- Medidas: **largura total, altura total e lombada (mm)** editáveis, com o **tamanho total exibido** (com e sem sangria). Preenchidas automaticamente pelo livro em diagramação (em tempo real) ou por um **manuscrito carregado** (PDF, DOC, DOCX, ODT, HTML, EPUB ou MOBI) — ou digitadas, sem precisar de livro. Botão **Confirmar as dimensões**.
+- **Lombada calculada** pelo papel (offset, pólen, couchê, KDP ou espessura personalizada), capa dura, orelhas; **sangria automática** (3 mm; 0,125 pol. no KDP) ou manual.
+- Saída sempre para gráfica: **PDF CMYK no padrão PDF/X-1a** — conversão de cor com LittleCMS e perfil ICC real (**ISO Coated v2 / FOGRA39** ou **GRACoL 2013**), intenção colorimétrica relativa com compensação de ponto preto (ou perceptual), imagens CMYK preservadas, OutputIntent, TrimBox/BleedBox, 300 a 600 dpi, cálculo de tinta máxima e **prova de cor** na tela.
 
 ### Exportação
 - Perfis prontos e editáveis: **gráfica (offset)**, **Amazon KDP**, **impressão sob demanda**, **PDF digital** (com marcadores), **prova editorial em páginas duplas**, **EPUB**, imagens e DOCX; salve os seus perfis.
+- PDF de impressão pronto para gráfica: **todas as fontes incorporadas**, **TrimBox/BleedBox exatas** (formato final e sangria), e **cor do miolo** em RGB, **CMYK com perfil ICC** (texto e cinzas em 100% K, cores pelo perfil, imagens convertidas, OutputIntent) ou **escala de cinza** (miolo preto e branco).
 - Formatos: **PDF** (impressão ou leitura digital, livro inteiro, intervalo de páginas ou capítulos), **PNG, JPEG, TIFF** (resolução configurável), **EPUB 3** (sumário navegável, metadados, imagens, notas), **DOCX, ODT, TXT** e **pacote de produção** (ZIP com miolo, capa, EPUB, relatório e especificações).
 - **Verificação de pré-impressão** antes de exportar: páginas, formato, fontes ausentes ou não incorporáveis, imagens com baixa resolução, imagens divididas ou legendas separadas, elementos fora da mancha ou da área imprimível, elementos que terminam na linha de corte, falta de sangria, regras do perfil (tamanhos aceitos, mínimo/máximo de páginas). Classificada em erros, avisos e informativos, com **“Ir para a página”** e correções seguras com confirmação. Relatório técnico em texto.
 - **Comparação com a última exportação**: páginas, início de cada capítulo, fontes, imagens e dimensões.
@@ -78,7 +91,8 @@ Como os executáveis não têm assinatura digital, o Windows SmartScreen pode av
 
 ## Limitações conhecidas (honestas)
 
-- O PDF é gerado pelo motor do Chromium: **RGB com fontes incorporadas**. **PDF/X-1a, PDF/X-4 e conversão para CMYK não são produzidos** pelo aplicativo — a verificação avisa e o relatório indica que a conversão deve ser feita pela gráfica ou por software de pré-impressão. A prévia “Cinza” ajuda a avaliar impressão em preto e branco, mas não é prova de cor.
+- **Capa**: PDF/X-1a CMYK de verdade (imagem CMYK única em alta resolução, que é como capas prontas são entregues). **Miolo**: o texto continua vetorial e as cores são convertidas para CMYK/cinza com perfil ICC, mas o arquivo não é declarado PDF/X (pode conter transparência de imagens PNG e anotações de link); se a gráfica exigir certificação PDF/X para o miolo, valide no software dela. A prévia “Cinza” não é prova de cor.
+- Capa dura do KDP: a lombada e a dobradiça seguem o gabarito do KDP; confira na calculadora de capa da Amazon.
 - **PDF como entrada** não guarda a estrutura do texto: parágrafos, títulos e notas são reconstruídos por posição e tamanho das letras e devem ser conferidos; imagens de PDF não são importadas. Arquivos **.doc** antigos não trazem itálico/negrito (prefira `.docx`).
 - O contorno de texto pela forma da imagem usa as áreas transparentes (PNG com transparência) e vale para imagens sem recorte/rotação.
 - Os perfis de gráficas e plataformas são pontos de partida: confirme sempre as especificações atuais do fornecedor.
@@ -105,6 +119,11 @@ npm run dist:portable
 | `src/main/exporters.js` | EPUB 3, DOCX, ODT, TXT, TIFF e pacote ZIP |
 | `src/main/fonts.js` | Varredura e leitura de fontes (nome, peso, estilo, fsType) e biblioteca de fontes |
 | `src/main/library.js` | Bibliotecas de imagens e análise técnica (dimensões, transparência, ICC, CMYK) |
+| `src/main/cmyk.js` | Capa CMYK: composição, conversão ICC (LittleCMS), PDF/X-1a e prova de cor |
+| `src/main/pdfcolor.js` | Conversão de cor do miolo (CMYK com perfil ICC ou escala de cinza 100% K) |
+| `src/main/manuscript.js` | Leitura de páginas/formato de manuscritos para calcular a capa |
+| `src/shared/cover.js` | Geometria da capa (lombada, sangria, orelhas, capa dura) |
+| `assets/icc/` | Perfis ICC (FOGRA39, GRACoL 2013, sRGB) e as licenças deles |
 | `src/book.js` | Projeto → HTML/CSS paginado (estilos, figuras, notas, ficha, páginas especiais) |
 | `src/shared/defaults.js` | Formatos, estilos, configurações padrão e por gênero, migração de projetos |
 | `src/renderer/` | Interface (editor, painéis, bibliotecas, camadas, capa, exportação, prévia) |
@@ -112,4 +131,4 @@ npm run dist:portable
 
 ## Licenças de terceiros
 
-Electron (MIT), Paged.js (MIT), pdf.js (Apache-2.0), Mammoth (BSD-2), word-extractor (MIT), JSZip (MIT/GPLv3), docx (MIT), qrcode (MIT), Hyphen (ISC); fontes embutidas sob SIL Open Font License. As ilustrações da biblioteca embutida foram desenhadas para este projeto.
+Electron (MIT), Paged.js (MIT), pdf.js (Apache-2.0), Mammoth (BSD-2), word-extractor (MIT), JSZip (MIT/GPLv3), docx (MIT), qrcode (MIT), Hyphen (ISC), pdf-lib (MIT), lcms-wasm / Little CMS (MIT); fontes embutidas sob SIL Open Font License. Perfis ICC redistribuídos sem alteração, com as licenças em `assets/icc/ICC-PROFILE-LICENSES.md` (ISO Coated v2: licença Heidelberg; GRACoL 2013: IDEAlliance; sRGB: HP). As ilustrações da biblioteca embutida foram desenhadas para este projeto.

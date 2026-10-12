@@ -178,7 +178,10 @@
           ['Imagens', 'arraste da Biblioteca ou do computador para o texto. Clique numa imagem para tamanho, alinhamento, contorno do texto, recorte, rotação e substituição. Separadores vão no título do capítulo.'],
           ['Camadas da página', 'para elementos em posição fixa (mm): fundos, molduras, composições de imagens, textos decorativos. Arraste na prévia; há encaixe em margens e centro.'],
           ['Páginas iniciais e finais', 'página de rosto com logotipo, créditos e ficha catalográfica completa (com imagens e QR codes), biografia e conteúdo extra.'],
-          ['Capa e lombada', 'a lombada é calculada pelo papel e pelo número de páginas; confirme as dimensões e exporte em PDF, PNG ou JPG, com ou sem sangria.'],
+          ['Sumário', 'automático a partir dos títulos (capítulos, T1, T2) ou manual e editável, em “Dados e páginas iniciais”. Ordem padrão: rosto › ficha › sumário › capítulos › páginas finais.'],
+          ['Capa e lombada', 'monte a capa com imagens prontas; as medidas vêm do livro (ou de um manuscrito, ou digitadas). Saída em PDF CMYK para gráfica (PDF/X-1a, perfil ICC), com sangria automática ou manual.'],
+          ['Amazon KDP', 'brochura (16 tamanhos) e capa dura (5 tamanhos): confere páginas, margens e sangria e envia as medidas para a capa.'],
+          ['Revista e jornal', 'em “Novo”, escolha Revista ou Jornal: colunas fixas (2 ou 3), nome da publicação, chapéu, linha fina e assinatura.'],
           ['Exportar', 'perfis prontos (gráfica, KDP, impressão sob demanda, PDF digital, prova, EPUB). A verificação de pré-impressão aponta problemas e leva você à página.']
         ].map(([t, d]) => el('li', {}, [el('b', { text: t + ': ' }), d]))),
         el('p', { class: 'muted', text: 'Tudo é processado e salvo no seu computador — o aplicativo não acessa a internet. Projetos são arquivos .livro; há salvamento automático de recuperação e cópia de segurança (.bak) a cada salvamento.' })
