@@ -7,6 +7,8 @@
 @media screen {
   html, body { margin: 0; padding: 0; }
   body { background: #e4e2dd; }
+  html[data-theme="dark"] body { background: #101114; } /* modo noturno: só o fundo; as páginas continuam brancas */
+  html[data-theme="dark"] .page-tools button { background: #23262c; border-color: #3a3e46; color: #e7e3dc; }
   .pagedjs_pages {
     display: flex;
     flex-wrap: wrap;

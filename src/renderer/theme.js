@@ -8,6 +8,8 @@
     const dark = mode === 'dark' || (mode === 'auto' && mq && mq.matches);
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
     document.documentElement.dataset.accent = get('themeAccent', 'terracota');
+    // a prévia (iframes) acompanha o modo
+    document.querySelectorAll && document.querySelectorAll('iframe.preview-frame').forEach(f => { try { f.contentDocument.documentElement.dataset.theme = document.documentElement.dataset.theme; } catch (e) { /* ok */ } });
   }
   apply();
   if (mq && mq.addEventListener) mq.addEventListener('change', apply);

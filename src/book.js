@@ -243,6 +243,15 @@ function ownLabel(captionHtml) {
   return { n: Number(m[2]), label: m[1].trim(), rest: text.slice(m[0].length).trim(), labelHtml: hm ? hm[1] : esc(m[1]), sepHtml: m[3] ? ` ${m[3]} ` : ' – ', restHtml };
 }
 
+// tabelas de até 15 linhas ficam inteiras numa página (com o título)
+function markShortTables(html) {
+  return String(html).replace(/<table\b([^>]*)>([\s\S]*?)<\/table>/gi, (m, attrs, inner) => {
+    if ((inner.match(/<tr\b/gi) || []).length > 15) return m;
+    if (/\sclass="/.test(attrs)) return `<table${attrs.replace(/\sclass="/, ' class="tb-short ')}>${inner}</table>`;
+    return `<table class="tb-short"${attrs}>${inner}</table>`;
+  });
+}
+
 // Tabelas com título (legenda): Tabela N – título, com âncora para a lista de tabelas
 function numberTables(html, ctx) {
   if (!ctx.numbering) return html;
@@ -495,7 +504,7 @@ function buildHtml(project, ctx) {
     const hasOpening = !!(c.openingImage && c.openingImage.asset && ctx.assets[c.openingImage.asset]);
     if (hasOpening) parts.push(fullBleedHtml(c.openingImage.asset, c.openingImage.fit, ctx));
     const heads = [];
-    let body = numberTables(processBody(anchorHeadings(c.html, c.id, heads), ctx), ctx);
+    let body = markShortTables(numberTables(processBody(anchorHeadings(c.html, c.id, heads), ctx), ctx));
     heads.forEach(h => tocItems.push({ id: h.id, label: '', title: h.title, level: h.level }));
     if (hyph) { try { body = hyph(body); } catch (e) { /* sem hifenização */ } }
     const segments = splitFullBleed(body);
@@ -769,7 +778,11 @@ ${s.keepHeadingsWithNext ? '.chapter-body h2, .chapter-body h3, .chapter-body h4
 .chapter-body .page-break { break-after: page; height: 0; }
 .chapter-body table { width: 100%; border-collapse: collapse; margin: 1em 0; ${styleDecl(Object.assign({}, S.table, { background: undefined }), body, { noSpace: true })} }
 .chapter-body table caption { caption-side: top; ${styleDecl(S.caption, body)} padding-bottom: 1.5mm; }
-.chapter-body .cap-num { font-weight: 700; font-style: normal; }
+.chapter-body .cap-num { font-weight: 700; font-style: normal; hyphens: none; white-space: nowrap; }
+/* o título da tabela nunca fica sozinho no pé da página; tabelas curtas não se dividem */
+.chapter-body table caption { break-after: avoid; page-break-after: avoid; }
+.chapter-body table.tb-short { break-inside: avoid; page-break-inside: avoid; }
+.chapter-body p.caption-text, .chapter-body p.table-source { break-before: avoid; }
 .chapter-body table.tb-zebra tr:nth-child(even) td { background: rgba(0,0,0,0.06); }
 .chapter-body table.tb-compact td, .chapter-body table.tb-compact th { padding: 0.6mm 1.2mm; }
 .chapter-body td.num { text-align: right; font-variant-numeric: tabular-nums; }

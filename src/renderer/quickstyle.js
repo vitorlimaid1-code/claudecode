@@ -51,10 +51,14 @@
       b.remove();
       if (host.matches('figure.img') && App.editor.styleFigure) App.editor.styleFigure(host);
     };
-    if (isFig(prev)) put(prev, 'figcaption');
-    else if (isTable(next)) put(next, 'caption', true);
-    else if (isFig(next)) put(next, 'figcaption');
-    else if (isTable(prev)) put(prev, 'caption', true);
+    // vai para a figura/tabela vizinha que ainda não tem legenda (uma legenda existente nunca é trocada
+    // sem querer: para mudá-la, clique dentro dela)
+    const figFree = x => isFig(x) && !x.querySelector('figcaption');
+    const tabFree = x => isTable(x) && !x.querySelector(':scope > caption');
+    if (figFree(prev)) put(prev, 'figcaption');
+    else if (tabFree(next)) put(next, 'caption', true);
+    else if (figFree(next)) put(next, 'figcaption');
+    else if (tabFree(prev)) put(prev, 'caption', true);
     else {
       const p = document.createElement('p');
       p.className = 'caption-text';
@@ -122,6 +126,10 @@
   let t = null;
   document.addEventListener('selectionchange', () => { clearTimeout(t); t = setTimeout(show, 180); });
   document.addEventListener('scroll', hide, true);
+  // some ao clicar fora do texto ou ao trocar de tela
+  document.addEventListener('mousedown', e => { if (bar && !bar.contains(e.target) && !(editor() && editor().contains(e.target))) hide(); }, true);
+  const wrapSetView = () => { if (App.setView && !App.setView.__qs) { const orig = App.setView; App.setView = function () { hide(); return orig.apply(this, arguments); }; App.setView.__qs = true; } };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wrapSetView); else wrapSetView();
 
   // atalhos
   document.addEventListener('keydown', e => {

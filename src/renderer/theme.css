@@ -94,3 +94,11 @@ button.on, .toolbar button.on { border-color: var(--accent-line, #e2c3b2); }
 .theme-modes { display: flex; gap: 8px; flex-wrap: wrap; }
 .theme-mode { padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; min-width: 120px; text-align: center; }
 .theme-mode.on { outline: 2px solid var(--accent); }
+/* botões e destaques de ação acompanham a cor escolhida */
+:root[data-accent] .topbar button.primary { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
+:root[data-accent] .topbar button.primary:hover { filter: brightness(1.1); }
+:root[data-accent="terracota"]:not([data-theme="dark"]) .topbar button.primary { background: #c56a3f; border-color: #c56a3f; }
+:root[data-accent] .editor figure.img.selected, :root[data-accent] .editor .footnote.selected, :root[data-accent] .sheet-grid td:focus { outline-color: var(--accent-2); }
+:root[data-accent] .editor div.fullbleed.selected { outline-color: var(--accent-2); }
+:root[data-accent] .el-tile:hover { border-color: var(--accent-2); }
+:root[data-accent] .drop-indicator, :root[data-accent] .drop-indicator.show::after, :root[data-accent] .table-handle { background: var(--accent-2); }

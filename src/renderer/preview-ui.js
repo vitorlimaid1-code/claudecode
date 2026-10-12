@@ -58,6 +58,7 @@
       if (prev) prev.remove();
       active = frame;
       wire(frame);
+      try { frame.contentDocument.documentElement.dataset.theme = document.documentElement.dataset.theme; } catch (e) { /* ok */ }
       App.lastRender = info;
       if (P.fitNext) { P.fitNext = false; setTimeout(P.fit, 30); }
       App.lastRender.missingFonts = book.missingFonts;
