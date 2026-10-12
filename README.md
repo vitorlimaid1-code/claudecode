@@ -62,8 +62,19 @@ Como os executáveis não têm assinatura digital, o Windows SmartScreen pode av
 - **Ficha fixa**: salve a ficha (créditos, editora, direitos, bibliotecário, logotipo) e todo livro novo já começa com ela preenchida.
 - **Biografia do autor** (com foto) e **conteúdo extra** no fim do livro (opcionais).
 
+### Modelo CEDET (padrão do sistema)
+Todo livro novo nasce no padrão do **Manual de Preparação de Arquivos do Cedet** (Editoras Parceiras, v. outubro/2026):
+- **Formatos**: 15,5 × 23 (padrão), 13,7 × 21 e 11,5 × 17,5 cm.
+- **Miolo**: margem de segurança de 20 mm nos quatro lados (margens 28/28 mm, interna 23 mm, externa 20 mm; número da página logo abaixo do texto, dentro dos 20 mm), sangria de 5 mm, **marcas de corte de 0,25 pt a 5 mm do corte em todas as páginas**, numeração no canto inferior externo ou no centro (nunca no topo nem no lado interno; ímpares sempre à direita), páginas individuais.
+- **Perfil de exportação “CEDET — miolo”**: preto e branco só com tinta preta, **sGray sem perfis incorporados**, conferência automática das separações (“desligando o preto, nada aparece”) e nome `ISBN_MIOLO_NOME DO LIVRO.pdf`.
+- **Ficha**: crédito de distribuição do Cedet incluído automaticamente (editável).
+- **Pré-impressão CEDET**: formato, margens de segurança, cabeçalho/número dentro da área segura, ISBN válido, crédito na ficha, páginas coloridas.
+- **Capa CEDET**: sangria de 5 mm; capa com orelhas 2 mm mais larga (15,7 × 23; 13,9 × 21; 11,7 × 17,5); orelhas de 6, 7 ou 8 cm; **marcas de corte e de dobra** (0,25 pt, 5 mm) em capa, contracapa, lombada e orelhas; critério de **página chapada** detectado no miolo (gráfica externa/Pólen Bold 70 g × gráfica interna/Avena 80 g); lombada **digitada da calculadora do Cedet** (a estimativa é só referência); perfil **U.S. Web Coated (SWOP) v2** carregável (arquivo .icc); nome `ISBN_CAPA_NOME DO LIVRO.pdf`.
+- **Código de barras do ISBN (EAN-13)** na contracapa: validação do ISBN (o ISBN-10 é convertido), **vetorial, preto 100% K**, mínimo 31 × 19 mm, quadro branco com 2,5 mm livres ao redor, posição (inferior direito/centro/esquerdo) e distâncias ajustáveis; download em **EPS** (preferido pelo manual), PDF ou SVG.
+- “Usar layout livre” desliga as regras do Cedet num livro; KDP, revista e jornal usam layout livre.
+
 ### Formato
-- 14 × 21 cm por padrão e todos os formatos pedidos: pequenos (miniatura a 13 × 20), médios (13,8 × 21 a 17 × 24), grandes (18 × 24 a A3), quadrados, paisagem, lista do **Amazon KDP**, e qualquer medida personalizada (com decimais e conversão de unidades).
+- Modelo CEDET por padrão e todos os formatos pedidos: pequenos (miniatura a 13 × 20), médios (13,8 × 21 a 17 × 24), grandes (18 × 24 a A3), quadrados, paisagem, lista do **Amazon KDP**, e qualquer medida personalizada (com decimais e conversão de unidades).
 - **Prévia**: sempre abre em 1 página por vez (rolando o livro na vertical) — outros modos só quando você escolhe: páginas duplas, ou 2, 3, 4 e 5 páginas lado a lado, com ajuste automático do zoom. No modo 1 página, ao lado de cada página: **cor da página** e **cor do texto** (grade de cores, código hexadecimal ou seletor; o app pergunta se vale só para a página ou para o capítulo), **cadeado** contra alterações acidentais e **inserir página de imagem sangrada** antes/depois de um capítulo (com guias de sangria opcionais para conferência).
 - **Margens espelhadas** automáticas, **sangria automática pelo formato** (3 mm; 5 mm em formatos grandes; 0,125 pol. no KDP) ou digitada, área de segurança, marcas de corte; guias de corte, sangria, área segura e margens na prévia; prévia em tons de cinza; visualização individual, dupla ou geral.
 
@@ -143,4 +154,4 @@ npm run dist:portable
 
 ## Licenças de terceiros
 
-Electron (MIT), Paged.js (MIT), pdf.js (Apache-2.0), Mammoth (BSD-2), word-extractor (MIT), JSZip (MIT/GPLv3), docx (MIT), qrcode (MIT), Hyphen (ISC), pdf-lib (MIT), lcms-wasm / Little CMS (MIT); fontes embutidas sob SIL Open Font License. Perfis ICC redistribuídos sem alteração, com as licenças em `assets/icc/ICC-PROFILE-LICENSES.md` (ISO Coated v2: licença Heidelberg; GRACoL 2013: IDEAlliance; sRGB: HP). As ilustrações da biblioteca embutida foram desenhadas para este projeto.
+Electron (MIT), Paged.js (MIT), pdf.js (Apache-2.0), Mammoth (BSD-2), word-extractor (MIT), JSZip (MIT/GPLv3), docx (MIT), qrcode (MIT), Hyphen (ISC), pdf-lib (MIT), lcms-wasm / Little CMS (MIT); fontes embutidas sob SIL Open Font License. Algarismos do código de barras: contornos da IBM Plex Sans (SIL OFL 1.1). Perfis ICC redistribuídos sem alteração, com as licenças em `assets/icc/ICC-PROFILE-LICENSES.md` (ISO Coated v2: licença Heidelberg; GRACoL 2013: IDEAlliance; sRGB: HP). As ilustrações da biblioteca embutida foram desenhadas para este projeto.

@@ -28,6 +28,14 @@
     ['back', 'spine', 'front', 'flapBack', 'flapFront'].forEach(k => { if (P[k]) img(k, P[k][0], P[k][1]); });
     const safe = Number(c.safety) || 5;
     if (c.barcode && P.back) parts.push(`<div class="cv-barcode" style="left:${mm(P.back[0] + P.back[1] - safe - 50)};top:${mm(g.totalH - g.outer - safe - 30)};width:50mm;height:30mm">Código de barras (ISBN)</div>`);
+    const bcfg = c.isbnBarcode;
+    if (bcfg && bcfg.enabled && P.back && window.Isbn) {
+      const lay = window.Isbn.layout(bcfg.isbn, bcfg);
+      if (lay.ok) {
+        const pos = window.Isbn.place(g, lay, bcfg);
+        parts.push(`<div class="cv-isbn" style="position:absolute;left:${mm(pos.x)};top:${mm(pos.y)};width:${mm(lay.w)};height:${mm(lay.h)}">${window.Isbn.toSvg(lay).replace(/width="[^"]+" height="[^"]+"/, 'width="100%" height="100%"')}</div>`);
+      } else parts.push(`<div class="cv-barcode" style="left:${mm(g.backTrim[0] + g.backTrim[1] - 12 - 37.5)};top:${mm(g.outer + g.H - 12 - 30)};width:37.5mm;height:30mm">ISBN inválido:<br>${lay.error.replace(/</g, '&lt;')}</div>`);
+    }
     const guides = [];
     if (opts.guides) {
       guides.push(`<div class="g g-trim" style="left:${mm(g.outer)};top:${mm(g.outer)};width:${mm(g.trimTotalW)};height:${mm(g.H)}"></div>`);

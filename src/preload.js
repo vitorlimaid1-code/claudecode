@@ -57,6 +57,8 @@ contextBridge.exposeInMainWorld('api', {
   askUnsaved: () => inv('dialog:unsaved'),
   confirm: (message, detail, buttons) => inv('dialog:confirm', { message, detail, buttons }),
   saveText: (name, text) => inv('dialog:saveText', { name, text }),
+  barcodeSave: (isbn, opts, format) => inv('barcode:save', { isbn, opts, format }),
+  coverPickIcc: () => inv('cover:pickIcc'),
   pendingOpen: () => inv('app:pendingOpen'),
   appInfo: () => inv('app:info'),
   closeConfirmed: () => ipcRenderer.send('app:closeConfirmed'),

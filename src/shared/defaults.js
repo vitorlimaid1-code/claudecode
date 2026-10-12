@@ -13,6 +13,7 @@
   const fin = (group, label, win, hin, use) => ({ id: `${group}:${win}x${hin}in`, group, label, width: +(win * IN).toFixed(2), height: +(hin * IN).toFixed(2), use: use || '' });
 
   const FORMAT_GROUPS = [
+    'CEDET (padrão do sistema)',
     'Pequenos: bolso, poesia e compactos',
     'Médios: literatura, clássicos e não ficção',
     'Grandes: acadêmicos, técnicos e ilustrados',
@@ -21,9 +22,14 @@
     'Amazon KDP (polegadas)',
     'Revistas e jornais'
   ];
-  const [G1, G2, G3, G4, G5, G6, G7] = FORMAT_GROUPS;
+  const [GC, G1, G2, G3, G4, G5, G6, G7] = FORMAT_GROUPS;
 
   const PAGE_FORMATS = [
+    // Manual de Preparação de Arquivos Cedet (Editoras Parceiras): formatos obrigatórios do miolo
+    f(GC, 'CEDET — 15,5 × 23 cm', 15.5, 23, 'Padrão Cedet'),
+    f(GC, 'CEDET — 13,7 × 21 cm', 13.7, 21, 'Padrão Cedet'),
+    f(GC, 'CEDET — 11,5 × 17,5 cm', 11.5, 17.5, 'Padrão Cedet'),
+
     f(G1, 'Miniatura — 7 × 10 cm', 7, 10, 'Mini livros, colecionáveis'),
     f(G1, 'Mini — 8 × 12 cm', 8, 12, 'Poesia, textos breves'),
     f(G1, 'Compacto — 10 × 15 cm', 10, 15, 'Poesia, aforismos'),
@@ -110,7 +116,44 @@
 
     { id: 'custom', group: 'Outro', label: 'Personalizado…', width: null, height: null, use: '' }
   ];
-  const DEFAULT_FORMAT_ID = PAGE_FORMATS.find(p => p.width === 140 && p.height === 210).id;
+  const DEFAULT_FORMAT_ID = PAGE_FORMATS.find(p => p.group === GC && p.width === 155 && p.height === 230).id;
+
+  /*
+   * Modelo CEDET — Manual de Preparação de Arquivos (Editoras Parceiras, v. outubro/2026) e Guia rápido.
+   * Miolo: preto e branco (só tinta preta, sGray sem perfis incorporados), margem de segurança de 20 mm
+   * nos quatro lados, sangria de 5 mm, marcas de corte de 0,25 pt com 5 mm de deslocamento em todas as
+   * páginas, numeração no canto inferior externo ou no centro (ímpares à direita), páginas individuais.
+   * Capa: CMYK, sangria de 5 mm, marcas de corte e de dobra (0,25 pt, 5 mm), capa com orelhas 2 mm mais
+   * larga, orelhas de 6, 7 ou 8 cm, código de barras preto na contracapa (mín. 31 × 19 mm, 2,5 mm livres).
+   */
+  const CEDET = {
+    label: 'CEDET',
+    formats: PAGE_FORMATS.filter(p => p.group === GC).map(p => p.id),
+    bleed: 5,
+    safety: 20,
+    marks: { offset: 5, len: 5, weight: 0.25 },
+    flaps: [60, 70, 80],
+    flapPanelExtra: 2,
+    barcode: { minW: 31, minH: 19, clearance: 2.5 },
+    settings: {
+      standard: 'cedet', marginTop: 28, marginBottom: 28, marginInner: 23, marginOuter: 20, safety: 20,
+      bleedAuto: true, bleedTop: 5, bleedBottom: 5, bleedOuter: 5, bleedInner: 0, cropMarks: false, folioGap: 3,
+      pageNumbers: 'outer', numberFromFirstChapter: false, pageColor: '#ffffff',
+      outputSheet: { mode: 'marks', w: 210, h: 297, marks: true, markOffset: 5, markLen: 5, markWeight: 0.25 }
+    },
+    distribution: 'DISTRIBUIÇÃO\nCEDET — Centro de Desenvolvimento Profissional e Tecnológico\nAv. Comendador Aladino Selmi, 4682 — Condomínio GR2, galpão 8\nCEP: 13069-096 — Vila San Martin, Campinas-SP\nTelefones: (19) 3249-0580 / 3327-2257\ne-mail: livros@cedet.com.br',
+    contact: 'editoras-parceiras@cedet.com.br'
+  };
+  const isCedet = s => !!s && s.standard === 'cedet';
+  // Aplica (ou reaplica) o modelo CEDET às configurações, sem mexer em estilos de texto
+  function applyCedet(settings, formatId) {
+    const fmt = PAGE_FORMATS.find(p => p.id === (formatId || settings.pageFormat)) || PAGE_FORMATS.find(p => p.id === DEFAULT_FORMAT_ID);
+    const ok = fmt && fmt.group === GC ? fmt : PAGE_FORMATS.find(p => p.id === DEFAULT_FORMAT_ID);
+    Object.assign(settings, JSON.parse(JSON.stringify(CEDET.settings)), { pageFormat: ok.id, pageWidth: ok.width, pageHeight: ok.height });
+    if (settings.pageNumbers !== 'outer' && settings.pageNumbers !== 'center') settings.pageNumbers = 'outer';
+    if (settings.styles) ['body', 'chapterTitle', 'chapterLabel', 'h2', 'h3', 'header', 'pageNumber', 'footnote', 'quote', 'toc'].forEach(k => { if (settings.styles[k]) settings.styles[k].color = '#000000'; });
+    return settings;
+  }
 
   // Amazon KDP — tamanhos de corte (confira sempre a tabela atual no site da Amazon)
   const kdp = (win, hin, note) => ({ win, hin, width: +(win * IN).toFixed(2), height: +(hin * IN).toFixed(2), label: `${String(+(win * 2.54).toFixed(2)).replace('.', ',')} × ${String(+(hin * 2.54).toFixed(2)).replace('.', ',')} cm — ${String(win).replace('.', ',')} × ${String(hin).replace('.', ',')} pol.${note ? ' — ' + note : ''}` });
@@ -130,7 +173,8 @@
 
   // Folhas de saída comuns em gráficas (mm, retrato)
   const OUTPUT_SHEETS = {
-    trim: { label: 'Formato do livro (padrão: página + sangria)' },
+    trim: { label: 'Formato do livro (página + sangria, sem marcas)' },
+    marks: { label: 'Formato do livro + sangria + marcas de corte (padrão CEDET)' },
     a4: { label: 'A4 — 210 × 297 mm', w: 210, h: 297 },
     a3: { label: 'A3 — 297 × 420 mm', w: 297, h: 420 },
     sra4: { label: 'SRA4 — 225 × 320 mm', w: 225, h: 320 },
@@ -143,18 +187,29 @@
   function outputSheetSize(s, bleed) {
     const o = s.outputSheet || {};
     if (!o.mode || o.mode === 'trim') return null;
+    const m = markGeometry(s, bleed);
+    // sangria + espaço das marcas de corte
+    const extra = o.marks || o.mode === 'marks' ? Math.max(bleed, m.offset + m.len + 1) : bleed;
+    const needW = s.pageWidth + 2 * extra;
+    const needH = s.pageHeight + 2 * extra;
+    if (o.mode === 'marks') return { w: needW, h: needH, needW, needH, fits: true, marksOnly: true };
     const p = OUTPUT_SHEETS[o.mode] || {};
     let w = Number(o.mode === 'custom' ? o.w : p.w), h = Number(o.mode === 'custom' ? o.h : p.h);
     if (!(w > 0 && h > 0)) return null;
-    const extra = bleed + (o.marks ? 8 : 0); // sangria + espaço das marcas de corte
-    const needW = s.pageWidth + 2 * extra;
-    const needH = s.pageHeight + 2 * extra;
     if ((w < needW || h < needH) && h >= needW && w >= needH) [w, h] = [h, w];
     return { w, h, needW, needH, fits: w >= needW - 0.01 && h >= needH - 0.01 };
   }
 
+  // Marcas de corte: deslocamento a partir do corte (padrão: 2 mm além da sangria), comprimento e espessura (pt)
+  function markGeometry(s, bleed) {
+    const o = (s && s.outputSheet) || {};
+    const n = (v, d) => (v !== '' && v != null && isFinite(Number(v)) ? Number(v) : d);
+    return { offset: Math.max(0, n(o.markOffset, bleed + 2)), len: Math.max(1, n(o.markLen, 5)), weight: Math.max(0.1, n(o.markWeight, 0.25)) };
+  }
+
   // Sangria automática conforme o formato (pode ser ajustada manualmente)
   function autoBleed(s) {
+    if (isCedet(s)) return CEDET.bleed;
     const fmt = PAGE_FORMATS.find(p => p.id === s.pageFormat);
     if (fmt && fmt.group === 'Amazon KDP (polegadas)') return 3.175; // 0,125 pol.
     if (s.kdp && s.kdp.enabled) return 3.175;
@@ -224,24 +279,28 @@
 
   const DEFAULT_SETTINGS = {
     pageFormat: DEFAULT_FORMAT_ID,
-    pageWidth: 140,
-    pageHeight: 210,
+    // Modelo padrão do sistema: CEDET (ver CEDET acima). '' = livre.
+    standard: 'cedet',
+    pageWidth: 155,
+    pageHeight: 230,
     pageColor: '#ffffff',
-    marginTop: 20,
-    marginBottom: 22,
-    marginInner: 22,
-    marginOuter: 16,
+    marginTop: 28,
+    marginBottom: 28,
+    marginInner: 23,
+    marginOuter: 20,
     // Sangria por borda (mm). Superior/inferior/externa; a interna normalmente é 0 no miolo.
     bleed: 0,
     bleedAuto: true,
-    bleedTop: 3,
-    bleedBottom: 3,
-    bleedOuter: 3,
+    bleedTop: 5,
+    bleedBottom: 5,
+    bleedOuter: 5,
     bleedInner: 0,
     columns: 1,
     columnGap: 5,
     columnRule: true,
-    safety: 5,
+    safety: 20,
+    // distância (mm) entre a mancha de texto e o número da página; 0 = centralizado na margem
+    folioGap: 3,
     cropMarks: false,
 
     hyphenate: true,
@@ -253,7 +312,7 @@
     chapterNumbering: 'arabic',
     chapterStartRight: false, // páginas em branco nunca são inseridas
     // folha de saída pedida pela gráfica: a página do livro vai centralizada, sem reduzir nem cortar nada
-    outputSheet: { mode: 'trim', w: 210, h: 297, marks: true },
+    outputSheet: { mode: 'marks', w: 210, h: 297, marks: true, markOffset: 5, markLen: 5, markWeight: 0.25 },
     dropCap: true,
     dropCapLines: 2,
     smallCapsFirstLine: false,
@@ -270,7 +329,7 @@
 
     header: 'title-chapter',
     pageNumbers: 'outer',
-    numberFromFirstChapter: true,
+    numberFromFirstChapter: false,
 
     styles: JSON.parse(JSON.stringify(DEFAULT_STYLES))
   };
@@ -407,6 +466,8 @@
       ],
       rights: '',
       contact: '',
+      // crédito de distribuição impresso na ficha (CEDET: obrigatório; preenchido automaticamente)
+      distribution: '',
       style: 'box', // box, plain, double, rounded, cbl, compact
       position: 'bottom', // bottom (pé da página) ou top
       images: [], // { asset, width (mm), caption }
@@ -431,7 +492,7 @@
       },
       front: { halfTitle: false, titlePage: true, copyright: true, toc: true, tocTitle: 'Sumário', tocMode: 'auto', tocLevels: 1, tocEntries: [], dedication: false, epigraph: false },
       titlePage: { logo: null, logoWidth: 25, showPublisher: true, showYear: true },
-      catalog: emptyCatalog(),
+      catalog: Object.assign(emptyCatalog(), isCedet(settings) ? { distribution: CEDET.distribution } : {}),
       back: {
         bio: { enabled: false, title: 'Sobre o autor', html: '', photo: null, photoWidth: 35 },
         extra: { enabled: false, title: 'Do mesmo autor', html: '' }
@@ -488,6 +549,14 @@
         const match = PAGE_FORMATS.find(x => Math.abs(x.width - ps.pageWidth) < 0.3 && Math.abs(x.height - ps.pageHeight) < 0.3);
         ps.pageFormat = match ? match.id : 'custom';
       }
+    }
+    // projetos anteriores ao modelo CEDET mantêm exatamente o comportamento com que foram feitos
+    if (p.settings && ps.standard === undefined) {
+      ps.standard = '';
+      if (ps.folioGap === undefined) ps.folioGap = 0;
+      if (ps.numberFromFirstChapter === undefined) ps.numberFromFirstChapter = true;
+      if (ps.outputSheet === undefined) ps.outputSheet = { mode: 'trim', w: 210, h: 297, marks: true };
+      if (ps.safety === undefined) ps.safety = 5;
     }
     mergeSettings(settings, ps);
     const chapters = Array.isArray(p.chapters)
@@ -549,6 +618,6 @@
     PAGE_FORMATS, FORMAT_GROUPS, DEFAULT_FORMAT_ID, BUNDLED_FONTS, SYSTEM_FONTS,
     STYLE_DEFS, DEFAULT_STYLES, DEFAULT_SETTINGS, GENRE_PRESETS,
     uid, newProject, normalizeProject, mergeSettings, applyGenrePreset, emptyCatalog,
-    toUnit, fromUnit, MM, KDP, autoBleed, OUTPUT_SHEETS, outputSheetSize
+    toUnit, fromUnit, MM, KDP, autoBleed, OUTPUT_SHEETS, outputSheetSize, markGeometry, CEDET, isCedet, applyCedet
   };
 });

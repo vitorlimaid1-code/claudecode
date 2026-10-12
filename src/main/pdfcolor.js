@@ -100,6 +100,14 @@ async function convertPdfColor(pdfBuf, mode, appRoot, opts) {
     const csName = cs instanceof PDFArray ? String(cs.get(0)) : String(cs);
     const icc = await iccInputFor(cs);
     const isRgb = csName === '/DeviceRGB' || (icc && icc.n === 3);
+    // sGray sem perfil incorporado (CEDET): cinza com ICC vira DeviceGray, valores mantidos
+    if (mode === 'gray' && opts.noProfile && icc && icc.n === 1) {
+      const dict = d.clone(ctx);
+      dict.set(PDFName.of('ColorSpace'), PDFName.of('DeviceGray'));
+      ctx.assign(ref, PDFRawStream.of(dict, obj.contents));
+      report.images++;
+      return;
+    }
     if (!isRgb) {
       if (csName === '/Indexed') report.warnings.push('Imagem com paleta indexada mantida no espaço de cor original.');
       return;
@@ -161,6 +169,41 @@ async function convertPdfColor(pdfBuf, mode, appRoot, opts) {
   }
   if (tSrgb) l.cmsDeleteTransform(tSrgb);
 
+  // miolo só em preto (CEDET): confere as separações — desligando o preto, nada pode sobrar
+  if (mode === 'gray') {
+    const bad = new Set();
+    for (const [, obj] of ctx.enumerateIndirectObjects()) {
+      if (!(obj instanceof PDFRawStream)) continue;
+      const st = String(obj.dict.get(PDFName.of('Subtype')) || '');
+      if (st === '/Image') {
+        if (String(obj.dict.get(PDFName.of('ImageMask')) || '') === 'true') continue;
+        const cs = obj.dict.lookup(PDFName.of('ColorSpace'));
+        const n = cs instanceof PDFArray ? String(cs.get(0)) : String(cs);
+        if (n !== '/DeviceGray' && !(n === '/ICCBased' && !opts.noProfile)) bad.add('imagem em ' + n.replace('/', ''));
+      } else if (st === '/Form' || contentRefs.has(String(obj))) { /* conferido abaixo */ }
+    }
+    const contents = [];
+    doc.getPages().forEach(pg => { const c = pg.node.get(PDFName.of('Contents')); (c instanceof PDFArray ? c.asArray() : [c]).forEach(r => r instanceof PDFRef && contents.push(ctx.lookup(r))); });
+    for (const [, obj] of ctx.enumerateIndirectObjects()) if (obj instanceof PDFRawStream && String(obj.dict.get(PDFName.of('Subtype')) || '') === '/Form') contents.push(obj);
+    contents.forEach(obj => {
+      try {
+        const t = Buffer.from(decodePDFRawStream(obj).decode()).toString('latin1');
+        if (/[\d.]\s+(rg|RG)(?=[\s/\[(<]|$)/m.test(t)) bad.add('cor RGB em textos ou fios');
+        if (/[\d.]\s+(k|K)(?=[\s/\[(<]|$)/m.test(t)) bad.add('cor CMYK em textos ou fios');
+        if (/\s(scn?|SCN?)\s/.test(t)) bad.add('cor em espaço de cor próprio');
+        if (/\ssh\s/.test(t)) bad.add('degradê');
+      } catch (e) { /* stream não decodificável: ignorado */ }
+    });
+    report.onlyBlack = bad.size === 0;
+    report.nonBlack = [...bad];
+  }
+  if (opts.noProfile) {
+    // sGray sem perfis incorporados, como pede o manual Cedet
+    doc.catalog.delete(PDFName.of('OutputIntents'));
+    report.warnings = [...new Set(report.warnings)];
+    report.profile = 'sGray, sem perfil incorporado';
+    return { pdf: Buffer.from(await doc.save({ useObjectStreams: false })), report };
+  }
   // perfil de saída (OutputIntent) para a gráfica saber a condição de impressão
   const iccStream = ctx.register(ctx.stream(zlib.deflateSync(Buffer.from(profBuf)), ctx.obj({ N: 4, Filter: 'FlateDecode' })));
   const oi = ctx.obj({ Type: 'OutputIntent', S: 'GTS_PDFX', OutputConditionIdentifier: PDFString.of(prof.condition), OutputCondition: PDFString.of(prof.label), RegistryName: PDFString.of('http://www.color.org'), Info: PDFString.of(prof.info), DestOutputProfile: iccStream });

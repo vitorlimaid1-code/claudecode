@@ -5,6 +5,8 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const { nativeImage } = require('electron');
+const Isbn = require('../shared/isbn');
+const CoverGeometry = require('../shared/cover');
 
 const PROFILES = {
   fogra39: { file: 'ISOcoated_v2_eci.icc', label: 'ISO Coated v2 (ECI) — FOGRA39, papel couchê (offset Brasil/Europa)', condition: 'FOGRA39', info: 'Offset commercial and specialty printing according to ISO 12647-2:2004 / Amd 1, paper type 1 or 2 (gloss or matte coated), screen frequency 60/cm' },
@@ -19,6 +21,33 @@ function lcms() {
 
 function profilePath(appRoot, key) {
   return path.join(appRoot, 'assets', 'icc', (PROFILES[key] || PROFILES.fogra39).file);
+}
+// Perfil da capa: um dos embutidos ou um ICC CMYK carregado pelo usuário (ex.: U.S. Web Coated (SWOP) v2)
+function coverProfile(appRoot, cover) {
+  const ci = cover && cover.customIcc;
+  if (cover && cover.profile === 'custom' && ci && ci.data) {
+    const buf = new Uint8Array(Buffer.from(ci.data, 'base64'));
+    const desc = ci.desc || ci.name || 'Perfil ICC personalizado';
+    const swop = /swop/i.test(desc);
+    return { key: 'custom', buf, prof: { label: desc, condition: swop ? 'CGATS TR 001' : desc, info: swop ? 'U.S. Web Coated (SWOP) v2' : desc } };
+  }
+  const key = PROFILES[cover && cover.profile] ? cover.profile : 'fogra39';
+  return { key, buf: new Uint8Array(fs.readFileSync(profilePath(appRoot, key))), prof: PROFILES[key] };
+}
+// Lê a descrição e o espaço de cor de um perfil ICC (cabeçalho + tag 'desc')
+function iccInfo(buf) {
+  if (!buf || buf.length < 132 || buf.toString('latin1', 36, 40) !== 'acsp') return null;
+  const info = { colorSpace: buf.toString('latin1', 16, 20).trim(), cls: buf.toString('latin1', 12, 16), desc: '' };
+  const n = buf.readUInt32BE(128);
+  for (let i = 0; i < n && 132 + i * 12 + 12 <= buf.length; i++) {
+    const o = 132 + i * 12;
+    if (buf.toString('latin1', o, o + 4) !== 'desc') continue;
+    const off = buf.readUInt32BE(o + 4);
+    const type = buf.toString('latin1', off, off + 4);
+    if (type === 'desc') { const len = buf.readUInt32BE(off + 8); info.desc = buf.toString('latin1', off + 12, off + 12 + len).replace(/\0+$/, ''); }
+    else if (type === 'mluc') { const rl = buf.readUInt32BE(off + 20), ro = buf.readUInt32BE(off + 24); const u = buf.subarray(off + ro, off + ro + rl); let t = ''; for (let k = 0; k + 1 < u.length; k += 2) t += String.fromCharCode(u.readUInt16BE(k)); info.desc = t.replace(/\0+$/, ''); }
+  }
+  return info;
 }
 
 // ---------------------------------------------------------------- perfis embutidos nas imagens
@@ -288,8 +317,9 @@ function drawInto(dst, DW, DH, src, rect, fit) {
 
 // geometry: { totalW, totalH, bleed, spine, flap, panels: {back:[x,w], spine:[x,w], front:[x,w], flapBack, flapFront} } em mm
 async function compose(appRoot, cover, assets, geometry, opts) {
-  const profKey = cover.profile || 'fogra39';
-  const profBuf = new Uint8Array(fs.readFileSync(profilePath(appRoot, profKey)));
+  const cp = coverProfile(appRoot, cover);
+  const profKey = cp.key;
+  const profBuf = cp.buf;
   const dpi = Math.max(72, Math.min(600, Number(opts.dpi || cover.dpi) || 300));
   const pxmm = dpi / 25.4;
   const includeBleed = opts.bleed !== false;
@@ -340,31 +370,86 @@ async function compose(appRoot, cover, assets, geometry, opts) {
     const x0 = Math.round((bx - offX) * pxmm), y0 = Math.round((by - offY) * pxmm);
     for (let y = Math.max(0, y0); y < Math.min(DH, y0 + Math.round(30 * pxmm)); y++) for (let x = Math.max(0, x0); x < Math.min(DW, x0 + Math.round(50 * pxmm)); x++) dst.fill(0, (y * DW + x) * 4, (y * DW + x) * 4 + 4);
   }
+  // código de barras do ISBN (prova de cor; no PDF ele é redesenhado em vetor 100% K por cima)
+  const bc = barcodeFor(cover, g, opts.meta);
+  if (bc && bc.lay.ok) {
+    const X = mm => Math.round((mm - offX) * pxmm), Y = mm => Math.round((mm - offY) * pxmm);
+    const box = (x, y, w, h, k) => { for (let yy = Math.max(0, Y(y)); yy < Math.min(DH, Y(y + h)); yy++) for (let xx = Math.max(0, X(x)); xx < Math.min(DW, X(x + w)); xx++) { const i = (yy * DW + xx) * 4; dst[i] = 0; dst[i + 1] = 0; dst[i + 2] = 0; dst[i + 3] = k; } };
+    box(bc.x, bc.y, bc.lay.w, bc.lay.h, 0);
+    bc.lay.rects.forEach(r => box(bc.x + r.x, bc.y + r.y, r.w, r.h, 255));
+    notes.push(`Código de barras ISBN ${bc.lay.display} (EAN-13 ${bc.lay.isbn13}): ${(Math.round(bc.lay.symbolW * 100) / 100).toString().replace('.', ',')} × ${(Math.round(bc.lay.symbolH * 100) / 100).toString().replace('.', ',')} mm, preto 100% K vetorial, 2,5 mm livres ao redor`);
+  } else if (bc && !bc.lay.ok) notes.push('Código de barras NÃO gerado: ' + bc.lay.error);
   // limite de tinta (TAC) informativo
   let maxTac = 0;
   for (let i = 0; i < dst.length; i += 4 * 97) { const t = dst[i] + dst[i + 1] + dst[i + 2] + dst[i + 3]; if (t > maxTac) maxTac = t; }
-  return { dst, DW, DH, Wmm, Hmm, notes, maxTac, dpi, profKey, profBuf, includeBleed, g };
+  return { dst, DW, DH, Wmm, Hmm, notes, maxTac, dpi, profKey, profBuf, prof: cp.prof, includeBleed, g, bc, offX, offY };
+}
+
+// Código de barras configurado na capa: { lay, x, y } em mm na capa aberta com sangria
+function barcodeFor(cover, g, meta) {
+  const b = cover && cover.isbnBarcode;
+  if (!b || !b.enabled || !g.panels.back) return null;
+  const lay = Isbn.layout(b.isbn || (meta && meta.isbn), { scale: b.scale, barHeight: b.barHeight, showIsbnText: b.showIsbnText !== false });
+  if (!lay.ok) return { lay };
+  const pos = Isbn.place(g, lay, b);
+  return { lay, x: pos.x, y: pos.y };
 }
 
 async function buildCoverPdf(appRoot, cover, assets, meta, geometry, opts) {
   const { PDFDocument, PDFName, PDFString, PDFHexString, pushGraphicsState, popGraphicsState, concatTransformationMatrix, drawObject } = require('pdf-lib');
-  const { dst, DW, DH, Wmm, Hmm, notes, maxTac, dpi, profKey, profBuf, includeBleed, g } = await compose(appRoot, cover, assets, geometry, opts || {});
+  const { dst, DW, DH, Wmm, Hmm, notes, maxTac, dpi, profBuf, prof, includeBleed, g, bc, offX, offY } = await compose(appRoot, cover, assets, geometry, Object.assign({}, opts || {}, { meta }));
   // ---------- PDF/X-1a ----------
   const pdf = await PDFDocument.create({ updateMetadata: false });
   const ptmm = 72 / 25.4;
-  const page = pdf.addPage([Wmm * ptmm, Hmm * ptmm]);
+  // marcas de corte e de dobra (CEDET: 0,25 pt, deslocamento de 5 mm) — a folha cresce para recebê-las
+  const mk = includeBleed ? CoverGeometry.marks(cover) : null;
+  const pad = mk ? Math.max(0, mk.offset + mk.len + 2 - g.outer) : 0;
+  const page = pdf.addPage([(Wmm + 2 * pad) * ptmm, (Hmm + 2 * pad) * ptmm]);
   const ctx = pdf.context;
   const imgDict = ctx.obj({ Type: 'XObject', Subtype: 'Image', Width: DW, Height: DH, ColorSpace: 'DeviceCMYK', BitsPerComponent: 8, Filter: 'FlateDecode' });
   const raw = zlib.deflateSync(Buffer.from(dst.buffer, dst.byteOffset, dst.length), { level: 6 });
   const imgStream = ctx.stream(raw, imgDict);
   const imgRef = ctx.register(imgStream);
   const name = page.node.newXObject('ImCapa', imgRef);
-  page.pushOperators(pushGraphicsState(), concatTransformationMatrix(Wmm * ptmm, 0, 0, Hmm * ptmm, 0, 0), drawObject(name), popGraphicsState());
+  const P = pad * ptmm;
+  page.pushOperators(pushGraphicsState(), concatTransformationMatrix(Wmm * ptmm, 0, 0, Hmm * ptmm, P, P), drawObject(name), popGraphicsState());
+  const { PDFOperator } = require('pdf-lib');
+  const emit = (txt) => page.pushOperators(...txt.split('\n').filter(Boolean).map(l => { const parts = l.trim().split(/\s+/); return PDFOperator.of(parts.pop(), parts.map(v => require('pdf-lib').PDFNumber.of(Number(v)))); }));
+  // código de barras vetorial: quadro branco (0% CMYK, vaza o fundo) e barras/dígitos 100% K
+  if (bc && bc.lay.ok) {
+    const totalHmm = Hmm + 2 * pad;
+    const ox = bc.x - offX + pad, oy = bc.y - offY + pad;
+    const ops = Isbn.pathOps(bc.lay, ox, oy, totalHmm, false);
+    const k = ptmm, f = v => (Math.round(v * 1000) / 1000);
+    const lines = [`0 0 0 0 k`, `${f(ox * k)} ${f((totalHmm - oy - bc.lay.h) * k)} ${f(bc.lay.w * k)} ${f(bc.lay.h * k)} re`, 'f', '0 0 0 1 k'];
+    page.pushOperators(pushGraphicsState());
+    emit(lines.concat(ops.bars.map(x => x)).concat(['f']).join('\n'));
+    emit(ops.glyphs.concat(['f']).join('\n'));
+    page.pushOperators(popGraphicsState());
+  }
   const b = includeBleed ? g.outer * ptmm : 0;
-  page.setMediaBox(0, 0, Wmm * ptmm, Hmm * ptmm);
-  page.setBleedBox(0, 0, Wmm * ptmm, Hmm * ptmm);
-  page.setTrimBox(b, b, Wmm * ptmm - 2 * b, Hmm * ptmm - 2 * b);
-  const prof = PROFILES[profKey] || PROFILES.fogra39;
+  const TW = Wmm * ptmm, TH = Hmm * ptmm;
+  page.setMediaBox(0, 0, TW + 2 * P, TH + 2 * P);
+  page.setBleedBox(P, P, TW, TH);
+  page.setTrimBox(P + b, P + b, TW - 2 * b, TH - 2 * b);
+  if (mk) {
+    // marcas em preto de registro (100% nas quatro cores), fora da sangria
+    const x1 = P + b, x2 = P + TW - b, y1 = P + b, y2 = P + TH - b;
+    const off = mk.offset * ptmm, len = mk.len * ptmm;
+    const L = [`${mk.weight} w`, '1 1 1 1 K'];
+    const seg = (a, c) => L.push(`${f2(a[0])} ${f2(a[1])} m`, `${f2(c[0])} ${f2(c[1])} l`, 'S');
+    [[x1, y1], [x2, y1], [x1, y2], [x2, y2]].forEach(([x, y]) => {
+      const sx = x === x1 ? -1 : 1, sy = y === y1 ? -1 : 1;
+      seg([x + sx * off, y], [x + sx * (off + len), y]);
+      seg([x, y + sy * off], [x, y + sy * (off + len)]);
+    });
+    // dobras: lombada (e orelhas), acima e abaixo da capa
+    g.folds.forEach(fx => { const x = P + (fx - (includeBleed ? 0 : g.outer)) * ptmm; seg([x, y2 + off], [x, y2 + off + len]); seg([x, y1 - off], [x, y1 - off - len]); });
+    page.pushOperators(pushGraphicsState());
+    emit(L.join('\n'));
+    page.pushOperators(popGraphicsState());
+    notes.push(`Marcas de corte e de dobra: ${String(mk.weight).replace('.', ',')} pt, a ${String(mk.offset).replace('.', ',')} mm do corte (capa, contracapa, lombada${g.flap ? ' e orelhas' : ''})`);
+  }
   const iccStream = ctx.register(ctx.stream(zlib.deflateSync(Buffer.from(profBuf)), ctx.obj({ N: 4, Filter: 'FlateDecode' })));
   const intent = ctx.obj({ Type: 'OutputIntent', S: 'GTS_PDFX', OutputConditionIdentifier: PDFString.of(prof.condition), OutputCondition: PDFString.of(prof.label), RegistryName: PDFString.of('http://www.color.org'), Info: PDFString.of(prof.info), DestOutputProfile: iccStream });
   pdf.catalog.set(PDFName.of('OutputIntents'), ctx.obj([ctx.register(intent)]));
@@ -384,11 +469,13 @@ async function buildCoverPdf(appRoot, cover, assets, meta, geometry, opts) {
   Buffer.from(bytes.buffer, bytes.byteOffset, 8).write('%PDF-1.3', 0, 'latin1');
   return {
     pdf: Buffer.from(bytes),
-    report: { dpi, widthPx: DW, heightPx: DH, profile: prof.label, intent: cover.intent === 'perceptual' ? 'Perceptual' : 'Colorimétrico relativo', bpc: cover.bpc !== false, maxTac: Math.round(maxTac / 2.55), notes, sizeMm: [Wmm, Hmm], bleed: includeBleed ? g.outer : 0 }
+    report: { dpi, widthPx: DW, heightPx: DH, profile: prof.label, barcode: bc && bc.lay.ok ? bc.lay.isbn13 : null, marks: !!mk, sheetMm: [Wmm + 2 * pad, Hmm + 2 * pad], intent: cover.intent === 'perceptual' ? 'Perceptual' : 'Colorimétrico relativo', bpc: cover.bpc !== false, maxTac: Math.round(maxTac / 2.55), notes, sizeMm: [Wmm, Hmm], bleed: includeBleed ? g.outer : 0 }
   };
 }
 
 // Prova de cor na tela: o raster CMYK final convertido de volta para sRGB (simulação da impressão)
+const f2 = v => Math.round(v * 1000) / 1000;
+
 async function softProof(appRoot, cover, assets, geometry, dpi) {
   const c = await compose(appRoot, cover, assets, geometry, { dpi: dpi || 72, bleed: true });
   const { m: L, l } = await lcms();
@@ -401,7 +488,7 @@ async function softProof(appRoot, cover, assets, geometry, dpi) {
   const bgra = Buffer.alloc(n * 4);
   for (let i = 0; i < n; i++) { bgra[i * 4] = rgb[i * 3 + 2]; bgra[i * 4 + 1] = rgb[i * 3 + 1]; bgra[i * 4 + 2] = rgb[i * 3]; bgra[i * 4 + 3] = 255; }
   const img = nativeImage.createFromBitmap(bgra, { width: c.DW, height: c.DH });
-  return { dataUrl: dpi && dpi > 100 ? 'data:image/jpeg;base64,' + img.toJPEG(92).toString('base64') : img.toDataURL(), width: c.DW, height: c.DH, geometry: c.g, maxTac: Math.round(c.maxTac / 2.55), notes: c.notes, profile: (PROFILES[c.profKey] || PROFILES.fogra39).label };
+  return { dataUrl: dpi && dpi > 100 ? 'data:image/jpeg;base64,' + img.toJPEG(92).toString('base64') : img.toDataURL(), width: c.DW, height: c.DH, geometry: c.g, maxTac: Math.round(c.maxTac / 2.55), notes: c.notes, profile: c.prof.label };
 }
 
-module.exports = { buildCoverPdf, softProof, PROFILES, imageToCmyk, extractIcc };
+module.exports = { buildCoverPdf, softProof, PROFILES, imageToCmyk, extractIcc, iccInfo };

@@ -66,6 +66,7 @@
     const fmt = D.PAGE_FORMATS.find(f => f.group === 'Amazon KDP (polegadas)' && Math.abs(f.width - W) < 0.3 && Math.abs(f.height - H) < 0.3);
     s.pageFormat = fmt ? fmt.id : 'custom';
     s.pageWidth = W; s.pageHeight = H;
+    s.standard = ''; // KDP tem regras próprias: o modelo CEDET é desligado neste livro
     s.marginInner = inner; s.marginOuter = outer; s.marginTop = top; s.marginBottom = bottom;
     s.kdp.enabled = true;
     if (c.k.bleed) { s.bleedAuto = true; } else { s.bleedAuto = false; s.bleedTop = s.bleedBottom = s.bleedOuter = 0; }

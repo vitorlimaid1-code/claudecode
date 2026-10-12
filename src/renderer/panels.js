@@ -421,7 +421,9 @@
       ], '', 'span-all'),
       card('Direitos e contato', [
         field('Texto de direitos autorais', bind(c, 'rights', 'textarea', { rows: 3, placeholder: `© ${m.year} ${m.author}\nTodos os direitos reservados.` }), '', 'wide'),
-        field('Contato / endereço da editora', bind(c, 'contact', 'textarea', { rows: 2 }), '', 'wide')
+        field('Contato / endereço da editora', bind(c, 'contact', 'textarea', { rows: 2 }), '', 'wide'),
+        field('Crédito de distribuição', bind(c, 'distribution', 'textarea', { rows: 6, placeholder: App.project.settings.standard === 'cedet' ? D.CEDET.distribution : 'Opcional' }), App.project.settings.standard === 'cedet' ? 'CEDET: obrigatório. Vazio = texto oficial do manual (mostrado acima, em cinza).' : 'Ex.: dados da distribuidora', 'wide'),
+        App.project.settings.standard === 'cedet' ? el('div', { class: 'field' }, [el('span', { class: 'flabel', text: ' ' }), el('button', { class: 'small-btn', text: 'Inserir o crédito oficial do Cedet', onclick: () => { c.distribution = D.CEDET.distribution; App.changed('Crédito de distribuição'); App.hooks.viewRender[App.view] && App.hooks.viewRender[App.view](); } })]) : null
       ]),
       card('Ficha catalográfica (CIP)', [
         el('label', { class: 'chk' }, [bind(c, 'enabled', 'checkbox'), ' Incluir ficha catalográfica']),
@@ -531,15 +533,38 @@
     const contentW = s.pageWidth - s.marginInner - s.marginOuter;
     const contentH = s.pageHeight - s.marginTop - s.marginBottom;
     const bleedMax = s.bleedAuto ? D.autoBleed(s) : Math.max(s.bleedTop || 0, s.bleedBottom || 0, s.bleedOuter || 0);
+    const cedet = s.standard === 'cedet';
+    const cedetFmtSel = el('select', { onchange: e => { D.applyCedet(s, e.target.value); App.changed('Formato CEDET'); rerender(); } }, D.PAGE_FORMATS.filter(f => D.CEDET.formats.includes(f.id)).map(f => el('option', { value: f.id, text: f.label.replace('CEDET — ', '') })));
+    if (D.CEDET.formats.includes(s.pageFormat)) cedetFmtSel.value = s.pageFormat;
+    const cedetCard = el('div', { class: 'card preset' + (cedet ? ' cedet-on' : '') }, [
+      el('h3', { text: cedet ? '✓ Modelo CEDET (padrão do sistema)' : 'Modelo CEDET (padrão do sistema)' }),
+      el('p', { class: 'muted small', text: cedet
+        ? 'Este livro segue o Manual de Preparação de Arquivos do Cedet: miolo preto e branco, margem de segurança de 20 mm, sangria de 5 mm, marcas de corte de 0,25 pt a 5 mm, numeração no rodapé (ímpares à direita) e crédito de distribuição na ficha. Exporte com o perfil “CEDET — miolo”.'
+        : 'Este livro está com layout livre. Aplique o modelo CEDET para seguir o manual de preparação de arquivos (formato, margens, sangria, marcas e numeração).' }),
+      el('div', { class: 'inline wrap' }, [
+        cedet ? field('Formato CEDET', cedetFmtSel) : null,
+        el('button', { class: cedet ? '' : 'primary', text: cedet ? '↺ Reaplicar o modelo CEDET' : 'Aplicar o modelo CEDET', onclick: async () => {
+          const ok = await App.confirmPreview('Modelo CEDET', 'Aplicar o modelo CEDET a este livro?', ['Formato 15,5 × 23, 13,7 × 21 ou 11,5 × 17,5 cm (mantém o atual se já for Cedet)', 'Margens: superior e inferior 28 mm, interna 23 mm, externa 20 mm (segurança de 20 mm)', 'Sangria 5 mm · marcas de corte 0,25 pt a 5 mm do corte', 'Número da página no rodapé externo, logo abaixo do texto · textos em preto', 'Crédito de distribuição do Cedet na ficha catalográfica']);
+          if (!ok) return;
+          D.applyCedet(s);
+          if (!App.project.catalog.distribution) App.project.catalog.distribution = D.CEDET.distribution;
+          App.project.front.copyright = true;
+          if (App.project.cover) { App.project.cover.cedet = true; App.project.cover.marks = Object.assign({}, App.project.cover.marks, { enabled: true }); }
+          App.changed('Modelo CEDET aplicado'); rerender();
+        } }),
+        cedet ? el('button', { text: 'Usar layout livre', title: 'Desliga as regras do Cedet neste livro (as medidas atuais são mantidas)', onclick: () => { s.standard = ''; App.changed('Layout livre'); rerender(); } }) : null
+      ])
+    ]);
     v.appendChild(el('div', { class: 'form-wrap' }, [
       el('h2', { text: 'Formato e diagramação' }),
+      cedetCard,
       el('div', { class: 'card preset' }, [
         el('h3', { text: 'Configurações prontas por gênero' }), presetSel,
         el('p', { class: 'muted small', text: 'Romance, poesia, terror, suspense, fantasia, ficção científica, contos, infantojuvenil, autoajuda, biografia, religioso e acadêmico.' }),
         el('div', { class: 'inline wrap' }, [
           el('button', { text: '★ Salvar como meu padrão', title: 'Novos livros (e o próximo uso do app) começam com esta configuração', onclick: async () => { await api.defaultsSet(JSON.parse(JSON.stringify(s))); App.toast('Configuração salva como seu padrão.'); } }),
           el('button', { text: 'Aplicar meu padrão', onclick: async () => { const d = await api.defaultsGet(); if (!d) return App.toast('Você ainda não salvou um padrão.'); const ok = await App.confirmPreview('Aplicar meu padrão', 'Substituir a configuração deste livro pelo seu padrão salvo?', ['Formato, margens, estilos e opções']); if (!ok) return; App.project.settings = D.mergeSettings(JSON.parse(JSON.stringify(D.DEFAULT_SETTINGS)), d); App.changed('Meu padrão aplicado'); rerender(); } }),
-          el('button', { text: 'Restaurar padrão de fábrica', onclick: async () => { const ok = await App.confirmPreview('Padrão de fábrica', 'Voltar todas as configurações deste livro ao padrão do aplicativo (14 × 21 cm)?', ['Formato, margens, estilos e opções']); if (!ok) return; App.project.settings = JSON.parse(JSON.stringify(D.DEFAULT_SETTINGS)); App.changed('Padrão de fábrica'); rerender(); } })
+          el('button', { text: 'Restaurar padrão de fábrica', onclick: async () => { const ok = await App.confirmPreview('Padrão de fábrica', 'Voltar todas as configurações deste livro ao padrão do aplicativo (modelo CEDET, 15,5 × 23 cm)?', ['Formato, margens, estilos e opções']); if (!ok) return; App.project.settings = JSON.parse(JSON.stringify(D.DEFAULT_SETTINGS)); App.changed('Padrão de fábrica'); rerender(); } })
         ])
       ]),
       card('Página (formato final de corte)', [
@@ -574,7 +599,10 @@
           field('Tamanho da folha', bind(o, 'mode', 'select', { options: Object.entries(D.OUTPUT_SHEETS).map(([k, v]) => ({ value: k, label: v.label })), onChange: rerender }), '', 'wide'),
           o.mode === 'custom' ? len('outputSheetW', 'Largura da folha', 50, 2000) : null,
           o.mode === 'custom' ? len('outputSheetH', 'Altura da folha', 50, 2000) : null,
-          o.mode !== 'trim' ? el('label', { class: 'chk' }, [bind(o, 'marks', 'checkbox', { onChange: rerender }), ' Marcas de corte fora da sangria']) : null,
+          o.mode !== 'trim' && o.mode !== 'marks' ? el('label', { class: 'chk' }, [bind(o, 'marks', 'checkbox', { onChange: rerender }), ' Marcas de corte fora da sangria']) : null,
+          o.mode !== 'trim' && (o.marks || o.mode === 'marks') ? field('Deslocamento das marcas a partir do corte (mm)', bind(o, 'markOffset', 'number', { step: 0.5, min: 0, max: 20, allowEmpty: true, onChange: rerender }), 'Vazio = 2 mm além da sangria. CEDET: 5 mm') : null,
+          o.mode !== 'trim' && (o.marks || o.mode === 'marks') ? field('Comprimento das marcas (mm)', bind(o, 'markLen', 'number', { step: 0.5, min: 1, max: 20, allowEmpty: true, onChange: rerender })) : null,
+          o.mode !== 'trim' && (o.marks || o.mode === 'marks') ? field('Espessura das marcas (pt)', bind(o, 'markWeight', 'number', { step: 0.05, min: 0.1, max: 2, allowEmpty: true })) : null,
           el('p', { class: 'small ' + (sh && !sh.fits ? 'warn' : 'muted'), text: status })
         ], 'Use quando a gráfica pedir o PDF numa folha maior que o livro (ex.: A4 ou SRA3). O formato final de corte, as margens, a sangria e todo o conteúdo continuam exatamente iguais — a página só é posicionada no centro da folha.');
       })(),
@@ -603,7 +631,8 @@
       ], 'Cada capítulo pode usar outro separador em “Aparência”.'),
       card('Cabeçalho, numeração e notas', [
         field('Cabeçalho', bind(s, 'header', 'select', { options: [{ value: 'title-chapter', label: 'Título do livro / título do capítulo' }, { value: 'author-title', label: 'Autor / título do livro' }, { value: 'chapter-chapter', label: 'Título do capítulo nas duas páginas' }, { value: 'none', label: 'Sem cabeçalho' }] })),
-        field('Número da página', bind(s, 'pageNumbers', 'select', { options: [{ value: 'outer', label: 'Rodapé, canto externo' }, { value: 'center', label: 'Rodapé, centralizado' }, { value: 'top-outer', label: 'Topo, canto externo' }, { value: 'none', label: 'Sem numeração' }] })),
+        field('Número da página', bind(s, 'pageNumbers', 'select', { options: [{ value: 'outer', label: 'Rodapé, canto externo' }, { value: 'center', label: 'Rodapé, centralizado' }].concat(cedet ? [] : [{ value: 'top-outer', label: 'Topo, canto externo' }]).concat([{ value: 'none', label: 'Sem numeração' }]) }), cedet ? 'CEDET: canto inferior externo ou centro inferior; ímpares sempre à direita.' : ''),
+        n('folioGap', 'Distância do número ao texto (mm)', 0.5, 0, 30, '0 = número centrado na margem inferior. CEDET: 3 mm, para ficar dentro dos 20 mm de segurança'),
         el('label', { class: 'chk' }, [bind(s, 'numberFromFirstChapter', 'checkbox'), ' Página 1 = primeiro capítulo']),
         field('Numeração das notas', bind(s, 'footnoteNumbering', 'select', { options: [{ value: 'book', label: 'Contínua no livro' }, { value: 'chapter', label: 'Reinicia a cada capítulo' }] })),
         el('label', { class: 'chk' }, [bind(s, 'footnotesVisible', 'checkbox'), ' Mostrar notas de rodapé'])

@@ -23,7 +23,7 @@
     }
     const mag = kind === 'magazine';
     const [w, h] = mag ? [202, 266] : [280, 430];
-    Object.assign(s, { pageWidth: w, pageHeight: h, pageFormat: formatId(w, h) });
+    Object.assign(s, { pageWidth: w, pageHeight: h, pageFormat: formatId(w, h), standard: '', folioGap: 0, outputSheet: { mode: 'trim', w: 210, h: 297, marks: true } }); // revista/jornal: layout livre (o modelo CEDET é para livros)
     Object.assign(s, mag ? { marginTop: 16, marginBottom: 18, marginInner: 16, marginOuter: 13 } : { marginTop: 14, marginBottom: 16, marginInner: 13, marginOuter: 13 });
     Object.assign(s, { columns: mag ? 2 : 3, columnGap: mag ? 5 : 4, columnRule: !mag ? true : s.columnRule !== false, chapterStartRight: false, chapterNumbering: 'none', dropCap: mag, hyphenate: true, indentFirstParagraph: false });
     s.styles.body.size = mag ? 9.5 : 9;

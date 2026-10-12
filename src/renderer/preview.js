@@ -73,6 +73,7 @@
     const firstPage = first && first.closest('.pagedjs_page');
     let offset = 0;
     if (book && book.dataset.numberFromFirst === '1' && firstPage) offset = Number(firstPage.dataset.pageNumber) - 1;
+    offset -= offset % 2; // o deslocamento é sempre par: páginas ímpares continuam à direita
     const style = document.createElement('style');
     style.textContent = `.pagedjs_pages { counter-reset: page ${-offset} pages var(--pagedjs-page-count) !important; }`;
     document.head.appendChild(style);

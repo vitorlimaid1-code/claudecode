@@ -1,5 +1,5 @@
 // Monta o HTML e o CSS paginável (Paged.js) a partir de um projeto de livro.
-const { normalizeProject, BUNDLED_FONTS, autoBleed } = require('./shared/defaults');
+const { normalizeProject, BUNDLED_FONTS, autoBleed, CEDET } = require('./shared/defaults');
 
 function effectiveBleed(s) {
   if (s.bleedAuto) return autoBleed(s);
@@ -303,6 +303,12 @@ function catalogHtml(project, ctx) {
   });
   if (media.length) parts.push(`<div class="cat-medias">${media.join('')}</div>`);
   if (c.contact) parts.push(`<div class="cat-contact">${multiline(c.contact)}</div>`);
+  // crédito de distribuição (CEDET: obrigatório na ficha; usa o texto do manual se o campo estiver vazio)
+  const dist = String(c.distribution || (s.standard === 'cedet' ? CEDET.distribution : '')).replace(/\r\n?/g, '\n').trim();
+  if (dist) {
+    const [first, ...rest] = dist.split('\n');
+    parts.push(`<div class="cat-dist"><div class="cat-dist-head">${esc(first)}</div>${rest.length ? multiline(rest.join('\n')) : ''}</div>`);
+  }
   return `<section class="front copyright-page cat-style-${esc(c.style || 'box')} cat-pos-${c.position === 'top' ? 'top' : 'bottom'}" id="ficha">${parts.join('')}</section>`;
 }
 function catHead(c) {
@@ -465,7 +471,10 @@ function buildCss(project, ctx) {
   else if (!periodical && s.header === 'author-title') { leftHeader = cssString(meta.author); rightHeader = cssString(meta.title); }
   else if (!periodical && s.header === 'chapter-chapter') { leftHeader = 'string(chaptitle)'; rightHeader = 'string(chaptitle)'; }
 
-  const pn = s.pageNumbers;
+  // CEDET: numeração só no canto inferior externo ou no centro inferior (nunca no topo nem no lado interno)
+  const pn = s.standard === 'cedet' && s.pageNumbers !== 'center' && s.pageNumbers !== 'none' ? 'outer' : s.pageNumbers;
+  // folioGap: o número fica logo abaixo da mancha (dentro da margem de segurança) em vez de centrado na margem
+  const folioPos = num(s.folioGap, 0) > 0 ? ` vertical-align: top; padding-top: ${num(s.folioGap, 0)}mm;` : '';
   const H = S.header;
   const P = S.pageNumber;
   const boxStyle = `font-family: ${fontStack(H.font || body.font)}; font-size: ${num(H.size, 8.5)}pt; letter-spacing: ${num(H.letterSpacing, 0)}em; text-transform: ${H.uppercase ? 'uppercase' : 'none'}; font-style: ${H.italic ? 'italic' : 'normal'}; color: ${color(H.color, '#222')}; vertical-align: bottom; padding-bottom: 4mm;`;
@@ -478,8 +487,8 @@ function buildCss(project, ctx) {
     const hr = pn === 'top-outer' ? '@top-center' : '@top-right';
     L.push(`${hl} { content: ${leftHeader}; ${boxStyle} }`);
     R.push(`${hr} { content: ${rightHeader}; ${boxStyle} }`);
-    if (pn === 'outer') { L.push(`@bottom-left { content: counter(page); ${numStyle} }`); R.push(`@bottom-right { content: counter(page); ${numStyle} }`); }
-    if (pn === 'center') { L.push(`@bottom-center { content: counter(page); ${numStyle} }`); R.push(`@bottom-center { content: counter(page); ${numStyle} }`); }
+    if (pn === 'outer') { L.push(`@bottom-left { content: counter(page); ${numStyle}${folioPos} }`); R.push(`@bottom-right { content: counter(page); ${numStyle}${folioPos} }`); }
+    if (pn === 'center') { L.push(`@bottom-center { content: counter(page); ${numStyle}${folioPos} }`); R.push(`@bottom-center { content: counter(page); ${numStyle}${folioPos} }`); }
     if (pn === 'top-outer') { L.push(`@top-left { content: counter(page); ${numStyle} vertical-align: bottom; padding-bottom: 4mm; }`); R.push(`@top-right { content: counter(page); ${numStyle} vertical-align: bottom; padding-bottom: 4mm; }`); }
     if (textColor) { const add = x => x.replace(/; \}/g, `; color: ${textColor}; }`); L.splice(0, L.length, ...L.map(add)); R.splice(0, R.length, ...R.map(add)); }
     return `
@@ -571,6 +580,8 @@ ${pageNames}
 .cat-indent { padding-left: 4mm; }
 .cat-class { text-align: right; margin-top: 1.5mm; }
 .cat-lib { margin-top: 1.5mm; font-size: 0.9em; }
+.cat-dist { margin-top: 3mm; font-size: 0.9em; line-height: 1.35; text-align: left; hyphens: manual; }
+.cat-dist-head { font-weight: bold; letter-spacing: 0.04em; }
 .cat-medias { display: flex; flex-wrap: wrap; gap: 4mm; align-items: flex-end; }
 .cat-media { text-align: center; font-size: 0.9em; }
 .cat-media img { display: block; margin: 0 auto 1mm; }

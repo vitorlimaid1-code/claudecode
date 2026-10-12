@@ -5,6 +5,7 @@
   const { el, $, api } = App;
 
   const BUILTIN = [
+    { id: 'cedet', name: 'CEDET — miolo para impressão (padrão)', kind: 'pdf', purpose: 'print', cedet: true, bleed: 5, cropMarks: false, spreads: false, outline: false, color: 'gray', noProfile: true, minDpi: 300, errDpi: 200, notes: 'Manual Cedet: miolo preto e branco só com tinta preta (sGray, sem perfis incorporados), páginas individuais, sangria de 5 mm, marcas de corte de 0,25 pt a 5 mm do corte em todas as páginas, margem de segurança de 20 mm, numeração no canto inferior externo ou no centro. Arquivo: ISBN_MIOLO_NOME DO LIVRO.pdf.' },
     { id: 'grafica', name: 'Impressão em gráfica (offset)', kind: 'pdf', purpose: 'print', bleed: null, cropMarks: true, spreads: false, outline: false, color: 'cmyk', colorProfile: 'fogra39', minDpi: 300, errDpi: 200, notes: 'Sangria do livro (automática pelo formato ou a medida digitada), marcas de corte, cores em CMYK com perfil ICC (texto preto 100% K) e fontes incorporadas. Para miolo só preto e branco, escolha “Escala de cinza”. Confirme com a gráfica o perfil de cor exigido.' },
     { id: 'kdp', name: 'Amazon KDP (brochura)', kind: 'pdf', purpose: 'print', bleed: 3.175, bleedOnlyIfNeeded: true, cropMarks: false, spreads: false, color: 'rgb', minDpi: 300, errDpi: 150, minPages: 24, maxPages: 828, acceptedSizes: '127x203.2, 128.5x198.4, 133.4x203.2, 139.7x215.9, 152.4x228.6, 156x233.9, 169.9x244.1, 177.8x254, 189x246.1, 190.5x235, 203.2x254, 209.6x152.4, 209.6x209.6, 210x297, 215.9x215.9, 215.9x279.4, 108x174.5', notes: 'Use sangria (3,175 mm = 0,125 pol.) apenas se houver imagens até a borda. Miolo preto e branco: use “Escala de cinza”. Tamanhos aceitos conforme a lista do KDP — verifique a lista atual no site da Amazon.' },
     { id: 'pod', name: 'Impressão sob demanda (Clube de Autores, UICLAP…)', kind: 'pdf', purpose: 'print', bleed: 0, color: 'rgb', cropMarks: false, spreads: false, minDpi: 300, errDpi: 150, notes: 'PDF no tamanho final, sem marcas de corte. Confira as exigências atuais da plataforma.' },
@@ -21,7 +22,7 @@
   async function loadProfiles() {
     const saved = await api.profilesGet();
     state.profiles = BUILTIN.concat(Array.isArray(saved) ? saved : []);
-    if (!state.current) selectProfile(state.profiles[0].id);
+    if (!state.current) selectProfile(App.project.settings.standard === 'cedet' ? 'cedet' : 'grafica');
   }
   function selectProfile(id) {
     const p = state.profiles.find(x => x.id === id) || state.profiles[0];
@@ -37,7 +38,12 @@
     if (o.kind === 'pdf' || o.kind === 'package' || ['png', 'jpeg', 'tiff'].includes(o.kind)) {
       const fix = b => { proj.settings.bleedAuto = false; proj.settings.bleedTop = proj.settings.bleedBottom = proj.settings.bleedOuter = b; };
       if (o.purpose === 'digital') { fix(0); proj.settings.cropMarks = false; }
-      else {
+      else if (o.cedet) {
+        // CEDET: sangria de 5 mm e marcas de corte de 0,25 pt com 5 mm de deslocamento em todas as páginas
+        fix(App.D.CEDET.bleed);
+        proj.settings.cropMarks = false;
+        proj.settings.outputSheet = Object.assign({ mode: 'marks', w: 210, h: 297 }, { marks: true, markOffset: App.D.CEDET.marks.offset, markLen: App.D.CEDET.marks.len, markWeight: App.D.CEDET.marks.weight });
+      } else {
         const needs = needsBleed(proj);
         // perfil sem medida própria: usa a sangria do livro (automática pelo formato ou manual)
         if (o.bleed != null && o.bleed !== '') fix(o.bleedOnlyIfNeeded && !needs ? 0 : Number(o.bleed));
@@ -47,6 +53,7 @@
     }
     return proj;
   }
+  App.needsBleed = p => needsBleed(p);
   const bleedOf = s => (s.bleedAuto ? App.D.autoBleed(s) : Math.max(s.bleedTop || 0, s.bleedBottom || 0, s.bleedOuter || 0));
   App.bleedOf = bleedOf;
   function needsBleed(p) {
@@ -75,7 +82,8 @@
       if (sh && !sh.fits) issues.push({ level: 'error', type: 'size', msg: `A folha de saída (${App.fmtNum(sh.w)} × ${App.fmtNum(sh.h)} mm) é menor que a página com sangria${s.outputSheet.marks ? ' e marcas' : ''} (${App.fmtNum(sh.needW)} × ${App.fmtNum(sh.needH)} mm). Para não cortar nada, o PDF sairá no formato do livro. Ajuste em Formato e diagramação › Folha de saída.` });
       else if (sh) issues.push({ level: 'info', type: 'size', msg: `Folha de saída ${App.fmtNum(sh.w)} × ${App.fmtNum(sh.h)} mm: cada página fica centralizada em tamanho real${s.outputSheet.marks ? ', com marcas de corte' : ''} (TrimBox e BleedBox mantidas).` });
     }
-        if (r.pages % 2) issues.push({ level: 'info', type: 'pages', msg: `Número ímpar de páginas (${r.pages}); a gráfica acrescentará uma página em branco no fim.` });
+    if (o.cedet || s.standard === 'cedet') cedetChecks(proj, r, issues);
+    if (r.pages % 2) issues.push({ level: 'info', type: 'pages', msg: `Número ímpar de páginas (${r.pages}); a gráfica acrescentará uma página em branco no fim.` });
     if (o.purpose === 'print' && needsBleed(proj) && !bleedOf(s)) issues.push({ level: 'error', type: 'bleed', msg: 'Há imagens ou fundos até a borda da página, mas a exportação está sem sangria: pode aparecer filete branco após o corte.', fix: 'bleed' });
     (r.fontReport || []).forEach(f => { if (!f.embeddable) issues.push({ level: 'error', type: 'font', msg: `A licença da fonte “${f.family}” não permite incorporação no PDF. Escolha outra fonte (Estilos de texto ou Fontes).` }); });
     (r.missingFonts || []).forEach(f => issues.push({ level: 'error', type: 'font', msg: `Fonte “${f}” ausente neste computador: o texto seria mostrado em outra fonte.`, fix: 'fonts' }));
@@ -95,6 +103,35 @@
     render();
     return state.report;
   }
+
+  // Conferência do Manual de Preparação de Arquivos Cedet (miolo)
+  function cedetChecks(proj, r, issues) {
+    const s = proj.settings, C = App.D.CEDET;
+    const fmt = App.D.PAGE_FORMATS.find(f => f.id === s.pageFormat);
+    const okFmt = App.D.PAGE_FORMATS.filter(f => C.formats.includes(f.id)).some(f => Math.abs(f.width - s.pageWidth) < 0.3 && Math.abs(f.height - s.pageHeight) < 0.3);
+    if (!okFmt) issues.push({ level: 'error', type: 'cedet', msg: `CEDET: o formato ${App.fmtNum(s.pageWidth / 10)} × ${App.fmtNum(s.pageHeight / 10)} cm${fmt ? ' (' + fmt.label + ')' : ''} não é aceito. Use 15,5 × 23, 13,7 × 21 ou 11,5 × 17,5 cm (Formato e diagramação › CEDET).` });
+    const small = [['superior', s.marginTop], ['inferior', s.marginBottom], ['interna', s.marginInner], ['externa', s.marginOuter]].filter(([, v]) => Number(v) < C.safety - 0.01);
+    if (small.length) issues.push({ level: 'error', type: 'cedet', msg: `CEDET: margem de segurança de 20 mm em todos os lados. Abaixo do mínimo: ${small.map(([k, v]) => `${k} ${App.fmtNum(v)} mm`).join(', ')}.`, fix: 'cedet' });
+    if (s.header !== 'none' && Number(s.marginTop) < 27) issues.push({ level: 'warn', type: 'cedet', msg: 'CEDET: com cabeçalho, use margem superior de pelo menos 27 mm para o cabeçalho também ficar dentro da margem de segurança de 20 mm.', fix: 'cedet' });
+    if (s.pageNumbers !== 'none' && !(Number(s.folioGap) > 0) && Number(s.marginBottom) < 46) issues.push({ level: 'warn', type: 'cedet', msg: 'CEDET: o número da página fica centrado na margem inferior e pode ficar a menos de 20 mm do corte. Reaplique o modelo CEDET (número logo abaixo do texto).', fix: 'cedet' });
+    if (s.pageNumbers === 'top-outer') issues.push({ level: 'info', type: 'cedet', msg: 'CEDET: a numeração no topo não é aceita; ela sai no canto inferior externo.' });
+    if (s.numberFromFirstChapter) issues.push({ level: 'info', type: 'cedet', msg: 'Numeração a partir do 1º capítulo: o deslocamento é sempre par, então as páginas ímpares continuam à direita, como exige o manual.' });
+    if (!proj.front.copyright) issues.push({ level: 'error', type: 'cedet', msg: 'CEDET: o crédito de distribuição deve constar na ficha catalográfica. Ative a página da ficha (Livro › Páginas iniciais).' });
+    else issues.push({ level: 'info', type: 'cedet', msg: 'Crédito de distribuição do Cedet incluído na ficha catalográfica.' });
+    const isbn = window.Isbn ? window.Isbn.parse(proj.meta.isbn) : { ok: !!proj.meta.isbn };
+    if (!isbn.ok) issues.push({ level: 'warn', type: 'cedet', msg: `CEDET: ISBN ${proj.meta.isbn ? 'inválido — ' + isbn.error : 'não informado'}. Ele dá nome ao arquivo (ISBN_MIOLO_NOME DO LIVRO) e deve ser o mesmo do pré-cadastro.` });
+    const colored = proj.chapters.some(c => c.style && (c.style.pageColor || c.style.textColor || c.style.titleColor)) || Object.keys(proj.pageStyles || {}).length || (s.pageColor && s.pageColor.toLowerCase() !== '#ffffff');
+    if (colored) issues.push({ level: 'warn', type: 'cedet', msg: 'CEDET: o miolo é só preto e branco. Há cores de página ou de texto: elas sairão convertidas em tons de cinza (tinta preta).' });
+    issues.push({ level: 'info', type: 'cedet', msg: 'Saída CEDET: sGray sem perfis incorporados, só tinta preta (as separações são conferidas na exportação), sangria de 5 mm, marcas de corte de 0,25 pt a 5 mm do corte, páginas individuais.' });
+  }
+
+  function cedetFileName(part) {
+    const p = App.project;
+    const r = window.Isbn ? window.Isbn.parse(p.meta.isbn) : null;
+    const isbn = r && r.ok ? r.isbn13 : (String(p.meta.isbn || '').replace(/[^0-9Xx]/g, '') || 'ISBN');
+    return `${isbn}_${part}_${p.meta.title || 'NOME DO LIVRO'}`;
+  }
+  App.cedetFileName = cedetFileName;
 
   function reportText() {
     const r = state.report;
@@ -158,7 +195,7 @@
     App.toast('Exportando… isso pode levar alguns segundos.', 120000);
     try {
       const proj = projectForExport();
-      const req = { kind: o.kind, project: proj, opts: { spreads: !!o.spreads, outline: !!o.outline, tagged: o.purpose === 'digital', dpi: o.dpi || 300, quality: o.quality || 92, bleed: !!o.imageBleed, color: o.purpose === 'digital' ? 'rgb' : (o.color || 'rgb'), colorProfile: o.colorProfile || 'fogra39', range: rangeSpec(), includeCover: !!o.includeCover, includeEpub: !!o.includeEpub, includeProject: !!o.includeProject, suffix: o.purpose === 'digital' ? '-digital' : '' } };
+      const req = { kind: o.kind, project: proj, opts: { spreads: !!o.spreads, outline: !!o.outline, tagged: o.purpose === 'digital', dpi: o.dpi || 300, quality: o.quality || 92, bleed: !!o.imageBleed, color: o.purpose === 'digital' ? 'rgb' : (o.color || 'rgb'), colorProfile: o.colorProfile || 'fogra39', range: rangeSpec(), noProfile: !!o.noProfile && o.color === 'gray', fileBase: o.cedet && (o.kind === 'pdf' || o.kind === 'package') ? cedetFileName('MIOLO') : '', cedet: !!o.cedet, includeCover: !!o.includeCover, includeEpub: !!o.includeEpub, includeProject: !!o.includeProject, suffix: o.purpose === 'digital' ? '-digital' : '' } };
       if (o.kind === 'epub' || (o.kind === 'package' && o.includeEpub)) req.epub = await App.exportPrep.buildEpub(proj, { includeCover: o.includeCover !== false });
       if (['docx', 'odt', 'txt'].includes(o.kind)) req.doc = App.exportPrep.buildDoc(proj);
       if (o.kind === 'package') { req.report = reportText() || (await preflight(), reportText()); req.specs = specsText(proj); }
@@ -167,7 +204,8 @@
       if (!r) return;
       logExport(o, r);
       const cr = r.colorReport;
-      const colorTxt = !cr ? '' : cr.error ? `\n\n⚠ A conversão de cor falhou (${cr.error}); o PDF foi salvo em RGB.` : `\n\nCor: ${cr.mode === 'cmyk' ? 'CMYK — ' + cr.profile : 'escala de cinza'} · ${cr.colors} cor(es) e ${cr.images} imagem(ns) convertidas${cr.kOnly ? ' · pretos e cinzas em 100% K' : ''}${(cr.warnings || []).length ? '\n' + cr.warnings.map(w => '⚠ ' + w).join('\n') : ''}`;
+      const sep = cr && cr.onlyBlack !== undefined ? (cr.onlyBlack ? '\n✓ Separações conferidas: somente preto (desligando o preto, nada aparece).' : `\n⚠ Separações: ainda há ${cr.nonBlack.join(', ')}.`) : '';
+      const colorTxt = !cr ? '' : cr.error ? `\n\n⚠ A conversão de cor falhou (${cr.error}); o PDF foi salvo em RGB.` : `${sep}\n\nCor: ${cr.mode === 'cmyk' ? 'CMYK — ' + cr.profile : cr.profile && cr.mode === 'gray' && /sGray/.test(cr.profile) ? 'escala de cinza (sGray, sem perfil incorporado)' : 'escala de cinza'} · ${cr.colors} cor(es) e ${cr.images} imagem(ns) convertidas${cr.kOnly ? ' · pretos e cinzas em 100% K' : ''}${(cr.warnings || []).length ? '\n' + cr.warnings.map(w => '⚠ ' + w).join('\n') : ''}`;
       const b = await api.confirm('Exportação concluída!', `${r.files.length} arquivo(s)${r.pages ? ' · ' + r.pages + ' páginas' : ''}\n${r.files[0]}${colorTxt}`, ['Abrir', 'Mostrar na pasta', 'Fechar']);
       if (b === 0) api.openPath(r.files[0]); else if (b === 1) api.showItem(r.files[0]);
     } finally {
@@ -246,6 +284,12 @@
       state.opts.bleed = null;
       state.opts.bleedOnlyIfNeeded = false;
       App.changed('Sangria automática ativada');
+      preflight();
+    } else if (kind === 'cedet') {
+      const ok = await App.confirmPreview('Modelo CEDET', 'Reaplicar o modelo CEDET (margens, sangria, marcas e numeração)?', ['Margens: superior e inferior 28 mm, interna 23 mm, externa 20 mm', 'Número da página logo abaixo do texto, no canto externo', 'Sangria 5 mm · marcas de corte 0,25 pt a 5 mm']);
+      if (!ok) return;
+      App.D.applyCedet(App.project.settings);
+      App.changed('Modelo CEDET aplicado');
       preflight();
     } else if (kind === 'fonts') App.fontsUi.checkMissing(true);
     else if (kind === 'assets') App.setView('assets');

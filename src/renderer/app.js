@@ -176,7 +176,7 @@
       body: el('div', { class: 'help' }, [
         el('ol', {}, [
           ['Importar', 'traga o manuscrito (DOCX, DOC, EPUB, PDF, ODT, TXT, Markdown). Títulos viram capítulos e as notas de rodapé são preservadas. A paginação é automática.'],
-          ['Formato e diagramação', 'escolha o tamanho (14 × 21 cm é o padrão), margens espelhadas, sangria, capitulares, cabeçalhos e uma configuração pronta por gênero. “★ Salvar como meu padrão” guarda suas escolhas para os próximos livros.'],
+          ['Formato e diagramação', 'o padrão é o modelo CEDET (15,5 × 23, 13,7 × 21 ou 11,5 × 17,5 cm, margem de segurança de 20 mm, sangria de 5 mm e marcas de corte; exporte com o perfil “CEDET — miolo”); escolha outro tamanho, margens espelhadas, sangria, capitulares, cabeçalhos e uma configuração pronta por gênero. “★ Salvar como meu padrão” guarda suas escolhas para os próximos livros.'],
           ['Estilos de texto', 'ajuste fonte, tamanho, cor e espaçamentos do texto, dos títulos (T1, T2, T3), citações, poesias, referências, notas e legendas.'],
           ['Capítulos', 'clique para editar; ☑ seleciona vários para editar cor da página, fontes e títulos de uma vez; 🔒 bloqueia contra edição e exclusão.'],
           ['Imagens', 'arraste da Biblioteca ou do computador para o texto. Clique numa imagem para tamanho, alinhamento, contorno do texto, recorte, rotação e substituição. Separadores vão no título do capítulo.'],
@@ -185,7 +185,7 @@
           ['Sumário', 'automático a partir dos títulos (capítulos, T1, T2) ou manual e editável, em “Dados e páginas iniciais”. Ordem padrão: rosto › ficha › sumário › capítulos › páginas finais.'],
           ['Prévia', 'role o livro página por página ou veja 2 a 5 páginas lado a lado. No modo “1 página por vez”, os botões ao lado de cada página mudam a cor da página e do texto, bloqueiam o capítulo (cadeado) e inserem uma página de imagem sangrada. Arraste imagens direto para o texto de qualquer página.'],
           ['Biblioteca de estilos', 'um estilo pronto para cada gênero, aplicado ao livro inteiro com um clique.'],
-          ['Capa e lombada', 'monte a capa com imagens prontas (sempre sem bordas brancas, com correção de cor e nitidez) e veja o livro em 3D, girando para todos os lados, com opção de salvar em PNG transparente; as medidas vêm do livro (ou de um manuscrito, ou digitadas). Saída em PDF CMYK para gráfica (PDF/X-1a, perfil ICC), com sangria automática ou manual.'],
+          ['Capa e lombada', 'no padrão CEDET, gera o código de barras do ISBN (EAN-13 preto, vetorial) na contracapa, marcas de corte e de dobra e orelhas de 6, 7 ou 8 cm; monte a capa com imagens prontas (sempre sem bordas brancas, com correção de cor e nitidez) e veja o livro em 3D, girando para todos os lados, com opção de salvar em PNG transparente; as medidas vêm do livro (ou de um manuscrito, ou digitadas). Saída em PDF CMYK para gráfica (PDF/X-1a, perfil ICC), com sangria automática ou manual.'],
           ['Amazon KDP', 'brochura (16 tamanhos) e capa dura (5 tamanhos): confere páginas, margens e sangria e envia as medidas para a capa.'],
           ['Revista e jornal', 'em “Novo”, escolha Revista ou Jornal: colunas fixas (2 ou 3), nome da publicação, chapéu, linha fina e assinatura.'],
           ['Exportar', 'perfis prontos (gráfica, KDP, impressão sob demanda, PDF digital, prova, EPUB). A verificação de pré-impressão aponta problemas e leva você à página.']

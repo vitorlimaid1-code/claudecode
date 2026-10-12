@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { buildBook, effectiveBleed } = require('./book');
-const { normalizeProject, newProject, BUNDLED_FONTS, PAGE_FORMATS, outputSheetSize } = require('./shared/defaults');
+const { normalizeProject, newProject, BUNDLED_FONTS, PAGE_FORMATS, outputSheetSize, markGeometry } = require('./shared/defaults');
 const { importAny } = require('./main/importers');
 const { FontManager } = require('./main/fonts');
 const { ImageLibrary, analyzeImage, hashBuffer } = require('./main/library');
@@ -205,7 +205,7 @@ function writeFileAtomic(filePath, content) {
   fs.writeFileSync(tmp, content);
   fs.renameSync(tmp, filePath);
 }
-function safeName(s) { return (String(s || 'livro').replace(/[\\/:*?"<>|]+/g, '').trim() || 'livro').slice(0, 80); }
+function safeName(s, max) { return (String(s || 'livro').replace(/[\\/:*?"<>|]+/g, '').trim() || 'livro').slice(0, max || 80); }
 
 ipcMain.handle('project:open', async (e, filePath) => {
   if (!filePath) {
@@ -433,7 +433,7 @@ async function finishPrintPdf(pdfBuf, project, opts) {
   let colorReport = null;
   if (opts.color === 'cmyk' || opts.color === 'gray') {
     try {
-      const r = await pdfcolor.convertPdfColor(pdfBuf, opts.color, APP_ROOT, { profile: opts.colorProfile });
+      const r = await pdfcolor.convertPdfColor(pdfBuf, opts.color, APP_ROOT, { profile: opts.colorProfile, noProfile: !!opts.noProfile });
       pdfBuf = r.pdf;
       colorReport = r.report;
     } catch (e) { console.error('convertPdfColor', e); colorReport = { error: String(e.message || e) }; }
@@ -475,11 +475,13 @@ async function finishBoxes(pdfBuf, project, opts) {
         pg.setMediaBox(cx - SW / 2, cy - SH / 2, SW, SH);
         pg.setCropBox(cx - SW / 2, cy - SH / 2, SW, SH);
         pg.setBleedBox(0, y0, W, H);
-        if (s.outputSheet.marks) {
-          // marcas de corte fora da sangria: 5 mm de comprimento, a 2 mm da sangria
-          const off = b + 2 * ptmm, len = 5 * ptmm;
+        if (s.outputSheet.marks || sheet.marksOnly) {
+          // marcas de corte fora da sangria (padrão: 5 mm de comprimento, a 2 mm da sangria;
+          // CEDET: 0,25 pt com deslocamento de 5 mm a partir do corte)
+          const mg = markGeometry(s, effectiveBleed(s));
+          const off = mg.offset * ptmm, len = mg.len * ptmm;
           const x1 = b, x2 = b + tw, yb = y0 + b, yt = y0 + b + th;
-          const line = (a, c) => pg.drawLine({ start: { x: a[0], y: a[1] }, end: { x: c[0], y: c[1] }, thickness: 0.25, color: markColor });
+          const line = (a, c) => pg.drawLine({ start: { x: a[0], y: a[1] }, end: { x: c[0], y: c[1] }, thickness: mg.weight, color: markColor });
           [[x1, yb], [x2, yb], [x1, yt], [x2, yt]].forEach(([x, y]) => {
             const sx = x === x1 ? -1 : 1, sy = y === yb ? -1 : 1;
             line([x + sx * off, y], [x + sx * (off + len), y]);
@@ -583,7 +585,7 @@ async function runExport(req) {
   const opts = req.opts || {};
   const base = safeName(project.meta && project.meta.title);
   if (kind === 'pdf') {
-    const file = opts.target || await askSavePath('Exportar PDF', `${base}${opts.suffix || ''}.pdf`, [{ name: 'PDF', extensions: ['pdf'] }]);
+    const file = opts.target || await askSavePath('Exportar PDF', `${opts.fileBase ? safeName(opts.fileBase, 140) : base + (opts.suffix || '')}.pdf`, [{ name: 'PDF', extensions: ['pdf'] }]);
     if (!file) return null;
     const { pdf, pages, colorReport } = await renderPdf(project, opts);
     fs.writeFileSync(file, pdf);
@@ -620,8 +622,8 @@ async function runExport(req) {
     if (!file) return null;
     const files = [];
     const { pdf, pages } = await renderPdf(project, opts);
-    files.push({ name: `${base}-miolo.pdf`, data: pdf });
-    if (opts.includeCover && project.cover) files.push({ name: `${base}-capa-cmyk.pdf`, data: (await cmyk.buildCoverPdf(APP_ROOT, project.cover, project.assets || {}, project.meta, CoverGeometry.geometry(project.cover), { bleed: true })).pdf });
+    files.push({ name: opts.fileBase ? `${safeName(opts.fileBase, 140)}.pdf` : `${base}-miolo.pdf`, data: pdf });
+    if (opts.includeCover && project.cover) files.push({ name: opts.fileBase ? `${safeName(opts.fileBase.replace('_MIOLO_', '_CAPA_'), 140)}.pdf` : `${base}-capa-cmyk.pdf`, data: (await cmyk.buildCoverPdf(APP_ROOT, project.cover, project.assets || {}, project.meta, CoverGeometry.geometry(project.cover), { bleed: true })).pdf });
     if (opts.includeEpub && req.epub) files.push({ name: `${base}.epub`, data: await exporters.exportEpub(Object.assign({ uuid: crypto.randomUUID() }, req.epub), project.assets || {}) });
     if (req.report) files.push({ name: 'relatorio-pre-impressao.txt', data: Buffer.from('﻿' + req.report, 'utf8') });
     if (req.specs) files.push({ name: 'especificacoes-tecnicas.txt', data: Buffer.from('﻿' + req.specs, 'utf8') });
@@ -631,7 +633,7 @@ async function runExport(req) {
   }
   if (kind === 'cover') {
     // capa para gráfica: sempre PDF CMYK (PDF/X-1a) com o perfil ICC escolhido
-    const file = opts.target || await askSavePath('Exportar capa para gráfica (PDF CMYK)', `${base}-capa-cmyk${opts.bleed === false ? '-sem-sangria' : ''}.pdf`, [{ name: 'PDF', extensions: ['pdf'] }]);
+    const file = opts.target || await askSavePath('Exportar capa para gráfica (PDF CMYK)', opts.fileBase ? `${safeName(opts.fileBase, 140)}${opts.bleed === false ? '-sem-sangria' : ''}.pdf` : `${base}-capa-cmyk${opts.bleed === false ? '-sem-sangria' : ''}.pdf`, [{ name: 'PDF', extensions: ['pdf'] }]);
     if (!file) return null;
     const cover = project.cover || {};
     const r = await cmyk.buildCoverPdf(APP_ROOT, cover, project.assets || {}, project.meta, CoverGeometry.geometry(cover), { bleed: opts.bleed !== false });
@@ -687,6 +689,40 @@ ipcMain.handle('dialog:saveText', async (e, { name, text }) => {
   if (!file) return null;
   fs.writeFileSync(file, '﻿' + text, 'utf8');
   return file;
+});
+// Código de barras do ISBN (EAN-13) para download: EPS (preferido pelo Cedet), PDF ou SVG — vetorial, 100% K
+ipcMain.handle('barcode:save', async (e, { isbn, opts, format }) => {
+  const Isbn = require('./shared/isbn');
+  const lay = Isbn.layout(isbn, opts || {});
+  if (!lay.ok) return { error: lay.error };
+  const ext = format === 'svg' ? 'svg' : format === 'pdf' ? 'pdf' : 'eps';
+  const file = await askSavePath('Salvar código de barras', `ISBN_${lay.isbn13}_codigo-de-barras.${ext}`, [{ name: ext.toUpperCase(), extensions: [ext] }]);
+  if (!file) return null;
+  if (ext === 'svg') fs.writeFileSync(file, Isbn.toSvg(lay), 'utf8');
+  else if (ext === 'eps') fs.writeFileSync(file, Isbn.toEps(lay), 'latin1');
+  else {
+    const { PDFDocument, PDFOperator, PDFNumber, pushGraphicsState, popGraphicsState } = require('pdf-lib');
+    const doc = await PDFDocument.create();
+    const k = 72 / 25.4;
+    const pg = doc.addPage([lay.w * k, lay.h * k]);
+    const ops = Isbn.pathOps(lay, 0, 0, lay.h, false);
+    const lines = ['0 0 0 0 k', `0 0 ${lay.w * k} ${lay.h * k} re`, 'f', '0 0 0 1 k'].concat(ops.bars, ['f'], ops.glyphs, ['f']);
+    pg.pushOperators(pushGraphicsState(), ...lines.map(l => { const p = l.trim().split(/\s+/); return PDFOperator.of(p.pop(), p.map(v => PDFNumber.of(Number(v)))); }), popGraphicsState());
+    doc.setTitle('ISBN ' + lay.display);
+    doc.setCreator('Diagramador de Livros');
+    fs.writeFileSync(file, Buffer.from(await doc.save()));
+  }
+  return { file, isbn13: lay.isbn13 };
+});
+// Perfil ICC CMYK escolhido pelo usuário para a capa (ex.: U.S. Web Coated (SWOP) v2 pedido pelo Cedet)
+ipcMain.handle('cover:pickIcc', async () => {
+  const res = await dialog.showOpenDialog(mainWindow, { title: 'Escolha o perfil ICC CMYK (ex.: USWebCoatedSWOP.icc)', filters: [{ name: 'Perfil ICC', extensions: ['icc', 'icm'] }], properties: ['openFile'] });
+  if (res.canceled || !res.filePaths.length) return null;
+  const buf = fs.readFileSync(res.filePaths[0]);
+  const info = cmyk.iccInfo(buf);
+  if (!info) return { error: 'O arquivo não é um perfil ICC válido.' };
+  if (info.colorSpace !== 'CMYK') return { error: `O perfil é ${info.colorSpace}; a capa precisa de um perfil de saída CMYK.` };
+  return { name: path.basename(res.filePaths[0]), desc: info.desc || path.basename(res.filePaths[0]), data: buf.toString('base64') };
 });
 ipcMain.handle('app:pendingOpen', () => { const p = pendingOpenPath; pendingOpenPath = null; return p; });
 ipcMain.handle('app:info', () => ({ version: app.getVersion(), userData: app.getPath('userData'), portable: !!process.env.PORTABLE_EXECUTABLE_DIR }));
@@ -746,7 +782,9 @@ async function runSmokeTest() {
   const bl = effectiveBleed(s);
   const mb = d1.getPage(0).getMediaBox();
   const tb = d1.getPage(0).getTrimBox();
-  assert(Math.abs(mb.width - (s.pageWidth + 2 * bl) * ptmm) < 0.05 && Math.abs(tb.width - s.pageWidth * ptmm) < 0.05 && Math.abs(tb.height - s.pageHeight * ptmm) < 0.05, `caixas ${JSON.stringify([mb, tb])}`);
+  const sheet = outputSheetSize(s, bl);
+  const expW = sheet && sheet.fits ? sheet.w : s.pageWidth + 2 * bl;
+  assert(Math.abs(mb.width - expW * ptmm) < 0.05 && Math.abs(tb.width - s.pageWidth * ptmm) < 0.05 && Math.abs(tb.height - s.pageHeight * ptmm) < 0.05, `caixas ${JSON.stringify([mb, tb])}`);
   const cm = await finishPrintPdf(pdf, project, { color: 'cmyk' });
   assert(cm.colorReport && cm.colorReport.mode === 'cmyk' && cm.colorReport.colors > 0 && !cm.colorReport.error, 'conversão CMYK do miolo ' + JSON.stringify(cm.colorReport));
   const d2 = await PDFDocument.load(cm.pdf);
@@ -754,7 +792,18 @@ async function runSmokeTest() {
   const cover = { trimW: s.pageWidth, trimH: s.pageHeight, pages, paper: 'polen80', bleedAuto: true, images: { front: { asset: 'rosa', fit: 'cover' } }, bg: { back: '#203040' }, profile: 'fogra39' };
   const cv = await cmyk.buildCoverPdf(APP_ROOT, cover, project.assets, project.meta, CoverGeometry.geometry(cover), { bleed: true, dpi: 100 });
   assert(cv.pdf.slice(0, 8).toString('latin1') === '%PDF-1.3' && /DeviceCMYK/.test(cv.pdf.toString('latin1')) && /GTS_PDFX/.test(cv.pdf.toString('latin1')), 'capa PDF/X-1a CMYK');
-  console.log(`SMOKE_CHECKS caixas=ok miolo_cmyk=${cm.colorReport.colors}cores capa=${cv.report.widthPx}x${cv.report.heightPx}px`);
+  // modelo CEDET: miolo só preto, sGray sem perfil; capa com marcas de corte/dobra e código de barras vetorial
+  const gr = await finishPrintPdf(pdf, project, { color: 'gray', noProfile: true });
+  const d3 = await PDFDocument.load(gr.pdf);
+  assert(gr.colorReport.onlyBlack && !d3.catalog.get(PDFName.of('OutputIntents')), 'miolo CEDET só preto ' + JSON.stringify(gr.colorReport));
+  const cc = Object.assign({}, cover, { cedet: true, flaps: 70, spineMode: 'manual', spine: 12, isbnBarcode: { enabled: true, isbn: '978-85-333-0227-3', pos: 'br', dx: 12, dy: 12 } });
+  const gc = CoverGeometry.geometry(cc);
+  const cv2 = await cmyk.buildCoverPdf(APP_ROOT, cc, project.assets, project.meta, gc, { bleed: true, dpi: 100 });
+  if (process.env.SMOKE_SAVE) { fs.writeFileSync(out.replace(/\.pdf$/, '-cedet-miolo.pdf'), gr.pdf); fs.writeFileSync(out.replace(/\.pdf$/, '-cedet-capa.pdf'), cv2.pdf); }
+  const d4 = await PDFDocument.load(cv2.pdf);
+  const cmb = d4.getPage(0).getMediaBox(), ctb = d4.getPage(0).getTrimBox();
+  assert(gc.bleed === 5 && gc.W === s.pageWidth + 2 && cv2.report.barcode === '9788533302273' && cv2.report.marks && Math.abs(ctb.width - gc.trimTotalW * ptmm) < 0.05 && cmb.width > (gc.totalW + 9) * ptmm, 'capa CEDET ' + JSON.stringify([cmb, ctb, cv2.report]));
+  console.log(`SMOKE_CHECKS caixas=ok miolo_cmyk=${cm.colorReport.colors}cores miolo_cedet=só_preto capa=${cv.report.widthPx}x${cv.report.heightPx}px capa_cedet=${Math.round(cmb.width / ptmm)}x${Math.round(cmb.height / ptmm)}mm`);
   console.log(`SMOKE_OK pages=${pages} bytes=${pdf.length} out=${out}`);
 }
 
