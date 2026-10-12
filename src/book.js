@@ -683,7 +683,7 @@ ${s.keepHeadingsWithNext ? '.chapter-body h2, .chapter-body h3, .chapter-body h4
 /* ---------- notas de rodapé ---------- */
 .footnote {
   float: footnote;
-  footnote-policy: line;
+
   ${styleDecl(S.footnote, body, { noSpace: true })}
   text-indent: 0;
   font-style: normal;

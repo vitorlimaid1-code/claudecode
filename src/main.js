@@ -249,10 +249,43 @@ ipcMain.handle('defaults:get', () => readJson(userFile('meu-padrao.json'), null)
 ipcMain.handle('defaults:set', (e, settings) => { writeJson(userFile('meu-padrao.json'), settings); return true; });
 ipcMain.handle('defaults:reset', () => { try { fs.unlinkSync(userFile('meu-padrao.json')); } catch (e) { /* ok */ } return true; });
 ipcMain.handle('defaults:newProject', () => {
+  require('./shared/defaults').applyFormatOverrides(readJson(userFile('formatos.json'), {}));
   const p = newProject(readJson(userFile('meu-padrao.json'), null));
   const ficha = readJson(userFile('ficha-fixa.json'), null);
   if (ficha) { p.catalog = Object.assign(p.catalog, ficha.catalog || {}); if (ficha.meta) Object.assign(p.meta, ficha.meta); if (ficha.titlePage) Object.assign(p.titlePage, ficha.titlePage); if (ficha.assets) Object.assign(p.assets, ficha.assets); }
   return p;
+});
+
+// Medidas editadas pelo usuário nos modelos de formato ({ id: { width, height } })
+ipcMain.handle('formats:get', () => readJson(userFile('formatos.json'), {}));
+ipcMain.handle('formats:set', (e, data) => { writeJson(userFile('formatos.json'), data || {}); return true; });
+
+// Central “Restaurar padrões do sistema”: o que o usuário personalizou e como voltar ao original
+const CUSTOM_FILES = {
+  meuPadrao: 'meu-padrao.json', fichaFixa: 'ficha-fixa.json', modelosFicha: 'modelos-ficha.json',
+  conjuntos: 'conjuntos-tipograficos.json', perfis: 'perfis.json', formatos: 'formatos.json'
+};
+ipcMain.handle('system:customizations', () => {
+  const out = {};
+  Object.entries(CUSTOM_FILES).forEach(([k, f]) => {
+    const v = readJson(userFile(f), null);
+    out[k] = v == null ? 0 : Array.isArray(v) ? v.length : typeof v === 'object' ? Math.max(1, Object.keys(v).length) : 1;
+  });
+  const lib = library.list();
+  out.imagens = lib.items.filter(i => i.source === 'user').length;
+  out.marcacoes = lib.items.filter(i => i.favorite || (i.collections || []).length).length + (lib.collections || []).length;
+  out.fontes = (fonts.library() || []).length;
+  return out;
+});
+ipcMain.handle('system:reset', (e, keys) => {
+  const done = [];
+  (keys || []).forEach(k => {
+    if (CUSTOM_FILES[k]) { try { fs.unlinkSync(userFile(CUSTOM_FILES[k])); } catch (err) { /* já no padrão */ } done.push(k); }
+    else if (k === 'imagens') { library.list().items.filter(i => i.source === 'user').forEach(i => library.remove(i.key)); done.push(k); }
+    else if (k === 'marcacoes') { const m = library.readMeta(); Object.values(m.items || {}).forEach(it => { delete it.favorite; delete it.collections; }); m.collections = []; library.writeMeta(m); done.push(k); }
+    else if (k === 'fontes') { (fonts.library() || []).forEach(f => fonts.removeFamily(f.family)); done.push(k); }
+  });
+  return done;
 });
 
 // Ficha catalográfica fixa (aplicada a todo livro novo) e modelos salvos pelo usuário
@@ -395,7 +428,23 @@ async function withRenderWindow(fn, opts) {
 
 async function renderBookIn(win, project, options) {
   const book = await bookPayload(project);
-  const info = await win.webContents.executeJavaScript(`window.renderBook(${JSON.stringify(book)}, ${JSON.stringify(options || {})})`, true);
+  options = options || {};
+  const url = win.webContents.getURL();
+  const run = o => win.webContents.executeJavaScript(`window.renderBook(${JSON.stringify(book)}, ${JSON.stringify(o)})`, true);
+  let info = await run(options);
+  // Nota de rodapé cortada pelo Paged.js: pagina de novo levando a linha da chamada junto com a nota;
+  // se isso perder conteúdo, volta à primeira paginação e mostra a nota inteira (nada some do livro)
+  if (info.clippedNotes && info.clippedNotes.length) {
+    await win.loadURL(url);
+    const second = await run(Object.assign({}, options, { lineNotes: info.clippedNotes }));
+    if ((second.complete || !info.complete) && !second.clippedNotes.length) info = second;
+    else {
+      await win.loadURL(url);
+      info = await run(Object.assign({}, options, { showClippedNotes: true }));
+      info.revealedNotes = info.clippedNotes;
+    }
+  }
+  if (!info.complete) console.error('AVISO: a paginação não chegou ao fim do livro');
   return { book, info };
 }
 
@@ -567,6 +616,9 @@ ipcMain.handle('export:inspect', async (e, project, opts) => {
     res.fontReport = book.fontReport;
     res.missingAssets = book.missingAssets;
     res.chapterPages = info.chapterPages;
+    res.issues = res.issues || [];
+    if (info.revealedNotes && info.revealedNotes.length) res.issues.push({ level: 'warn', type: 'notes', msg: `${info.revealedNotes.length} nota(s) de rodapé não couberam na área de notas e foram mantidas inteiras sobre a margem inferior. Confira a página (encurtar a nota ou o parágrafo resolve).` });
+    if (!info.complete) res.issues.push({ level: 'error', type: 'pages', msg: 'A paginação não chegou ao fim do livro: parte do texto pode estar faltando. Verifique imagens ou tabelas maiores que a página.' });
     return res;
   });
 });

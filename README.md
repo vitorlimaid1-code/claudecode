@@ -73,6 +73,12 @@ Todo livro novo nasce no padrão do **Manual de Preparação de Arquivos do Cede
 - **Código de barras do ISBN (EAN-13)** na contracapa (opcional — basta digitar o número do ISBN): validação do ISBN (o ISBN-10 é convertido), **vetorial, preto 100% K**, mínimo 31 × 19 mm, quadro branco com 2,5 mm livres ao redor, posição (inferior direito/centro/esquerdo) e distâncias ajustáveis; download em **EPS** (preferido pelo manual), PDF ou SVG.
 - “Usar layout livre” desliga as regras do Cedet num livro; KDP, revista e jornal usam layout livre.
 
+### Padrões por modelo e restauração
+- **Sangria sempre no arquivo de impressão**: miolo e capa saem com a sangria do modelo mesmo sem as linhas de corte; as linhas (marcas) são opcionais, e as guias da prévia são só para a tela.
+- **Padrão de cada modelo**: CEDET → manual Cedet (5 mm, segurança de 20 mm, marcas 0,25 pt); Amazon KDP → especificação da Amazon (0,125 pol. e margens mínimas pelo número de páginas); demais formatos → padrão do sistema (3 mm; 5 mm em formatos grandes).
+- **Medidas editáveis em qualquer modelo de formato**: altere largura e altura, salve no modelo e volte às medidas originais do sistema com um clique.
+- **Restaurar padrões** (menu Sistema): devolve ao original do sistema o livro aberto (formato, estilos, opções, cores, capa — com desfazer) e as personalizações do sistema (meu padrão, formatos editados, perfis de exportação, ficha fixa, modelos de ficha, conjuntos tipográficos, favoritos, preferências da tela), além de remover imagens e fontes adicionadas, se desejado. Perfis de exportação alterados têm “Restaurar as opções originais do perfil”.
+
 ### Formato
 - Modelo CEDET por padrão e todos os formatos pedidos: pequenos (miniatura a 13 × 20), médios (13,8 × 21 a 17 × 24), grandes (18 × 24 a A3), quadrados, paisagem, lista do **Amazon KDP**, e qualquer medida personalizada (com decimais e conversão de unidades).
 - **Prévia**: sempre abre em 1 página por vez (rolando o livro na vertical) — outros modos só quando você escolhe: páginas duplas, ou 2, 3, 4 e 5 páginas lado a lado, com ajuste automático do zoom. No modo 1 página, ao lado de cada página: **cor da página** e **cor do texto** (grade de cores, código hexadecimal ou seletor; o app pergunta se vale só para a página ou para o capítulo), **cadeado** contra alterações acidentais e **inserir página de imagem sangrada** antes/depois de um capítulo (com guias de sangria opcionais para conferência).

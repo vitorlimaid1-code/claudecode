@@ -244,6 +244,7 @@
     setInterval(App.autosave, 60000);
     setupWindowDrop();
     await App.refreshFonts();
+    try { App.D.applyFormatOverrides(await api.formatsGet()); } catch (e) { /* sem medidas editadas */ }
 
     const pending = await api.pendingOpen();
     if (pending) {

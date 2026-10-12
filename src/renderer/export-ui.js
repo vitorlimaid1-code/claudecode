@@ -8,11 +8,11 @@
     { id: 'cedet', name: 'CEDET — miolo para impressão (padrão)', kind: 'pdf', purpose: 'print', cedet: true, bleed: 5, cropMarks: false, spreads: false, outline: false, color: 'gray', noProfile: true, minDpi: 300, errDpi: 200, notes: 'Manual Cedet: miolo preto e branco só com tinta preta (sGray, sem perfis incorporados), páginas individuais, sangria de 5 mm, marcas de corte de 0,25 pt a 5 mm do corte em todas as páginas, margem de segurança de 20 mm, numeração no canto inferior externo ou no centro. Arquivo: ISBN_MIOLO_NOME DO LIVRO.pdf.' },
     { id: 'grafica', name: 'Impressão em gráfica (offset)', kind: 'pdf', purpose: 'print', bleed: null, cropMarks: true, spreads: false, outline: false, color: 'cmyk', colorProfile: 'fogra39', minDpi: 300, errDpi: 200, notes: 'Sangria do livro (automática pelo formato ou a medida digitada), marcas de corte, cores em CMYK com perfil ICC (texto preto 100% K) e fontes incorporadas. Para miolo só preto e branco, escolha “Escala de cinza”. Confirme com a gráfica o perfil de cor exigido.' },
     { id: 'kdp', name: 'Amazon KDP (brochura)', kind: 'pdf', purpose: 'print', bleed: 3.175, bleedOnlyIfNeeded: true, cropMarks: false, spreads: false, color: 'rgb', minDpi: 300, errDpi: 150, minPages: 24, maxPages: 828, acceptedSizes: '127x203.2, 128.5x198.4, 133.4x203.2, 139.7x215.9, 152.4x228.6, 156x233.9, 169.9x244.1, 177.8x254, 189x246.1, 190.5x235, 203.2x254, 209.6x152.4, 209.6x209.6, 210x297, 215.9x215.9, 215.9x279.4, 108x174.5', notes: 'Use sangria (3,175 mm = 0,125 pol.) apenas se houver imagens até a borda. Miolo preto e branco: use “Escala de cinza”. Tamanhos aceitos conforme a lista do KDP — verifique a lista atual no site da Amazon.' },
-    { id: 'pod', name: 'Impressão sob demanda (Clube de Autores, UICLAP…)', kind: 'pdf', purpose: 'print', bleed: 0, color: 'rgb', cropMarks: false, spreads: false, minDpi: 300, errDpi: 150, notes: 'PDF no tamanho final, sem marcas de corte. Confira as exigências atuais da plataforma.' },
+    { id: 'pod', name: 'Impressão sob demanda (Clube de Autores, UICLAP…)', kind: 'pdf', purpose: 'print', bleed: null, color: 'rgb', cropMarks: false, spreads: false, minDpi: 300, errDpi: 150, notes: 'PDF com a sangria padrão do livro, sem marcas de corte. Confira as exigências atuais da plataforma.' },
     { id: 'digital', name: 'PDF para leitura digital', kind: 'pdf', purpose: 'digital', bleed: 0, cropMarks: false, spreads: false, outline: true, minDpi: 150, errDpi: 96, notes: 'Sem sangria, com marcadores (sumário navegável no leitor de PDF).' },
     { id: 'prova', name: 'Prova editorial (páginas duplas)', kind: 'pdf', purpose: 'digital', bleed: 0, cropMarks: false, spreads: true, outline: true, minDpi: 150, errDpi: 96, notes: 'Páginas lado a lado, como o livro aberto, para revisão. Não é imposição de cadernos.' },
     { id: 'epub', name: 'EPUB para leitura digital', kind: 'epub', includeCover: true, minDpi: 72, errDpi: 0, notes: 'EPUB 3 com sumário navegável, metadados, imagens e notas.' },
-    { id: 'imagens', name: 'Imagens das páginas (PNG 300 dpi)', kind: 'png', dpi: 300, minDpi: 300, errDpi: 150 },
+    { id: 'imagens', name: 'Imagens das páginas (PNG 300 dpi)', kind: 'png', dpi: 300, minDpi: 300, errDpi: 150, imageBleed: true },
     { id: 'word', name: 'Documento editável (DOCX)', kind: 'docx' }
   ];
   const KINDS = [['pdf', 'PDF'], ['epub', 'EPUB 3'], ['png', 'PNG'], ['jpeg', 'JPEG'], ['tiff', 'TIFF'], ['docx', 'DOCX (Word)'], ['odt', 'ODT (LibreOffice)'], ['txt', 'TXT'], ['package', 'Pacote de produção (ZIP)']];
@@ -329,6 +329,7 @@
         el('h3', { text: 'Perfil de exportação' }),
         el('div', { class: 'inline wrap' }, [pf,
           el('button', { text: 'Salvar como meu perfil…', onclick: async () => { const name = await App.prompt('Salvar perfil', 'Nome do perfil', o.name + ' (meu)'); if (!name) return; const saved = (await api.profilesGet()) || []; const p = Object.assign({}, o, { id: 'u' + Date.now(), name }); saved.push(p); await api.profilesSet(saved); state.profiles = null; await loadProfiles(); state.current = p.id; render(); App.toast('Perfil salvo.'); } }),
+          BUILTIN.some(b => b.id === state.current) && JSON.stringify(o) !== JSON.stringify(BUILTIN.find(b => b.id === state.current)) ? el('button', { text: '↺ Restaurar as opções originais do perfil', onclick: () => { selectProfile(state.current); render(); App.toast('Perfil restaurado às opções originais do sistema.'); } }) : null,
           !BUILTIN.some(b => b.id === state.current) ? el('button', { class: 'danger', text: 'Excluir perfil', onclick: async () => { const saved = ((await api.profilesGet()) || []).filter(p => p.id !== state.current); await api.profilesSet(saved); state.profiles = null; state.current = null; await loadProfiles(); render(); } }) : null
         ]),
         o.notes ? el('p', { class: 'muted small', text: o.notes }) : null,
@@ -341,12 +342,13 @@
         isPdf && o.purpose !== 'digital' ? App.field('Cor do miolo', (() => { const sel = el('select', { onchange: e => { o.color = e.target.value; render(); } }, [['rgb', 'RGB (KDP, impressão sob demanda)'], ['cmyk', 'CMYK com perfil ICC (gráfica offset)'], ['gray', 'Escala de cinza — miolo preto e branco (100% K)']].map(([a, b]) => el('option', { value: a, text: b }))); sel.value = o.color || 'rgb'; return sel; })()) : null,
         isPdf && o.purpose !== 'digital' && o.color === 'cmyk' ? App.field('Perfil CMYK', (() => { const sel = el('select', { onchange: e => { o.colorProfile = e.target.value; } }, [['fogra39', 'ISO Coated v2 (FOGRA39) — offset Brasil/Europa'], ['gracol', 'GRACoL 2013 (CRPC6) — padrão EUA']].map(([a, b]) => el('option', { value: a, text: b }))); sel.value = o.colorProfile || 'fogra39'; return sel; })()) : null,
         isPdf && o.purpose !== 'digital' ? chk('bleedOnlyIfNeeded', 'Sangria só se houver imagens/fundos até a borda') : null,
-        isPdf && o.purpose !== 'digital' ? chk('cropMarks', 'Marcas de corte') : null,
+        isPdf && o.purpose !== 'digital' && !o.cedet ? chk('cropMarks', 'Linhas (marcas) de corte — a sangria sai no arquivo com ou sem as linhas') : null,
+        isPdf && o.cedet ? el('div', { class: 'small muted', text: 'CEDET: sangria de 5 mm e marcas de corte de 0,25 pt sempre incluídas, como exige o manual.' }) : null,
         isPdf ? chk('spreads', 'Páginas duplas (lado a lado) — não é imposição de cadernos') : null,
         isPdf ? chk('outline', 'Marcadores / sumário navegável') : null,
         isImg ? num('dpi', 'Resolução (dpi)', 1) : null,
         o.kind === 'jpeg' ? num('quality', 'Qualidade JPEG (30–100)', 1) : null,
-        isImg ? chk('imageBleed', 'Incluir área de sangria') : null,
+        isImg ? chk('imageBleed', 'Incluir área de sangria (recomendado para impressão)') : null,
         o.kind === 'epub' || o.kind === 'package' ? chk('includeCover', 'Incluir capa') : null,
         o.kind === 'package' ? chk('includeEpub', 'Incluir EPUB') : null,
         o.kind === 'package' ? chk('includeProject', 'Incluir o arquivo .livro') : null,

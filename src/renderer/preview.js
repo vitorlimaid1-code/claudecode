@@ -31,6 +31,18 @@
     // Aguarda as imagens decodificarem para a paginação medir corretamente
     await Promise.all(Array.from(tpl.content.querySelectorAll('img')).map(img => (img.decode ? img.decode().catch(() => null) : null)));
 
+    // notas numeradas (para reconhecer uma nota cortada) e marca do fim do livro (para conferir que nada se perdeu)
+    tpl.content.querySelectorAll('.footnote').forEach((n, i) => { n.dataset.fn = String(i); if ((options.lineNotes || []).includes(i)) n.classList.add('fn-line'); });
+    let last = tpl.content.lastElementChild;
+    while (last && last.lastElementChild && !/^(IMG|SVG|BR|HR)$/.test(last.lastElementChild.tagName)) last = last.lastElementChild;
+    if (last) last.setAttribute('data-book-end', '1');
+    if (options.lineNotes && options.lineNotes.length && !window.__fnLineHandler) {
+      // só nestas notas: se não couber no pé da página, a linha da chamada vai junto para a página seguinte
+      window.__fnLineHandler = true;
+      class FnLine extends Paged.Handler { afterParsed(parsed) { parsed.querySelectorAll('.footnote.fn-line').forEach(n => n.setAttribute('data-note-policy', 'line')); } }
+      Paged.registerHandlers(FnLine);
+    }
+
     const target = document.getElementById('render');
     const previewer = new Paged.Previewer();
     const flow = await previewer.preview(tpl.content, [{ [location.href]: book.css }], target);
@@ -45,7 +57,10 @@
       blank: pg.classList.contains('pagedjs_blank_page'),
       text: (pg.querySelector('.pagedjs_page_content') || pg).textContent.trim().slice(0, 30)
     }));
-    return { pages: flow.total, ms: Math.round(flow.performance), pageInfo, chapterPages: chapterStartPages(), targetPages: targetPages(offset) };
+    const clippedNotes = findClippedNotes();
+    if (options.showClippedNotes) clippedNotes.forEach(i => revealNote(i));
+    const complete = !!document.querySelector('.pagedjs_pages [data-book-end]');
+    return { clippedNotes, complete, pages: flow.total, ms: Math.round(flow.performance), pageInfo, chapterPages: chapterStartPages(), targetPages: targetPages(offset) };
   };
 
   // O Paged.js 0.5 troca id por data-id quando divide um elemento entre páginas: procura os dois
@@ -65,6 +80,25 @@
       fn(el, id);
     });
   }
+  // Nota de rodapé que o Paged.js deixou fora da área de notas (ficaria escondida no PDF)
+  function findClippedNotes() {
+    const out = [];
+    document.querySelectorAll('.pagedjs_footnote_area .footnote[data-fn]').forEach(n => {
+      const box = (n.closest('.pagedjs_footnote_inner_content') || n.closest('.pagedjs_footnote_area')).getBoundingClientRect();
+      const area = n.closest('.pagedjs_footnote_area').getBoundingClientRect();
+      const r = n.getBoundingClientRect();
+      if (r.height > 0 && (r.bottom > Math.min(box.bottom, area.bottom) + 1.5 || r.top < area.top - 1.5)) out.push(Number(n.dataset.fn));
+    });
+    return [...new Set(out)];
+  }
+  // Último recurso: deixa a nota inteira visível (nada do texto pode sumir)
+  function revealNote(i) {
+    const n = document.querySelector(`.pagedjs_footnote_area .footnote[data-fn="${i}"]`);
+    if (!n) return;
+    for (let el = n.parentElement; el && !el.classList.contains('pagedjs_page'); el = el.parentElement) el.style.overflow = 'visible';
+    // a nota avança sobre a margem inferior em vez de ficar escondida; a pré-impressão avisa a página
+  }
+
   function pageOf(el) {
     const p = el && el.closest('.pagedjs_page');
     return p ? Number(p.dataset.pageNumber) : null;

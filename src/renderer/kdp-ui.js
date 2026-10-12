@@ -52,10 +52,12 @@
     const c = calc();
     const s = App.project.settings;
     const W = +(c.size.win * IN).toFixed(2), H = +(c.size.hin * IN).toFixed(2);
-    const inner = Math.max(s.marginInner, +(c.gIn * IN + 3).toFixed(1));
-    const outer = Math.max(s.marginOuter, +(c.outIn * IN + 3).toFixed(1));
-    const top = Math.max(s.marginTop, +(c.outIn * IN + 3).toFixed(1));
-    const bottom = Math.max(s.marginBottom, +(c.outIn * IN + 3).toFixed(1));
+    // parte das margens padrão do sistema (não das do CEDET) e garante os mínimos da Amazon
+    const F = D.FREE_LAYOUT;
+    const inner = Math.max(F.marginInner, +(c.gIn * IN + 3).toFixed(1));
+    const outer = Math.max(F.marginOuter, +(c.outIn * IN + 3).toFixed(1));
+    const top = Math.max(F.marginTop, +(c.outIn * IN + 3).toFixed(1));
+    const bottom = Math.max(F.marginBottom, +(c.outIn * IN + 3).toFixed(1));
     const ok = await App.confirmPreview('Aplicar ao livro (Amazon KDP)', 'O livro passará a usar:', [
       `Formato: ${fmtIn(c.size.win)} × ${fmtIn(c.size.hin)} pol. (${App.fmtNum(W)} × ${App.fmtNum(H)} mm) — ${c.k.binding === 'hardcover' ? 'capa dura' : 'brochura'}`,
       `Margem interna: ${App.fmtNum(inner)} mm (mínimo do KDP para ${c.n || '…'} páginas: ${fmtIn(c.gIn)} pol. = ${App.fmtNum(c.gIn * IN)} mm)`,
@@ -66,7 +68,7 @@
     const fmt = D.PAGE_FORMATS.find(f => f.group === 'Amazon KDP (polegadas)' && Math.abs(f.width - W) < 0.3 && Math.abs(f.height - H) < 0.3);
     s.pageFormat = fmt ? fmt.id : 'custom';
     s.pageWidth = W; s.pageHeight = H;
-    s.standard = ''; // KDP tem regras próprias: o modelo CEDET é desligado neste livro
+    D.applyFreeLayout(s); // KDP tem regras próprias: o modelo CEDET é desligado neste livro
     s.marginInner = inner; s.marginOuter = outer; s.marginTop = top; s.marginBottom = bottom;
     s.kdp.enabled = true;
     if (c.k.bleed) { s.bleedAuto = true; } else { s.bleedAuto = false; s.bleedTop = s.bleedBottom = s.bleedOuter = 0; }

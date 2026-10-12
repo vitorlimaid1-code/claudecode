@@ -145,6 +145,25 @@
     contact: 'editoras-parceiras@cedet.com.br'
   };
   const isCedet = s => !!s && s.standard === 'cedet';
+  // Layout livre (formatos fora do CEDET): margens, sangria e saída padrão do sistema
+  const FREE_LAYOUT = {
+    standard: '', marginTop: 20, marginBottom: 22, marginInner: 22, marginOuter: 16, safety: 5,
+    bleedAuto: true, bleedTop: 3, bleedBottom: 3, bleedOuter: 3, bleedInner: 0, folioGap: 0,
+    outputSheet: { mode: 'trim', w: 210, h: 297, marks: true }
+  };
+  function applyFreeLayout(settings) {
+    return Object.assign(settings, JSON.parse(JSON.stringify(FREE_LAYOUT)));
+  }
+
+  // Medidas editadas pelo usuário nos modelos de formato (o original fica guardado para restaurar)
+  function applyFormatOverrides(over) {
+    PAGE_FORMATS.forEach(f => {
+      if (!f.orig && f.width) f.orig = { width: f.width, height: f.height };
+      const o = over && over[f.id];
+      if (f.orig) { f.width = o ? Number(o.width) : f.orig.width; f.height = o ? Number(o.height) : f.orig.height; f.edited = !!o; }
+    });
+  }
+
   // Aplica (ou reaplica) o modelo CEDET às configurações, sem mexer em estilos de texto
   function applyCedet(settings, formatId) {
     const fmt = PAGE_FORMATS.find(p => p.id === (formatId || settings.pageFormat)) || PAGE_FORMATS.find(p => p.id === DEFAULT_FORMAT_ID);
@@ -208,11 +227,12 @@
   }
 
   // Sangria automática conforme o formato (pode ser ajustada manualmente)
+  // KDP: especificação da Amazon (0,125 pol.); CEDET: manual (5 mm); demais: padrão do sistema
   function autoBleed(s) {
-    if (isCedet(s)) return CEDET.bleed;
     const fmt = PAGE_FORMATS.find(p => p.id === s.pageFormat);
     if (fmt && fmt.group === 'Amazon KDP (polegadas)') return 3.175; // 0,125 pol.
     if (s.kdp && s.kdp.enabled) return 3.175;
+    if (isCedet(s)) return CEDET.bleed;
     if (Math.max(s.pageWidth, s.pageHeight) >= 420) return 5;
     return 3;
   }
@@ -624,6 +644,7 @@
     PAGE_FORMATS, FORMAT_GROUPS, DEFAULT_FORMAT_ID, BUNDLED_FONTS, SYSTEM_FONTS,
     STYLE_DEFS, DEFAULT_STYLES, DEFAULT_SETTINGS, GENRE_PRESETS,
     uid, newProject, normalizeProject, mergeSettings, applyGenrePreset, emptyCatalog,
-    toUnit, fromUnit, MM, KDP, autoBleed, OUTPUT_SHEETS, outputSheetSize, markGeometry, CEDET, isCedet, applyCedet
+    toUnit, fromUnit, MM, KDP, autoBleed, OUTPUT_SHEETS, outputSheetSize, markGeometry, CEDET, isCedet, applyCedet,
+    FREE_LAYOUT, applyFreeLayout, applyFormatOverrides
   };
 });

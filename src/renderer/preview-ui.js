@@ -35,7 +35,14 @@
       await new Promise((res, rej) => { frame.onload = res; frame.onerror = rej; });
       const book = await App.api.buildBook(App.serialize());
       book.overlays = App.layers.resolved();
-      const info = await frame.contentWindow.renderBook(book, opts());
+      let info = await frame.contentWindow.renderBook(book, opts());
+      if (info.clippedNotes && info.clippedNotes.length) {
+        // mesma correção da exportação: a prévia mostra exatamente o que sai no PDF
+        const again = async o => { frame.src = 'preview.html?' + Date.now(); await new Promise((res, rej) => { frame.onload = res; frame.onerror = rej; }); return frame.contentWindow.renderBook(book, Object.assign(opts(), o)); };
+        const second = await again({ lineNotes: info.clippedNotes });
+        if ((second.complete || !info.complete) && !second.clippedNotes.length) info = second;
+        else { info = await again({ showClippedNotes: true }); info.revealedNotes = info.clippedNotes; }
+      }
       const prev = active;
       let ratio = 0;
       if (prev && prev.contentDocument) { const se = prev.contentDocument.scrollingElement; ratio = se.scrollHeight ? se.scrollTop / se.scrollHeight : 0; }

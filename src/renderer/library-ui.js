@@ -177,6 +177,7 @@
   }
 
   App.library = {
+    reload: refresh,
     toggle(show) {
       const d = $('#libraryDrawer');
       const open = show === undefined ? !d.classList.contains('open') : show;

@@ -180,7 +180,7 @@
         if (b !== 0) return;
       }
     }
-    const r = await api.exportRun({ kind: 'cover', project: App.serialize(), opts: { bleed: $('#cvExpBleed').checked, fileBase: c.cedet && App.cedetFileName ? App.cedetFileName('CAPA') : '' } });
+    const r = await api.exportRun({ kind: 'cover', project: App.serialize(), opts: { bleed: true, fileBase: c.cedet && App.cedetFileName ? App.cedetFileName('CAPA') : '' } });
     $('#toast').classList.remove('show');
     if (!r || !r.files) return;
     const rep = r.report || {};
@@ -361,8 +361,8 @@
           el('label', { class: 'chk' }, [on(c, 'enhance', 'checkbox'), ' Correção automática de cor (níveis de preto e branco, sem mudar o matiz)']),
           el('label', { class: 'chk' }, [on(c, 'sharpen', 'checkbox'), ' Nitidez (realça os detalhes após o redimensionamento)']),
           f('Resolução', on(c, 'dpi', 'select', { options: [{ value: 300, label: '300 dpi (padrão de gráfica)' }, { value: 400, label: '400 dpi' }, { value: 600, label: '600 dpi' }], onChange: v2 => { c.dpi = Number(v2); } })),
-          el('label', { class: 'chk' }, [el('input', { type: 'checkbox', id: 'cvExpBleed', checked: true }), ' Com sangria (desmarque para baixar sem sangria, no formato final)']),
           el('label', { class: 'chk' }, [on(c.marks, 'enabled', 'checkbox'), ' Linhas de corte e de dobra no PDF (marcas de 0,25 pt a 5 mm do corte, fora da sangria)' + (c.cedet ? ' — exigidas pelo manual Cedet' : '')]),
+          el('div', { class: 'small muted', text: `O PDF sempre sai com a sangria (${App.fmtNum(CoverGeometry.geometry(c).bleed)} mm em volta), com ou sem as linhas. As linhas da prévia ao lado são só para conferência na tela.` }),
           el('div', { class: 'inline wrap' }, [
             el('button', { class: 'primary', text: '⇩ Exportar PDF CMYK para gráfica', onclick: exportPdf }),
             el('button', { text: 'Prova de cor (simulação CMYK)', onclick: runProof }),

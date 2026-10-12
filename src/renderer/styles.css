@@ -454,3 +454,5 @@ body[data-view="cover"] .preview, body[data-view="cover"] .splitter { display: n
 .card.preset.cedet-on { border-color: #2e7d32; box-shadow: inset 4px 0 0 #2e7d32; }
 .cover-spread-slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; grid-column: 1 / -1; }
 .cover-spread-slots > .field { border: 1px dashed var(--line); border-radius: 6px; padding: 6px; }
+.reset-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.reset-row:last-of-type { border-bottom: 0; }

@@ -515,11 +515,33 @@
       return field(`${label} (${App.unitLabel()})`, bind(obj, sheetKey || key, 'number', { len: true, min, max, step: 0.5, onChange: sheetKey ? rerender : undefined }), hint);
     };
     const fmt = D.PAGE_FORMATS.find(f => f.id === s.pageFormat);
-    const groups = D.FORMAT_GROUPS.concat(['Outro']).map(g => ({ group: g, items: D.PAGE_FORMATS.filter(f => f.group === g).map(f => ({ value: f.id, label: f.label + (f.use ? ' — ' + f.use : '') })) }));
+    const groups = D.FORMAT_GROUPS.concat(['Outro']).map(g => ({ group: g, items: D.PAGE_FORMATS.filter(f => f.group === g).map(f => ({ value: f.id, label: f.label + (f.edited ? ` (editado: ${App.fmtNum(f.width / 10)} × ${App.fmtNum(f.height / 10)} cm)` : '') + (f.use ? ' — ' + f.use : '') })) }));
+    // cada modelo traz os seus padrões: CEDET → manual Cedet; KDP → especificação da Amazon; demais → padrão do sistema
     const formatSel = bind(s, 'pageFormat', 'select', {
       options: groups,
-      onChange: id => { const f = D.PAGE_FORMATS.find(x => x.id === id); if (f && f.width) { s.pageWidth = f.width; s.pageHeight = f.height; } App.commit('Formato do livro'); rerender(); }
+      onChange: id => {
+        const f = D.PAGE_FORMATS.find(x => x.id === id);
+        if (f && D.CEDET.formats.includes(f.id)) { D.applyCedet(s, f.id); App.toast('Modelo CEDET: margens, sangria de 5 mm e marcas conforme o manual.'); }
+        else {
+          if (f && f.width) { s.pageWidth = f.width; s.pageHeight = f.height; }
+          const kdp = f && f.group === 'Amazon KDP (polegadas)';
+          if (s.standard === 'cedet' || kdp) D.applyFreeLayout(s);
+          if (kdp) { s.kdp = Object.assign(s.kdp || {}, { enabled: true }); s.cropMarks = false; App.toast('Amazon KDP: sangria de 0,125 pol. (3,175 mm). Para as margens exatas pelo número de páginas, use o módulo Amazon KDP.', 6000); }
+          else if (s.kdp && s.kdp.enabled) s.kdp.enabled = false;
+        }
+        App.commit('Formato do livro'); rerender();
+      }
     });
+    // medidas do modelo: o usuário pode editar e restaurar as originais do sistema
+    const fmtNow = D.PAGE_FORMATS.find(f => f.id === s.pageFormat && f.width);
+    const dimsDiffer = fmtNow && (Math.abs(fmtNow.width - s.pageWidth) > 0.01 || Math.abs(fmtNow.height - s.pageHeight) > 0.01);
+    const saveOverrides = async mutate => { const o = (await api.formatsGet()) || {}; mutate(o); await api.formatsSet(o); D.applyFormatOverrides(o); };
+    const formatTools = fmtNow ? el('div', { class: 'inline wrap span-all' }, [
+      dimsDiffer ? el('button', { text: `Salvar ${App.fmtNum(s.pageWidth / 10)} × ${App.fmtNum(s.pageHeight / 10)} cm no modelo “${fmtNow.label}”`, title: 'Os próximos livros com este modelo usarão estas medidas', onclick: async () => { await saveOverrides(o => { o[fmtNow.id] = { width: s.pageWidth, height: s.pageHeight }; }); App.toast('Medidas salvas no modelo. Use “Restaurar” para voltar às originais.'); rerender(); } }) : null,
+      dimsDiffer ? el('button', { text: `↺ Voltar às medidas do modelo (${App.fmtNum(fmtNow.width / 10)} × ${App.fmtNum(fmtNow.height / 10)} cm)`, onclick: () => { s.pageWidth = fmtNow.width; s.pageHeight = fmtNow.height; App.changed('Medidas do modelo'); rerender(); } }) : null,
+      fmtNow.edited ? el('button', { text: `↺ Restaurar o modelo ao original do sistema (${App.fmtNum(fmtNow.orig.width / 10)} × ${App.fmtNum(fmtNow.orig.height / 10)} cm)`, onclick: async () => { await saveOverrides(o => { delete o[fmtNow.id]; }); s.pageWidth = fmtNow.orig.width; s.pageHeight = fmtNow.orig.height; App.changed('Modelo restaurado'); App.toast('Modelo restaurado às medidas originais do sistema.'); rerender(); } }) : null,
+      D.PAGE_FORMATS.some(f => f.edited) && !fmtNow.edited ? el('span', { class: 'muted small', text: `${D.PAGE_FORMATS.filter(f => f.edited).length} modelo(s) com medidas editadas — restaure em “Restaurar padrões”.` }) : null
+    ]) : null;
     const unitSel = el('select', { onchange: e => { App.unit = e.target.value; try { localStorage.setItem('unit', App.unit); } catch (err) { /* ok */ } rerender(); } }, [['mm', 'Milímetros'], ['cm', 'Centímetros'], ['in', 'Polegadas'], ['pt', 'Pontos']].map(([u, l]) => el('option', { value: u, text: l })));
     unitSel.value = App.unit;
     const presetSel = el('select', { onchange: async () => {
@@ -570,10 +592,11 @@
       card('Página (formato final de corte)', [
         field('Formato', formatSel, fmt && fmt.use ? 'Uso comum: ' + fmt.use : '', 'wide'),
         field('Unidade de medida', unitSel),
-        len('pageWidth', 'Largura', 30, 600),
-        len('pageHeight', 'Altura', 30, 600),
+        field(`Largura (${App.unitLabel()})`, bind(s, 'pageWidth', 'number', { len: true, min: 30, max: 600, step: 0.5, onChange: () => { clearTimeout(rerender._t); rerender._t = setTimeout(rerender, 900); } })),
+        field(`Altura (${App.unitLabel()})`, bind(s, 'pageHeight', 'number', { len: true, min: 30, max: 600, step: 0.5, onChange: () => { clearTimeout(rerender._t); rerender._t = setTimeout(rerender, 900); } })),
         el('div', { class: 'field' }, [el('span', { class: 'flabel', text: 'Orientação' }), el('button', { text: '⟲ Inverter largura/altura', onclick: () => { [s.pageWidth, s.pageHeight] = [s.pageHeight, s.pageWidth]; s.pageFormat = (D.PAGE_FORMATS.find(f => Math.abs(f.width - s.pageWidth) < 0.3 && Math.abs(f.height - s.pageHeight) < 0.3) || { id: 'custom' }).id; App.changed('Orientação da página'); rerender(); } })]),
-        field('Cor de fundo das páginas', bind(s, 'pageColor', 'color', { fallback: '#ffffff' }))
+        field('Cor de fundo das páginas', bind(s, 'pageColor', 'color', { fallback: '#ffffff' })),
+        formatTools
       ], `Formato final de corte: ${App.fmtNum(s.pageWidth / 10)} × ${App.fmtNum(s.pageHeight / 10)} cm. Arquivo com sangria: ${App.fmtNum((s.pageWidth + 2 * bleedMax) / 10)} × ${App.fmtNum((s.pageHeight + 2 * bleedMax) / 10)} cm. Mancha de texto: ${App.fmtNum(contentW / 10)} × ${App.fmtNum(contentH / 10)} cm.`),
       card('Margens espelhadas', [
         len('marginTop', 'Superior', 5, 80), len('marginBottom', 'Inferior', 5, 80),
