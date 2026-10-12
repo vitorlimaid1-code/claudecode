@@ -131,8 +131,8 @@
   // Sangria automática conforme o formato (pode ser ajustada manualmente)
   function autoBleed(s) {
     const fmt = PAGE_FORMATS.find(p => p.id === s.pageFormat);
-    if (fmt && fmt.group === 'Amazon KDP (polegadas)') return 3.2;
-    if (s.kdp && s.kdp.enabled) return 3.2;
+    if (fmt && fmt.group === 'Amazon KDP (polegadas)') return 3.175; // 0,125 pol.
+    if (s.kdp && s.kdp.enabled) return 3.175;
     if (Math.max(s.pageWidth, s.pageHeight) >= 420) return 5;
     return 3;
   }

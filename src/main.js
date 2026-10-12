@@ -13,6 +13,7 @@ const exporters = require('./main/exporters');
 const cmyk = require('./main/cmyk');
 const CoverGeometry = require('./shared/cover');
 const manuscript = require('./main/manuscript');
+const pdfcolor = require('./main/pdfcolor');
 
 const APP_ROOT = path.join(__dirname, '..');
 const PROJECT_EXT = 'livro';
@@ -396,13 +397,27 @@ async function renderPdf(project, opts) {
       printBackground: true, preferCSSPageSize: true, margins: { marginType: 'none' },
       generateDocumentOutline: !!opts.outline, generateTaggedPDF: !!opts.tagged
     });
-    if (!opts.spreads) pdf = await finishPrintPdf(pdf, project);
-    return { pdf, pages: info.pages, info };
+    let colorReport = null;
+    if (!opts.spreads) ({ pdf, colorReport } = await finishPrintPdf(pdf, project, opts));
+    return { pdf, pages: info.pages, info, colorReport };
   });
 }
 
-// Grava TrimBox (formato final de corte) e BleedBox em cada página e os metadados do livro
-async function finishPrintPdf(pdfBuf, project) {
+// Grava TrimBox (formato final de corte) e BleedBox em cada página e os metadados do livro;
+// se pedido, converte as cores do miolo para CMYK (perfil ICC) ou escala de cinza (100% K)
+async function finishPrintPdf(pdfBuf, project, opts) {
+  opts = opts || {};
+  let colorReport = null;
+  if (opts.color === 'cmyk' || opts.color === 'gray') {
+    try {
+      const r = await pdfcolor.convertPdfColor(pdfBuf, opts.color, APP_ROOT, { profile: opts.colorProfile });
+      pdfBuf = r.pdf;
+      colorReport = r.report;
+    } catch (e) { console.error('convertPdfColor', e); colorReport = { error: String(e.message || e) }; }
+  }
+  return { pdf: await finishBoxes(pdfBuf, project), colorReport };
+}
+async function finishBoxes(pdfBuf, project) {
   try {
     const { PDFDocument } = require('pdf-lib');
     const doc = await PDFDocument.load(pdfBuf, { updateMetadata: false });
@@ -511,9 +526,9 @@ async function runExport(req) {
   if (kind === 'pdf') {
     const file = opts.target || await askSavePath('Exportar PDF', `${base}${opts.suffix || ''}.pdf`, [{ name: 'PDF', extensions: ['pdf'] }]);
     if (!file) return null;
-    const { pdf, pages } = await renderPdf(project, opts);
+    const { pdf, pages, colorReport } = await renderPdf(project, opts);
     fs.writeFileSync(file, pdf);
-    return { files: [file], pages };
+    return { files: [file], pages, colorReport };
   }
   if (kind === 'png' || kind === 'jpeg' || kind === 'tiff') {
     const dir = opts.target || await askFolder('Escolha a pasta para as imagens das páginas');

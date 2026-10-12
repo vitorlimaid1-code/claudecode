@@ -201,7 +201,7 @@
           f('Páginas do miolo', on(c, 'pages', 'number', { step: 2, min: 2, onChange: () => { manualOn(); redraw(); } })),
           f('Papel do miolo', on(c, 'paper', 'select', { options: paperOpts, onChange: () => { proof = null; render(); } })),
           c.paper === 'custom' ? f('Espessura por página (mm)', on(c, 'paperMm', 'number', { step: 0.001 })) : null,
-          el('label', { class: 'chk' }, [on(c, 'bleedAuto', 'checkbox', { onChange: () => render() }), ' Sangria automática (3 mm; 3,2 mm para KDP)']),
+          el('label', { class: 'chk' }, [on(c, 'bleedAuto', 'checkbox', { onChange: () => render() }), ' Sangria automática (3 mm; KDP: 3,175 mm = 0,125 pol.)']),
           !c.bleedAuto ? f('Sangria manual (mm)', on(c, 'bleed', 'number', { step: 0.1, min: 0, max: 25 })) : null,
           f('Orelhas (mm, 0 = sem)', on(c, 'flaps', 'number', { step: 1, min: 0, max: 150 })),
           el('label', { class: 'chk' }, [on(c, 'hardcover', 'checkbox', { onChange: () => render() }), ' Capa dura']),

@@ -5,9 +5,9 @@
   const { el, $, api } = App;
 
   const BUILTIN = [
-    { id: 'grafica', name: 'Impressão em gráfica (offset)', kind: 'pdf', purpose: 'print', bleed: 3, cropMarks: true, spreads: false, outline: false, minDpi: 300, errDpi: 200, notes: 'Sangria de 3 mm e marcas de corte. Confirme com a gráfica as medidas, o papel e o perfil de cor exigidos.' },
-    { id: 'kdp', name: 'Amazon KDP (brochura)', kind: 'pdf', purpose: 'print', bleed: 3.2, bleedOnlyIfNeeded: true, cropMarks: false, spreads: false, minDpi: 300, errDpi: 150, minPages: 24, maxPages: 828, acceptedSizes: '127x203.2, 128.5x198.4, 133.4x203.2, 139.7x215.9, 152.4x228.6, 156x233.9, 169.9x244.1, 177.8x254, 189x246.1, 190.5x235, 203.2x254, 209.6x152.4, 209.6x209.6, 210x297, 215.9x215.9, 215.9x279.4, 108x174.5', notes: 'Use sangria (3,2 mm) apenas se houver imagens até a borda. Tamanhos aceitos conforme a lista do KDP — verifique a lista atual no site da Amazon.' },
-    { id: 'pod', name: 'Impressão sob demanda (Clube de Autores, UICLAP…)', kind: 'pdf', purpose: 'print', bleed: 0, cropMarks: false, spreads: false, minDpi: 300, errDpi: 150, notes: 'PDF no tamanho final, sem marcas de corte. Confira as exigências atuais da plataforma.' },
+    { id: 'grafica', name: 'Impressão em gráfica (offset)', kind: 'pdf', purpose: 'print', bleed: null, cropMarks: true, spreads: false, outline: false, color: 'cmyk', colorProfile: 'fogra39', minDpi: 300, errDpi: 200, notes: 'Sangria do livro (automática pelo formato ou a medida digitada), marcas de corte, cores em CMYK com perfil ICC (texto preto 100% K) e fontes incorporadas. Para miolo só preto e branco, escolha “Escala de cinza”. Confirme com a gráfica o perfil de cor exigido.' },
+    { id: 'kdp', name: 'Amazon KDP (brochura)', kind: 'pdf', purpose: 'print', bleed: 3.175, bleedOnlyIfNeeded: true, cropMarks: false, spreads: false, color: 'rgb', minDpi: 300, errDpi: 150, minPages: 24, maxPages: 828, acceptedSizes: '127x203.2, 128.5x198.4, 133.4x203.2, 139.7x215.9, 152.4x228.6, 156x233.9, 169.9x244.1, 177.8x254, 189x246.1, 190.5x235, 203.2x254, 209.6x152.4, 209.6x209.6, 210x297, 215.9x215.9, 215.9x279.4, 108x174.5', notes: 'Use sangria (3,175 mm = 0,125 pol.) apenas se houver imagens até a borda. Miolo preto e branco: use “Escala de cinza”. Tamanhos aceitos conforme a lista do KDP — verifique a lista atual no site da Amazon.' },
+    { id: 'pod', name: 'Impressão sob demanda (Clube de Autores, UICLAP…)', kind: 'pdf', purpose: 'print', bleed: 0, color: 'rgb', cropMarks: false, spreads: false, minDpi: 300, errDpi: 150, notes: 'PDF no tamanho final, sem marcas de corte. Confira as exigências atuais da plataforma.' },
     { id: 'digital', name: 'PDF para leitura digital', kind: 'pdf', purpose: 'digital', bleed: 0, cropMarks: false, spreads: false, outline: true, minDpi: 150, errDpi: 96, notes: 'Sem sangria, com marcadores (sumário navegável no leitor de PDF).' },
     { id: 'prova', name: 'Prova editorial (páginas duplas)', kind: 'pdf', purpose: 'digital', bleed: 0, cropMarks: false, spreads: true, outline: true, minDpi: 150, errDpi: 96, notes: 'Páginas lado a lado, como o livro aberto, para revisão. Não é imposição de cadernos.' },
     { id: 'epub', name: 'EPUB para leitura digital', kind: 'epub', includeCover: true, minDpi: 72, errDpi: 0, notes: 'EPUB 3 com sumário navegável, metadados, imagens e notas.' },
@@ -35,16 +35,20 @@
     const proj = JSON.parse(JSON.stringify(App.serialize()));
     const o = state.opts;
     if (o.kind === 'pdf' || o.kind === 'package' || ['png', 'jpeg', 'tiff'].includes(o.kind)) {
-      if (o.purpose === 'digital') { proj.settings.bleedTop = proj.settings.bleedBottom = proj.settings.bleedOuter = 0; proj.settings.cropMarks = false; }
-      else if (o.bleed != null && o.bleed !== '') {
+      const fix = b => { proj.settings.bleedAuto = false; proj.settings.bleedTop = proj.settings.bleedBottom = proj.settings.bleedOuter = b; };
+      if (o.purpose === 'digital') { fix(0); proj.settings.cropMarks = false; }
+      else {
         const needs = needsBleed(proj);
-        const b = o.bleedOnlyIfNeeded && !needs ? 0 : Number(o.bleed);
-        proj.settings.bleedTop = proj.settings.bleedBottom = proj.settings.bleedOuter = b;
+        // perfil sem medida própria: usa a sangria do livro (automática pelo formato ou manual)
+        if (o.bleed != null && o.bleed !== '') fix(o.bleedOnlyIfNeeded && !needs ? 0 : Number(o.bleed));
+        else if (o.bleedOnlyIfNeeded && !needs) fix(0);
         proj.settings.cropMarks = !!o.cropMarks;
       }
     }
     return proj;
   }
+  const bleedOf = s => (s.bleedAuto ? App.D.autoBleed(s) : Math.max(s.bleedTop || 0, s.bleedBottom || 0, s.bleedOuter || 0));
+  App.bleedOf = bleedOf;
   function needsBleed(p) {
     const W = p.settings.pageWidth, H = p.settings.pageHeight;
     return p.chapters.some(c => /class="fullbleed"/.test(c.html) || (c.openingImage && c.openingImage.asset)) ||
@@ -67,17 +71,18 @@
     if (o.minPages && r.pages < o.minPages) issues.push({ level: 'error', type: 'pages', msg: `O livro tem ${r.pages} páginas; o perfil exige no mínimo ${o.minPages}.` });
     if (o.maxPages && r.pages > o.maxPages) issues.push({ level: 'error', type: 'pages', msg: `O livro tem ${r.pages} páginas; o perfil aceita no máximo ${o.maxPages}.` });
     if (r.pages % 2) issues.push({ level: 'info', type: 'pages', msg: `Número ímpar de páginas (${r.pages}); a gráfica acrescentará uma página em branco no fim.` });
-    if (o.purpose === 'print' && needsBleed(proj) && !Math.max(s.bleedTop, s.bleedBottom, s.bleedOuter)) issues.push({ level: 'error', type: 'bleed', msg: 'Há imagens ou fundos até a borda da página, mas a exportação está sem sangria: pode aparecer filete branco após o corte.', fix: 'bleed' });
+    if (o.purpose === 'print' && needsBleed(proj) && !bleedOf(s)) issues.push({ level: 'error', type: 'bleed', msg: 'Há imagens ou fundos até a borda da página, mas a exportação está sem sangria: pode aparecer filete branco após o corte.', fix: 'bleed' });
     (r.fontReport || []).forEach(f => { if (!f.embeddable) issues.push({ level: 'error', type: 'font', msg: `A licença da fonte “${f.family}” não permite incorporação no PDF. Escolha outra fonte (Estilos de texto ou Fontes).` }); });
     (r.missingFonts || []).forEach(f => issues.push({ level: 'error', type: 'font', msg: `Fonte “${f}” ausente neste computador: o texto seria mostrado em outra fonte.`, fix: 'fonts' }));
     (r.missingAssets || []).forEach(id => issues.push({ level: 'error', type: 'missing', msg: `Referência de imagem quebrada (${id}).`, fix: 'assets' }));
     Object.values(proj.assets).forEach(a => {
-      if (a.info && a.info.colorSpace === 'CMYK') issues.push({ level: 'warn', type: 'color', msg: `“${a.name}” está em CMYK: o PDF gerado é RGB e as cores podem mudar na conversão. Converta a imagem para RGB com perfil conhecido ou confira a prova de cor.` });
+      if (a.info && a.info.colorSpace === 'CMYK' && o.kind !== 'cover') issues.push({ level: 'warn', type: 'color', msg: `“${a.name}” está em CMYK: no miolo ela é mostrada pelo navegador em RGB e convertida de novo na saída; as cores podem mudar. Prefira imagens RGB com perfil (ou use-a na capa, onde o CMYK é preservado).` });
     });
     const hasAlpha = Object.values(proj.assets).some(a => a.info && a.info.hasAlpha);
     if (o.purpose === 'print') {
-      issues.push({ level: 'info', type: 'color', msg: 'O PDF é gerado em RGB com fontes incorporadas. PDF/X-1a, PDF/X-4 e conversão para CMYK não estão disponíveis neste aplicativo: se a gráfica exigir, peça a conversão a ela ou use um programa de pré-impressão (ex.: Acrobat Pro).' });
-      if (hasAlpha) issues.push({ level: 'info', type: 'alpha', msg: 'Há imagens com transparência. O PDF mantém a transparência (compatível com PDF/X-4, não com PDF/X-1a).' });
+      const col = o.color || 'rgb';
+      issues.push({ level: 'info', type: 'color', msg: col === 'cmyk' ? 'Cores do miolo em CMYK com perfil ICC (texto e cinzas somente em preto K), OutputIntent no PDF, TrimBox/BleedBox e todas as fontes incorporadas.' : col === 'gray' ? 'Miolo em escala de cinza (texto 100% K), com TrimBox/BleedBox e todas as fontes incorporadas.' : 'Miolo em RGB com fontes incorporadas (aceito por KDP e pela maioria das impressões sob demanda). Para gráfica offset, escolha CMYK ou Escala de cinza.' });
+      if (hasAlpha) issues.push({ level: 'info', type: 'alpha', msg: 'Há imagens com transparência: o PDF mantém a transparência (aceita em PDF/X-4 e pela maioria das gráficas; se a sua exigir PDF/X-1a, achate as imagens antes).' });
     }
     const order = { error: 0, warn: 1, info: 2 };
     issues.sort((a, b) => order[a.level] - order[b.level]);
@@ -96,7 +101,7 @@
     L.push('');
     L.push(`Páginas: ${r.pages}`);
     L.push(`Formato final de corte (miolo): ${App.fmtNum(s.pageWidth)} × ${App.fmtNum(s.pageHeight)} mm`);
-    const b = Math.max(s.bleedTop, s.bleedBottom, s.bleedOuter);
+    const b = bleedOf(s);
     L.push(`Sangria: ${b ? App.fmtNum(b) + ' mm (arquivo com ' + App.fmtNum(s.pageWidth + 2 * b) + ' × ' + App.fmtNum(s.pageHeight + 2 * b) + ' mm)' : 'sem sangria'}`);
     L.push(`Margens: superior ${s.marginTop} · inferior ${s.marginBottom} · interna ${s.marginInner} · externa ${s.marginOuter} mm`);
     L.push(`Fontes: ${(r.fonts || []).map(f => f.family + (f.loaded ? '' : ' (AUSENTE)')).join(', ')}`);
@@ -148,7 +153,7 @@
     App.toast('Exportando… isso pode levar alguns segundos.', 120000);
     try {
       const proj = projectForExport();
-      const req = { kind: o.kind, project: proj, opts: { spreads: !!o.spreads, outline: !!o.outline, tagged: o.purpose === 'digital', dpi: o.dpi || 300, quality: o.quality || 92, bleed: !!o.imageBleed, range: rangeSpec(), includeCover: !!o.includeCover, includeEpub: !!o.includeEpub, includeProject: !!o.includeProject, suffix: o.purpose === 'digital' ? '-digital' : '' } };
+      const req = { kind: o.kind, project: proj, opts: { spreads: !!o.spreads, outline: !!o.outline, tagged: o.purpose === 'digital', dpi: o.dpi || 300, quality: o.quality || 92, bleed: !!o.imageBleed, color: o.purpose === 'digital' ? 'rgb' : (o.color || 'rgb'), colorProfile: o.colorProfile || 'fogra39', range: rangeSpec(), includeCover: !!o.includeCover, includeEpub: !!o.includeEpub, includeProject: !!o.includeProject, suffix: o.purpose === 'digital' ? '-digital' : '' } };
       if (o.kind === 'epub' || (o.kind === 'package' && o.includeEpub)) req.epub = await App.exportPrep.buildEpub(proj, { includeCover: o.includeCover !== false });
       if (['docx', 'odt', 'txt'].includes(o.kind)) req.doc = App.exportPrep.buildDoc(proj);
       if (o.kind === 'package') { req.report = reportText() || (await preflight(), reportText()); req.specs = specsText(proj); }
@@ -156,7 +161,9 @@
       $('#toast').classList.remove('show');
       if (!r) return;
       logExport(o, r);
-      const b = await api.confirm('Exportação concluída!', `${r.files.length} arquivo(s)${r.pages ? ' · ' + r.pages + ' páginas' : ''}\n${r.files[0]}`, ['Abrir', 'Mostrar na pasta', 'Fechar']);
+      const cr = r.colorReport;
+      const colorTxt = !cr ? '' : cr.error ? `\n\n⚠ A conversão de cor falhou (${cr.error}); o PDF foi salvo em RGB.` : `\n\nCor: ${cr.mode === 'cmyk' ? 'CMYK — ' + cr.profile : 'escala de cinza'} · ${cr.colors} cor(es) e ${cr.images} imagem(ns) convertidas${cr.kOnly ? ' · pretos e cinzas em 100% K' : ''}${(cr.warnings || []).length ? '\n' + cr.warnings.map(w => '⚠ ' + w).join('\n') : ''}`;
+      const b = await api.confirm('Exportação concluída!', `${r.files.length} arquivo(s)${r.pages ? ' · ' + r.pages + ' páginas' : ''}\n${r.files[0]}${colorTxt}`, ['Abrir', 'Mostrar na pasta', 'Fechar']);
       if (b === 0) api.openPath(r.files[0]); else if (b === 1) api.showItem(r.files[0]);
     } finally {
       state.running = false;
@@ -166,14 +173,15 @@
 
   function specsText(p) {
     const s = p.settings;
-    const b = Math.max(s.bleedTop, s.bleedBottom, s.bleedOuter);
+    const b = bleedOf(s);
+    const col = state.opts && state.opts.color;
     return [
       `ESPECIFICAÇÕES TÉCNICAS — ${p.meta.title}`, '',
       `Autor: ${p.meta.author}`, `ISBN: ${p.meta.isbn || '—'}`, `Edição: ${p.meta.edition || '—'}`,
       `Miolo — formato final: ${App.fmtNum(s.pageWidth)} × ${App.fmtNum(s.pageHeight)} mm`,
       `Miolo — páginas: ${App.lastRender ? App.lastRender.pages : '—'}`,
       `Miolo — sangria: ${b ? App.fmtNum(b) + ' mm' : 'sem sangria'} · marcas de corte: ${s.cropMarks ? 'sim' : 'não'}`,
-      `Miolo — cor: RGB (conversão de cor a cargo da gráfica)`,
+      `Miolo — cor: ${col === 'cmyk' ? 'CMYK (' + (state.opts.colorProfile === 'gracol' ? 'GRACoL 2013' : 'ISO Coated v2 FOGRA39') + '), texto 100% K' : col === 'gray' ? 'escala de cinza, texto 100% K' : 'RGB'} · fontes incorporadas`,
       p.cover ? `Capa — ${JSON.stringify(window.CoverGeometry ? (g => ({ lombada_mm: g.spine, largura_total_mm: g.totalW, altura_total_mm: g.totalH, sangria_mm: g.bleed, orelhas_mm: g.flap }))(window.CoverGeometry.geometry(p.cover)) : {})}` : 'Capa — não incluída',
       `Papel informado para a lombada: ${p.cover ? p.cover.paper : '—'}`
     ].join('\r\n');
@@ -186,7 +194,7 @@
     p.exportLog = (p.exportLog || []).concat([{
       date: new Date().toISOString(), profile: o.name, kind: o.kind, files: r.files.slice(0, 3), pages: App.lastRender ? App.lastRender.pages : r.pages,
       chapterPages: App.lastRender ? App.lastRender.chapterPages : {}, fonts: [...fonts], images: Object.keys(p.assets).length,
-      size: [p.settings.pageWidth, p.settings.pageHeight], bleed: Math.max(p.settings.bleedTop, p.settings.bleedBottom, p.settings.bleedOuter), overlays: (p.overlays || []).length
+      size: [p.settings.pageWidth, p.settings.pageHeight], bleed: bleedOf(p.settings), overlays: (p.overlays || []).length
     }]).slice(-20);
     App.changed(null, { preview: false });
   }
@@ -202,7 +210,7 @@
     const pages = App.lastRender ? App.lastRender.pages : null;
     if (pages && pages !== last.pages) diffs.push(`Páginas: ${last.pages} → ${pages} (${pages > last.pages ? '+' : ''}${pages - last.pages})`);
     if (last.size[0] !== p.settings.pageWidth || last.size[1] !== p.settings.pageHeight) diffs.push(`Formato: ${last.size.join(' × ')} → ${p.settings.pageWidth} × ${p.settings.pageHeight} mm`);
-    const nb = Math.max(p.settings.bleedTop, p.settings.bleedBottom, p.settings.bleedOuter);
+    const nb = bleedOf(p.settings);
     if (nb !== last.bleed) diffs.push(`Sangria: ${last.bleed} → ${nb} mm`);
     const added = [...fonts].filter(f => !last.fonts.includes(f));
     const removed = last.fonts.filter(f => !fonts.has(f));
@@ -226,11 +234,13 @@
 
   async function autoFix(kind) {
     if (kind === 'bleed') {
-      const ok = await App.confirmPreview('Correção automática', 'Definir a sangria do miolo para 3 mm (superior, inferior e externa)?', ['Sangria: 3 mm']);
+      const s = App.project.settings;
+      const ok = await App.confirmPreview('Correção automática', 'Ativar a sangria automática do miolo?', [`Sangria: ${App.fmtNum(App.D.autoBleed(s), 3)} mm (pelo formato do livro)`]);
       if (!ok) return;
-      const s = App.project.settings; s.bleedTop = s.bleedBottom = s.bleedOuter = 3;
-      if (state.opts.bleed === 0 || state.opts.bleed == null) state.opts.bleed = 3;
-      App.changed('Sangria ajustada para 3 mm');
+      s.bleedAuto = true;
+      state.opts.bleed = null;
+      state.opts.bleedOnlyIfNeeded = false;
+      App.changed('Sangria automática ativada');
       preflight();
     } else if (kind === 'fonts') App.fontsUi.checkMissing(true);
     else if (kind === 'assets') App.setView('assets');
@@ -278,7 +288,9 @@
       App.card('Formato e opções', [
         App.field('Formato de saída', kind),
         isPdf ? App.field('Finalidade', (() => { const s = el('select', { onchange: e => { o.purpose = e.target.value; render(); } }, [['print', 'Impressão'], ['digital', 'Leitura digital']].map(([a, b]) => el('option', { value: a, text: b }))); s.value = o.purpose || 'print'; return s; })()) : null,
-        isPdf && o.purpose !== 'digital' ? num('bleed', 'Sangria (mm)', 0.1) : null,
+        isPdf && o.purpose !== 'digital' ? App.field('Sangria (mm)', el('input', { type: 'number', step: 0.1, placeholder: `do livro (${App.fmtNum(bleedOf(App.project.settings), 3)} mm)`, value: o.bleed == null ? '' : o.bleed, oninput: e => set('bleed', e.target.value === '' ? null : Number(e.target.value)) }), 'Vazio = sangria do livro (automática pelo formato ou manual)') : null,
+        isPdf && o.purpose !== 'digital' ? App.field('Cor do miolo', (() => { const sel = el('select', { onchange: e => { o.color = e.target.value; render(); } }, [['rgb', 'RGB (KDP, impressão sob demanda)'], ['cmyk', 'CMYK com perfil ICC (gráfica offset)'], ['gray', 'Escala de cinza — miolo preto e branco (100% K)']].map(([a, b]) => el('option', { value: a, text: b }))); sel.value = o.color || 'rgb'; return sel; })()) : null,
+        isPdf && o.purpose !== 'digital' && o.color === 'cmyk' ? App.field('Perfil CMYK', (() => { const sel = el('select', { onchange: e => { o.colorProfile = e.target.value; } }, [['fogra39', 'ISO Coated v2 (FOGRA39) — offset Brasil/Europa'], ['gracol', 'GRACoL 2013 (CRPC6) — padrão EUA']].map(([a, b]) => el('option', { value: a, text: b }))); sel.value = o.colorProfile || 'fogra39'; return sel; })()) : null,
         isPdf && o.purpose !== 'digital' ? chk('bleedOnlyIfNeeded', 'Sangria só se houver imagens/fundos até a borda') : null,
         isPdf && o.purpose !== 'digital' ? chk('cropMarks', 'Marcas de corte') : null,
         isPdf ? chk('spreads', 'Páginas duplas (lado a lado) — não é imposição de cadernos') : null,

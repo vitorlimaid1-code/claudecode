@@ -490,7 +490,7 @@
     const sepAsset = s.separatorAsset && App.project.assets[s.separatorAsset];
     const contentW = s.pageWidth - s.marginInner - s.marginOuter;
     const contentH = s.pageHeight - s.marginTop - s.marginBottom;
-    const bleedMax = Math.max(s.bleedTop || 0, s.bleedBottom || 0, s.bleedOuter || 0);
+    const bleedMax = s.bleedAuto ? D.autoBleed(s) : Math.max(s.bleedTop || 0, s.bleedBottom || 0, s.bleedOuter || 0);
     v.appendChild(el('div', { class: 'form-wrap' }, [
       el('h2', { text: 'Formato e diagramação' }),
       el('div', { class: 'card preset' }, [
@@ -515,10 +515,13 @@
         len('marginInner', 'Interna (lombada)', 5, 80, 'Aumente em livros com muitas páginas'), len('marginOuter', 'Externa', 5, 80)
       ], 'A margem interna fica do lado da costura e a externa do lado de fora; elas se espelham automaticamente entre páginas pares e ímpares.'),
       card('Sangria e área de segurança (miolo)', [
-        len('bleedTop', 'Sangria superior', 0, 10), len('bleedBottom', 'Sangria inferior', 0, 10), len('bleedOuter', 'Sangria externa', 0, 10),
+        el('label', { class: 'chk' }, [bind(s, 'bleedAuto', 'checkbox', { onChange: rerender }), ` Sangria automática pelo formato (${App.fmtNum(D.autoBleed(s), 3)} mm)`]),
+        !s.bleedAuto ? len('bleedTop', 'Sangria superior', 0, 10) : null,
+        !s.bleedAuto ? len('bleedBottom', 'Sangria inferior', 0, 10) : null,
+        !s.bleedAuto ? len('bleedOuter', 'Sangria externa', 0, 10) : null,
         len('safety', 'Área de segurança', 0, 20, 'Distância mínima da borda para textos importantes'),
         el('label', { class: 'chk' }, [bind(s, 'cropMarks', 'checkbox'), ' Marcas de corte no PDF'])
-      ], 'Use sangria apenas se houver imagens ou fundos que encostem na borda. Confirme a medida com a sua gráfica (geralmente 3 mm; KDP: 3,2 mm). A sangria não altera o formato final de corte.'),
+      ], 'Automática: 3 mm na maioria dos formatos, 5 mm em formatos grandes (A3 ou maior) e 3,175 mm (0,125 pol.) para Amazon KDP. Desmarque para digitar a medida pedida pela sua gráfica (0 = sem sangria). A sangria não altera o formato final de corte; o PDF sai com TrimBox e BleedBox.'),
       card('Texto e paginação', [
         el('label', { class: 'chk' }, [bind(s, 'hyphenate', 'checkbox'), ' Hifenização (português)']),
         el('label', { class: 'chk' }, [bind(s, 'indentFirstParagraph', 'checkbox'), ' Recuo no 1º parágrafo']),

@@ -24,7 +24,7 @@
   const n = (v, d) => { const x = Number(v); return v !== '' && v != null && isFinite(x) ? x : d; };
 
   function autoCoverBleed(c) {
-    return /^kdp/.test(c.paper || '') ? 3.2 : 3;
+    return /^kdp/.test(c.paper || '') ? 3.175 : 3; // KDP: 0,125 pol.
   }
 
   function geometry(c) {
