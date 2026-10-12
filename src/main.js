@@ -262,13 +262,23 @@ ipcMain.handle('catalog:templatesGet', () => readJson(userFile('modelos-ficha.js
 ipcMain.handle('catalog:templatesSet', (e, list) => { writeJson(userFile('modelos-ficha.json'), list || []); return true; });
 
 // Capa: prova de cor (CMYK simulado na tela) e leitura de manuscrito para calcular dimensões
-ipcMain.handle('cover:proof', async (e, cover, assets) => {
-  try { return await cmyk.softProof(APP_ROOT, cover || {}, assets || {}, CoverGeometry.geometry(cover || {})); } catch (err) { return { error: String(err.message || err) }; }
+ipcMain.handle('cover:proof', async (e, cover, assets, dpi) => {
+  try { return await cmyk.softProof(APP_ROOT, cover || {}, assets || {}, CoverGeometry.geometry(cover || {}), Math.max(36, Math.min(200, Number(dpi) || 72))); } catch (err) { return { error: String(err.message || err) }; }
 });
 ipcMain.handle('cover:analyze', async (e, settings) => {
   const res = await dialog.showOpenDialog(mainWindow, { title: 'Manuscrito para calcular a capa', filters: [{ name: 'Livros', extensions: ['pdf', 'doc', 'docx', 'odt', 'html', 'htm', 'epub', 'mobi', 'azw', 'azw3', 'txt', 'md'] }], properties: ['openFile'] });
   if (res.canceled || !res.filePaths.length) return null;
   try { return await manuscript.analyze(res.filePaths[0], settings || {}); } catch (err) { dialog.showErrorBox('Não foi possível ler o manuscrito', String(err.message || err)); return null; }
+});
+
+// Salva uma imagem PNG gerada na interface (ex.: prévia 3D da capa com fundo transparente)
+ipcMain.handle('dialog:savePng', async (e, name, dataUrl) => {
+  const m = /^data:image\/png;base64,(.+)$/.exec(dataUrl || '');
+  if (!m) return null;
+  const file = await askSavePath('Salvar imagem PNG', name || 'capa-3d.png', [{ name: 'PNG', extensions: ['png'] }]);
+  if (!file) return null;
+  fs.writeFileSync(file, Buffer.from(m[1], 'base64'));
+  return file;
 });
 
 // Conjuntos tipográficos salvos

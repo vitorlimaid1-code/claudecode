@@ -22,7 +22,7 @@
       const it = im[k];
       const a = it && assets[it.asset];
       if (!a || w <= 0) return;
-      parts.push(`<div class="cv-img" style="left:${mm(l)};top:0;width:${mm(w)};height:${mm(g.totalH)};background-image:url('${a.dataUrl}');background-size:${it.fit === 'contain' ? 'contain' : 'cover'};background-position:center"></div>`);
+      parts.push(`<div class="cv-img" style="left:${mm(l)};top:0;width:${mm(w)};height:${mm(g.totalH)};background-image:url('${a.dataUrl}');background-size:${it.fit === 'stretch' ? '100% 100%' : 'cover'};background-position:center"></div>`);
     };
     img('wrap', 0, g.totalW);
     ['back', 'spine', 'front', 'flapBack', 'flapFront'].forEach(k => { if (P[k]) img(k, P[k][0], P[k][1]); });

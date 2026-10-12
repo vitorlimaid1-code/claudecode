@@ -440,3 +440,10 @@ body[data-view="cover"] .preview, body[data-view="cover"] .splitter { display: n
 .lib-dropzone { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 14px 10px; border: 2px dashed var(--accent-2); border-radius: 10px; background: var(--accent-soft); cursor: pointer; text-align: center; margin: 6px 0; }
 .lib-dropzone:hover, .lib-dropzone.over { background: #f0d3c4; border-style: solid; }
 .drop-indicator.show::after { content: "Imagem " attr(data-zone); position: absolute; left: 0; top: 6px; font: 11px system-ui, sans-serif; background: #d9822b; color: #fff; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+
+/* ---------- prévia 3D ---------- */
+.modal.wide:has(.c3d) { width: min(1100px, 94vw); }
+.c3d-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.c3d-stage { width: 100%; height: min(62vh, 620px); border-radius: 8px; background: #3a3632; overflow: hidden; cursor: grab; }
+.c3d-stage:active { cursor: grabbing; }
+.c3d-stage.checker { background: repeating-conic-gradient(#d8d4cc 0% 25%, #f2efe9 0% 50%) 50% / 24px 24px; }

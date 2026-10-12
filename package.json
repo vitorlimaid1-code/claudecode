@@ -1,7 +1,7 @@
 {
   "name": "diagramador-de-livros",
   "productName": "Diagramador de Livros",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Aplicativo desktop para diagramação de livros, 100% local e offline.",
   "main": "src/main.js",
   "author": "Diagramador de Livros",

@@ -14,7 +14,7 @@
       paper: 'polen80', paperMm: 0.06, spineMode: 'auto', spine: '', bleedAuto: true, bleed: 3, flaps: 0, hardcover: false, wrapExtra: 15, boardExtra: 4, safety: 5,
       totalsManual: false, totalW: '', totalH: '', confirmed: null, fileInfo: null,
       barcode: false, bg: { front: '#ffffff', back: '#ffffff', spine: '#ffffff' }, images: {},
-      profile: 'fogra39', intent: 'relative', bpc: true, dpi: 300
+      profile: 'fogra39', intent: 'relative', bpc: true, dpi: 300, enhance: true, sharpen: true
     };
   }
   function cover() {
@@ -23,6 +23,8 @@
     const c = App.project.cover;
     Object.keys(d).forEach(k => { if (c[k] === undefined) c[k] = d[k]; });
     c.bg = c.bg || {}; c.images = c.images || {};
+    // “inteira” deixava faixas brancas: a imagem sempre preenche o espaço (ou estica)
+    Object.values(c.images).forEach(it => { if (it && it.fit === 'contain') it.fit = 'cover'; });
     return c;
   }
 
@@ -163,7 +165,7 @@
       return el('div', { class: 'field' }, [el('span', { class: 'flabel', text: label }), el('div', { class: 'inline wrap' }, [
         a ? el('img', { class: 'mini-thumb', src: App.assetUrl(it.asset) }) : null,
         el('button', { class: 'small-btn', text: a ? 'Trocar' : 'Inserir…', onclick: async () => { const l = await api.pickImages({ title: label }); if (!l) return; c.images[key] = { asset: await App.addAsset(l[0]), fit: 'cover' }; App.changed('Capa: ' + label, { preview: false }); proof = null; render(); } }),
-        a ? (() => { const s = el('select', { onchange: e => { it.fit = e.target.value; App.changed('Ajuste da imagem da capa', { preview: false }); proof = null; redraw(); } }, [['cover', 'Preencher'], ['contain', 'Inteira']].map(([x, y]) => el('option', { value: x, text: y }))); s.value = it.fit || 'cover'; return s; })() : null,
+        a ? (() => { const s = el('select', { onchange: e => { it.fit = e.target.value; App.changed('Ajuste da imagem da capa', { preview: false }); proof = null; redraw(); } }, [['cover', 'Preencher sem bordas (recorta o excesso)'], ['stretch', 'Esticar para caber exatamente']].map(([x, y]) => el('option', { value: x, text: y }))); s.value = it.fit || 'cover'; return s; })() : null,
         a ? el('button', { class: 'small-btn', text: '✕', onclick: () => { delete c.images[key]; App.changed('Imagem da capa removida', { preview: false }); proof = null; render(); } }) : null
       ]), hint ? el('span', { class: 'hint', text: hint }) : null, a && a.info && a.info.colorSpace === 'CMYK' ? el('span', { class: 'good small', text: 'CMYK: valores preservados na saída' }) : null]);
     };
@@ -219,11 +221,14 @@
         App.card('Saída para gráfica — PDF CMYK', [
           f('Perfil de cor (ICC)', on(c, 'profile', 'select', { options: [{ value: 'fogra39', label: 'ISO Coated v2 (ECI) — FOGRA39 · couchê, offset Brasil/Europa' }, { value: 'gracol', label: 'GRACoL 2013 (CRPC6) · couchê, padrão EUA/KDP' }] }), 'Use o perfil indicado pela sua gráfica.', 'wide'),
           f('Intenção de renderização', on(c, 'intent', 'select', { options: [{ value: 'relative', label: 'Colorimétrica relativa + compensação de preto (recomendado)' }, { value: 'perceptual', label: 'Perceptual (fotos muito saturadas)' }] })),
+          el('label', { class: 'chk' }, [on(c, 'enhance', 'checkbox'), ' Correção automática de cor (níveis de preto e branco, sem mudar o matiz)']),
+          el('label', { class: 'chk' }, [on(c, 'sharpen', 'checkbox'), ' Nitidez (realça os detalhes após o redimensionamento)']),
           f('Resolução', on(c, 'dpi', 'select', { options: [{ value: 300, label: '300 dpi (padrão de gráfica)' }, { value: 400, label: '400 dpi' }, { value: 600, label: '600 dpi' }], onChange: v2 => { c.dpi = Number(v2); } })),
-          el('label', { class: 'chk' }, [el('input', { type: 'checkbox', id: 'cvExpBleed', checked: true }), ' Com sangria (recomendado)']),
+          el('label', { class: 'chk' }, [el('input', { type: 'checkbox', id: 'cvExpBleed', checked: true }), ' Com sangria (desmarque para baixar sem sangria, no formato final)']),
           el('div', { class: 'inline wrap' }, [
             el('button', { class: 'primary', text: '⇩ Exportar PDF CMYK para gráfica', onclick: exportPdf }),
-            el('button', { text: 'Prova de cor (simulação CMYK)', onclick: runProof })
+            el('button', { text: 'Prova de cor (simulação CMYK)', onclick: runProof }),
+            el('button', { text: '🧊 Prévia 3D', title: 'Livro montado em 3D: gire para todos os lados e salve em PNG transparente', onclick: () => window.Cover3D ? window.Cover3D.open() : App.toast('Prévia 3D indisponível.') })
           ])
         ], 'O PDF sai no padrão PDF/X-1a: somente CMYK, sem transparências, com o perfil de saída (OutputIntent), caixas de corte e sangria. Confira a prova impressa da gráfica antes da tiragem.', 'span-all')
       ]),

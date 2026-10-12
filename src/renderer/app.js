@@ -179,7 +179,9 @@
           ['Camadas da página', 'para elementos em posição fixa (mm): fundos, molduras, composições de imagens, textos decorativos. Arraste na prévia; há encaixe em margens e centro.'],
           ['Páginas iniciais e finais', 'página de rosto com logotipo, créditos e ficha catalográfica completa (com imagens e QR codes), biografia e conteúdo extra.'],
           ['Sumário', 'automático a partir dos títulos (capítulos, T1, T2) ou manual e editável, em “Dados e páginas iniciais”. Ordem padrão: rosto › ficha › sumário › capítulos › páginas finais.'],
-          ['Capa e lombada', 'monte a capa com imagens prontas; as medidas vêm do livro (ou de um manuscrito, ou digitadas). Saída em PDF CMYK para gráfica (PDF/X-1a, perfil ICC), com sangria automática ou manual.'],
+          ['Prévia', 'role o livro página por página ou veja 2 a 5 páginas lado a lado. No modo “1 página por vez”, os botões ao lado de cada página mudam a cor da página e do texto, bloqueiam o capítulo (cadeado) e inserem uma página de imagem sangrada. Arraste imagens direto para o texto de qualquer página.'],
+          ['Biblioteca de estilos', 'um estilo pronto para cada gênero, aplicado ao livro inteiro com um clique.'],
+          ['Capa e lombada', 'monte a capa com imagens prontas (sempre sem bordas brancas, com correção de cor e nitidez) e veja o livro em 3D, girando para todos os lados, com opção de salvar em PNG transparente; as medidas vêm do livro (ou de um manuscrito, ou digitadas). Saída em PDF CMYK para gráfica (PDF/X-1a, perfil ICC), com sangria automática ou manual.'],
           ['Amazon KDP', 'brochura (16 tamanhos) e capa dura (5 tamanhos): confere páginas, margens e sangria e envia as medidas para a capa.'],
           ['Revista e jornal', 'em “Novo”, escolha Revista ou Jornal: colunas fixas (2 ou 3), nome da publicação, chapéu, linha fina e assinatura.'],
           ['Exportar', 'perfis prontos (gráfica, KDP, impressão sob demanda, PDF digital, prova, EPUB). A verificação de pré-impressão aponta problemas e leva você à página.']

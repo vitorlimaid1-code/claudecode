@@ -128,6 +128,137 @@ async function hexToCmyk(hex, outProfileBuf, opts) {
   return Array.from(r);
 }
 
+// ---------------------------------------------------------------- qualidade das imagens da capa
+// Correção automática de cor: estica os níveis (preto e branco reais) com o mesmo fator nos três
+// canais — não altera o matiz — e de forma suave (no máximo +30% de contraste).
+function autoLevels(rgb, alpha, n) {
+  const hist = new Uint32Array(256);
+  let count = 0;
+  for (let i = 0; i < n; i++) {
+    if (alpha && alpha[i] < 128) continue;
+    hist[(rgb[i * 3] * 77 + rgb[i * 3 + 1] * 150 + rgb[i * 3 + 2] * 29) >> 8]++;
+    count++;
+  }
+  if (count < 100) return false;
+  const clip = count * 0.003;
+  let lo = 0, hi = 255, acc = 0;
+  while (lo < 255 && (acc += hist[lo]) < clip) lo++;
+  acc = 0;
+  while (hi > 0 && (acc += hist[hi]) < clip) hi--;
+  if (hi - lo < 40 || (lo <= 2 && hi >= 253)) return false;
+  const scale = Math.min(1.3, 255 / (hi - lo));
+  // se o fator foi limitado, a sobra da faixa é dividida na proporção das folgas originais
+  const loT = (255 - (hi - lo) * scale) * lo / Math.max(1, lo + 255 - hi);
+  const lut = new Uint8Array(256);
+  for (let v = 0; v < 256; v++) lut[v] = Math.max(0, Math.min(255, Math.round(loT + (v - lo) * scale)));
+  for (let i = 0; i < n * 3; i++) rgb[i] = lut[rgb[i]];
+  return true;
+}
+// Nitidez (máscara de nitidez): realça bordas sem criar halos em áreas lisas (limiar)
+function unsharp(rgb, w, h, amount, threshold) {
+  const blur = new Uint8Array(rgb.length);
+  const tmp = new Uint16Array(rgb.length);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) for (let c = 0; c < 3; c++) {
+    const i = (y * w + x) * 3 + c;
+    const l = x > 0 ? i - 3 : i, r = x < w - 1 ? i + 3 : i;
+    tmp[i] = rgb[l] + 2 * rgb[i] + rgb[r];
+  }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) for (let c = 0; c < 3; c++) {
+    const i = (y * w + x) * 3 + c;
+    const u = y > 0 ? i - w * 3 : i, d = y < h - 1 ? i + w * 3 : i;
+    blur[i] = (tmp[u] + 2 * tmp[i] + tmp[d] + 8) >> 4;
+  }
+  for (let i = 0; i < rgb.length; i++) {
+    const diff = rgb[i] - blur[i];
+    if (Math.abs(diff) > threshold) rgb[i] = Math.max(0, Math.min(255, Math.round(rgb[i] + amount * diff)));
+  }
+}
+// Recorte para preencher (sem bordas brancas) ou esticar, no tamanho exato em pixels
+function cropRect(sw, sh, tw, th, fit) {
+  if (fit === 'stretch') return { x: 0, y: 0, w: sw, h: sh };
+  const scale = Math.max(tw / sw, th / sh);
+  const cw = Math.min(sw, Math.max(1, Math.round(tw / scale)));
+  const ch = Math.min(sh, Math.max(1, Math.round(th / scale)));
+  return { x: Math.floor((sw - cw) / 2), y: Math.floor((sh - ch) / 2), w: cw, h: ch };
+}
+function resampleCmyk(src, sw, sh, crop, tw, th) {
+  // bilinear sobre os valores CMYK originais (preservados)
+  const out = new Uint8Array(tw * th * 4);
+  for (let y = 0; y < th; y++) {
+    const fy = crop.y + (y + 0.5) * crop.h / th - 0.5;
+    const y0 = Math.max(0, Math.floor(fy)), y1 = Math.min(sh - 1, y0 + 1), ty = Math.max(0, fy - y0);
+    for (let x = 0; x < tw; x++) {
+      const fx = crop.x + (x + 0.5) * crop.w / tw - 0.5;
+      const x0 = Math.max(0, Math.floor(fx)), x1 = Math.min(sw - 1, x0 + 1), tx = Math.max(0, fx - x0);
+      for (let c = 0; c < 4; c++) {
+        const a = src[(y0 * sw + x0) * 4 + c], b = src[(y0 * sw + x1) * 4 + c], d = src[(y1 * sw + x0) * 4 + c], e = src[(y1 * sw + x1) * 4 + c];
+        out[(y * tw + x) * 4 + c] = Math.round((a * (1 - tx) + b * tx) * (1 - ty) + (d * (1 - tx) + e * tx) * ty);
+      }
+    }
+  }
+  return out;
+}
+// Imagem -> CMYK já recortada e redimensionada para tw × th pixels
+async function imageToCmykFitted(dataUrl, outProfileBuf, opts, tw, th, fit) {
+  const m = /^data:([^;,]+);base64,(.*)$/s.exec(dataUrl || '');
+  if (!m) throw new Error('Imagem inválida');
+  const buf = Buffer.from(m[2], 'base64');
+  const jc = jpegComponents(buf);
+  if (jc && jc.comps === 4) {
+    const full = await imageToCmyk(dataUrl, outProfileBuf, opts);
+    const crop = cropRect(full.w, full.h, tw, th, fit);
+    return { w: tw, h: th, cmyk: resampleCmyk(full.cmyk, full.w, full.h, crop, tw, th), alpha: null, srcW: full.w, srcH: full.h, crop, note: full.note };
+  }
+  const img = nativeImage.createFromBuffer(buf);
+  const { width: sw, height: sh } = img.getSize();
+  if (!sw || !sh) throw new Error('Não foi possível decodificar a imagem');
+  const crop = cropRect(sw, sh, tw, th, fit);
+  let part = (crop.x || crop.y || crop.w !== sw || crop.h !== sh) ? img.crop({ x: crop.x, y: crop.y, width: crop.w, height: crop.h }) : img;
+  if (part.getSize().width !== tw || part.getSize().height !== th) part = part.resize({ width: tw, height: th, quality: 'best' });
+  const bgra = part.toBitmap();
+  const n = tw * th;
+  const rgb = new Uint8Array(n * 3);
+  let alpha = null;
+  for (let i = 0, j = 0; i < n; i++, j += 4) {
+    rgb[i * 3] = bgra[j + 2]; rgb[i * 3 + 1] = bgra[j + 1]; rgb[i * 3 + 2] = bgra[j];
+    if (bgra[j + 3] < 255) { if (!alpha) alpha = new Uint8Array(n).fill(255); alpha[i] = bgra[j + 3]; }
+  }
+  const fixes = [];
+  if (opts.enhance !== false && autoLevels(rgb, alpha, n)) fixes.push('cor corrigida');
+  if (opts.sharpen !== false && n > 4) { unsharp(rgb, tw, th, opts.dpi && opts.dpi < 150 ? 0.35 : 0.6, 3); fixes.push('nitidez'); }
+  const { m: L, l } = await lcms();
+  let input = null;
+  let note = 'sRGB';
+  const icc = extractIcc(buf);
+  if (icc) {
+    const p = l.cmsOpenProfileFromMem(new Uint8Array(icc), icc.length);
+    if (p && l.cmsGetColorSpaceASCII(p) === 'RGB') { input = p; note = 'perfil embutido: ' + (l.cmsGetProfileInfoASCII(p, L.cmsInfoDescription, 'en', 'US') || 'RGB'); }
+  }
+  if (!input) input = l.cmsCreate_sRGBProfile();
+  const out = l.cmsOpenProfileFromMem(outProfileBuf, outProfileBuf.length);
+  const t = l.cmsCreateTransform(input, L.TYPE_RGB_8, out, L.TYPE_CMYK_8, opts.intent === 'perceptual' ? L.INTENT_PERCEPTUAL : L.INTENT_RELATIVE_COLORIMETRIC, opts.bpc === false ? 0 : L.cmsFLAGS_BLACKPOINTCOMPENSATION);
+  const cmykOut = new Uint8Array(n * 4);
+  const CH = 1 << 20;
+  for (let s0 = 0; s0 < n; s0 += CH) { const len = Math.min(CH, n - s0); cmykOut.set(l.cmsDoTransform(t, rgb.subarray(s0 * 3, (s0 + len) * 3), len), s0 * 4); }
+  l.cmsDeleteTransform(t);
+  return { w: tw, h: th, cmyk: cmykOut, alpha, srcW: sw, srcH: sh, crop, note: note + (fixes.length ? ' · ' + fixes.join(' e ') : '') };
+}
+// Copia pixel a pixel (sem reescala) para a posição inteira x0,y0, com alfa
+function blit(dst, DW, DH, src, x0, y0) {
+  for (let y = 0; y < src.h; y++) {
+    const dy = y0 + y;
+    if (dy < 0 || dy >= DH) continue;
+    for (let x = 0; x < src.w; x++) {
+      const dx = x0 + x;
+      if (dx < 0 || dx >= DW) continue;
+      const si = y * src.w + x, di = (dy * DW + dx) * 4;
+      const a = src.alpha ? src.alpha[si] / 255 : 1;
+      if (a >= 1) { dst[di] = src.cmyk[si * 4]; dst[di + 1] = src.cmyk[si * 4 + 1]; dst[di + 2] = src.cmyk[si * 4 + 2]; dst[di + 3] = src.cmyk[si * 4 + 3]; }
+      else if (a > 0) for (let k = 0; k < 4; k++) dst[di + k] = Math.round(dst[di + k] * (1 - a) + src.cmyk[si * 4 + k] * a);
+    }
+  }
+}
+
 // Desenha uma imagem CMYK (com alfa opcional) num retângulo do raster de saída (cover/contain)
 function drawInto(dst, DW, DH, src, rect, fit) {
   const { x, y, w, h } = rect;
@@ -172,14 +303,16 @@ async function compose(appRoot, cover, assets, geometry, opts) {
   if (DW * DH > 160e6) throw new Error('Capa grande demais para a resolução escolhida. Reduza o dpi.');
   const dst = new Uint8Array(DW * DH * 4);
   const notes = [];
-  const toRect = (xmm, wmm) => ({ x: (xmm - offX) * pxmm, y: -offY * pxmm, w: wmm * pxmm, h: g.totalH * pxmm });
+  // bordas em pixels inteiros calculadas pela mesma fórmula: painéis vizinhos não deixam frestas
+  const px = mm => Math.round(mm * pxmm);
+  const toRect = (xmm, wmm) => ({ x: px(xmm - offX), y: px(-offY), w: px(xmm + wmm - offX) - px(xmm - offX), h: px(g.totalH - offY) - px(-offY) });
   // fundos
   const bg = cover.bg || {};
   const fill = async (key, xmm, wmm) => {
     if (wmm <= 0) return;
     const c = cover.bgCmyk && cover.bgCmyk[key] ? cover.bgCmyk[key].map(v => Math.round(v * 2.55)) : await hexToCmyk(bg[key] || '#ffffff', profBuf, cover);
     const r = toRect(xmm, wmm);
-    const x0 = Math.max(0, Math.round(r.x)), x1 = Math.min(DW, Math.round(r.x + r.w));
+    const x0 = Math.max(0, r.x), x1 = Math.min(DW, r.x + r.w);
     for (let y = 0; y < DH; y++) for (let x = x0; x < x1; x++) { const i = (y * DW + x) * 4; dst[i] = c[0]; dst[i + 1] = c[1]; dst[i + 2] = c[2]; dst[i + 3] = c[3]; }
   };
   const P = g.panels;
@@ -190,9 +323,12 @@ async function compose(appRoot, cover, assets, geometry, opts) {
     const it = im[key];
     const a = it && assets[it.asset];
     if (!a) return;
-    const src = await imageToCmyk(a.dataUrl, profBuf, cover);
-    notes.push(`${a.name || key}: ${src.w}×${src.h} px, ${src.note}${src.w / (rectMm.w / 25.4) < 250 ? ` — ATENÇÃO: ${Math.round(src.w / (rectMm.w / 25.4))} dpi efetivos` : ''}`);
-    drawInto(dst, DW, DH, src, { x: (rectMm.x - offX) * pxmm, y: (rectMm.y - offY) * pxmm, w: rectMm.w * pxmm, h: rectMm.h * pxmm }, it.fit || 'cover');
+    const r = toRect(rectMm.x, rectMm.w);
+    const fit = it.fit === 'stretch' ? 'stretch' : 'cover'; // nunca deixa bordas brancas
+    const src = await imageToCmykFitted(a.dataUrl, profBuf, Object.assign({}, cover, { dpi }), r.w, r.h, fit);
+    const eff = Math.round(src.crop.w / (rectMm.w / 25.4));
+    notes.push(`${a.name || key}: ${src.srcW}×${src.srcH} px, ${src.note}${opts.dpi && opts.dpi < 200 ? '' : eff < 250 ? ` — ATENÇÃO: ${eff} dpi efetivos (ideal 300)` : ` · ${eff} dpi efetivos`}`);
+    blit(dst, DW, DH, src, r.x, r.y);
   };
   if (im.wrap) await place('wrap', { x: 0, y: 0, w: g.totalW, h: g.totalH });
   for (const k of ['back', 'spine', 'front', 'flapBack', 'flapFront']) if (im[k] && P[k] && P[k][1] > 0) await place(k, { x: P[k][0], y: 0, w: P[k][1], h: g.totalH });
@@ -253,8 +389,8 @@ async function buildCoverPdf(appRoot, cover, assets, meta, geometry, opts) {
 }
 
 // Prova de cor na tela: o raster CMYK final convertido de volta para sRGB (simulação da impressão)
-async function softProof(appRoot, cover, assets, geometry) {
-  const c = await compose(appRoot, cover, assets, geometry, { dpi: 72, bleed: true });
+async function softProof(appRoot, cover, assets, geometry, dpi) {
+  const c = await compose(appRoot, cover, assets, geometry, { dpi: dpi || 72, bleed: true });
   const { m: L, l } = await lcms();
   const inP = l.cmsOpenProfileFromMem(c.profBuf, c.profBuf.length);
   const outP = l.cmsCreate_sRGBProfile();
@@ -265,7 +401,7 @@ async function softProof(appRoot, cover, assets, geometry) {
   const bgra = Buffer.alloc(n * 4);
   for (let i = 0; i < n; i++) { bgra[i * 4] = rgb[i * 3 + 2]; bgra[i * 4 + 1] = rgb[i * 3 + 1]; bgra[i * 4 + 2] = rgb[i * 3]; bgra[i * 4 + 3] = 255; }
   const img = nativeImage.createFromBitmap(bgra, { width: c.DW, height: c.DH });
-  return { dataUrl: img.toDataURL(), maxTac: Math.round(c.maxTac / 2.55), notes: c.notes, profile: (PROFILES[c.profKey] || PROFILES.fogra39).label };
+  return { dataUrl: dpi && dpi > 100 ? 'data:image/jpeg;base64,' + img.toJPEG(92).toString('base64') : img.toDataURL(), width: c.DW, height: c.DH, geometry: c.g, maxTac: Math.round(c.maxTac / 2.55), notes: c.notes, profile: (PROFILES[c.profKey] || PROFILES.fogra39).label };
 }
 
 module.exports = { buildCoverPdf, softProof, PROFILES, imageToCmyk, extractIcc };

@@ -24,24 +24,27 @@ Como os executáveis não têm assinatura digital, o Windows SmartScreen pode av
 - **Notas de rodapé preservadas** (Word, EPUB, ODT, DOC, Markdown e, por reconstrução, PDF). Painel **Notas de rodapé**: ocultar todas sem apagar, remover todas ou só as escolhidas; no editor, clique numa nota para removê-la ou transformá-la em texto.
 - O texto importado é **padronizado** com os estilos do livro (fontes, tamanhos, espaçamentos, títulos e subtítulos do manuscrito são trocados pela configuração escolhida). Na importação dá para escolher o **gênero do livro** e remover o sumário que já vinha no manuscrito (o livro gera o seu, com as páginas certas).
 - Todo o texto é **justificado** (exceto poesia, alinhada à esquerda); o botão **Gênero do livro**, na barra superior, aplica fontes, títulos e alinhamento de uma vez.
+- **Sem páginas em branco**: cada capítulo começa na página seguinte (nunca em uma página vazia), e rosto, ficha, sumário, dedicatória, epígrafe e páginas finais não recebem número de página.
 - **Paginação automática** (Paged.js, com correção própria para parágrafos longos com frases repetidas): o texto que não cabe é empurrado para a página seguinte sem mudar o tamanho da fonte; controle de viúvas/órfãs e de títulos isolados.
 - No editor: **notas de rodapé** no cursor (¹ Nota), **ligações** (🔗, Ctrl+K) para outro capítulo ou título — com o número da página de destino (“p. 41”) preenchido após a paginação — ou para sites/e-mails, **＋ Seção** (nova página com título logo depois do capítulo atual, também pelo ＋ na lista) e **✂ Dividir** (o texto a partir do cursor vira um novo capítulo, sem alterar o resto).
 
 ### Texto e estilos
 - Estilos nomeados e totalmente configuráveis: texto principal, título de capítulo, rótulo, **T1, T2, T3**, citação longa, frase em destaque, **poesia**, epígrafe, **referências**, legenda, nota de rodapé, caixa de destaque, tabela, cabeçalho, número de página e sumário (fonte, tamanho, cor, entrelinha, espaço entre letras/palavras, recuos, espaços antes/depois, alinhamento, itálico, negrito, maiúsculas, versalete).
 - **Conjuntos tipográficos** salvos para reutilizar em outros livros; **“Salvar como meu padrão”**: novos livros e o próximo uso do app começam com a sua configuração (só muda quando você salva de novo).
-- **Configurações prontas por gênero**: romance, poesia, terror, suspense/policial, fantasia, ficção científica, contos, infantojuvenil, autoajuda, biografia, religioso e acadêmico.
+- **Biblioteca de estilos** com amostra visual e aplicação em todo o livro com um clique: romance, poesia, terror, suspense/policial, fantasia, ficção científica, contos, infantojuvenil, autoajuda, biografia, religioso, acadêmico, não-ficção, ciências humanas, história, filosofia, jornalismo e culinária.
 - Editor com tabelas, **gráficos** (colunas, linhas, pizza — editáveis), listas, caixas de destaque, quebras de cena e de página, versalete, caracteres invisíveis.
 
 ### Capítulos e páginas
 - Seleção múltipla para **editar vários capítulos de uma vez** (cor da página, cor/fonte/tamanho do texto e dos títulos, separador, numeração, bloqueio) ou um capítulo isolado (botão **Aparência**).
 - **Bloqueio** de capítulos contra edição, movimentação e exclusão acidentais.
+- **Excluir capítulos** direto no navegador lateral (tecla Delete ou 🗑), ou apagando o título e pressionando Backspace; apagar trechos/páginas de texto funciona como em qualquer editor (selecionar e apagar). Botão **¹✕ Notas** remove todas as notas de rodapé de uma vez.
 - **Desfazer/refazer** e **Histórico** de todas as operações do projeto, com recuperação de estados anteriores; operações em massa mostram a lista do que vai mudar antes de aplicar.
 
 ### Imagens
 - **Biblioteca do aplicativo** com ilustrações em PNG para o corpo do texto e, em local separado, **separadores exclusivos para os títulos** (o padrão continua sendo o filete liso).
 - **Biblioteca pessoal** (corpo e separadores) com busca, palavras-chave, coleções, favoritos, filtros (orientação, transparência, resolução), detecção de duplicatas e indicação de uso.
-- **Arrastar e soltar** do Windows Explorer ou da biblioteca para o texto (com indicador de posição e de operação inválida), para um capítulo da lista ou para uma página da prévia.
+- **Arrastar e soltar** do Windows Explorer ou da biblioteca para qualquer ponto do livro — no editor ou direto sobre o texto de uma página da prévia: em cima, embaixo, à esquerda e à direita (texto ao redor, imagem limitada a 50% da largura para não criar linhas desproporcionais) ou no centro; o texto se reorganiza e a paginação é refeita. Soltar na margem/área vazia de uma página cria um elemento fixo.
+- Área **“Enviar imagens do computador”** sempre visível na biblioteca (clique ou solte arquivos).
 - Painel da imagem: largura (+/−), alinhamento, **texto ao redor** (acima e abaixo, quadrado, contorno da área transparente, só à esquerda, só à direita, atrás do texto), distância do texto, proporção e ajuste (preencher/caber/esticar), **recorte não destrutivo com prévia**, girar, espelhar, opacidade, legenda, substituir (esta ou todas as ocorrências mantendo tamanho/posição/recorte), mover para outro capítulo. As imagens nunca ultrapassam a mancha nem se dividem entre páginas; legenda fica junto da imagem.
 - **Imagem de página inteira (sangrada)** em qualquer ponto do texto e como abertura de capítulo.
 - **Imagens do projeto**: resolução efetiva (dpi), transparência, perfil ICC, imagens CMYK, onde cada uma é usada, referências quebradas (com “localizar arquivo”), unificar duplicatas e remover não usadas.
@@ -61,16 +64,25 @@ Como os executáveis não têm assinatura digital, o Windows SmartScreen pode av
 
 ### Formato
 - 14 × 21 cm por padrão e todos os formatos pedidos: pequenos (miniatura a 13 × 20), médios (13,8 × 21 a 17 × 24), grandes (18 × 24 a A3), quadrados, paisagem, lista do **Amazon KDP**, e qualquer medida personalizada (com decimais e conversão de unidades).
+- **Prévia**: 1 página por vez (rolando o livro), páginas duplas, ou 2, 3, 4 e 5 páginas lado a lado, com ajuste automático do zoom. No modo 1 página, ao lado de cada página: **cor da página** e **cor do texto** (grade de cores, código hexadecimal ou seletor; o app pergunta se vale só para a página ou para o capítulo), **cadeado** contra alterações acidentais e **inserir página de imagem sangrada** antes/depois de um capítulo (com guias de sangria opcionais para conferência).
 - **Margens espelhadas** automáticas, **sangria automática pelo formato** (3 mm; 5 mm em formatos grandes; 0,125 pol. no KDP) ou digitada, área de segurança, marcas de corte; guias de corte, sangria, área segura e margens na prévia; prévia em tons de cinza; visualização individual, dupla ou geral.
 
 ### Amazon KDP
 - **Brochura** (16 tamanhos: 5 × 8 a A4, incluindo 8,25 × 6 horizontal e quadrados) e **capa dura** (5,5 × 8,5, 6 × 9, 6,14 × 9,21, 7 × 10 e 8,25 × 11; de 75 a 550 páginas).
 - Confere o número de páginas pelo papel/tinta, calcula a **margem interna mínima pelo número de páginas**, margens externas, sangria de 0,125 pol. (no miolo, só nas bordas externas, como o KDP exige), lombada e se é permitido texto na lombada; **aplica ao livro** e **envia as medidas para a capa**.
 
+### Módulos opcionais
+O layout padrão é o de **livro**. Em **Outros módulos** (barra lateral) ficam Poesia, Revista e jornal e Amazon KDP; todas as ferramentas do livro funcionam também neles.
+
+### Poesia
+- Estilo de poesia (versos à esquerda, sem hifenização, estrofes que não se partem) e conversão de capítulos em poemas, preservando os versos.
+
 ### Revista e jornal
 - Em **Novo**, escolha Livro, **Revista** ou **Jornal**. Colunas fixas (**2 ou 3**), espaço e fio entre colunas, nome da publicação com logotipo, edição e data (também no cabeçalho), e por matéria: **chapéu**, **linha fina**, **assinatura**, colunas próprias e “começa em página nova” ou continua na mesma página.
 
 ### Capa e lombada
+- **Prévia 3D**: o livro montado (capa, lombada, contracapa e folhas), girando para todos os lados — frente, verso, lombada, lateral das folhas, cima e baixo — e **salvando em PNG com fundo transparente** em alta resolução.
+- As imagens sempre **preenchem o espaço sem bordas brancas** (recorte centralizado ou esticar), são redimensionadas com a melhor qualidade para a resolução exata de saída, recebem **correção automática de cor** (níveis, sem mudar o matiz) e **nitidez**, e os painéis são encaixados em pixels inteiros (sem frestas entre capa, lombada e contracapa).
 - Para **montar capas prontas** (já editadas em outro programa): imagem envolvente ou capa, lombada, contracapa e orelhas separadas; cor de fundo; **área do código de barras opcional**; prévia em tempo real com guias de corte, dobra e área segura.
 - Medidas: **largura total, altura total e lombada (mm)** editáveis, com o **tamanho total exibido** (com e sem sangria). Preenchidas automaticamente pelo livro em diagramação (em tempo real) ou por um **manuscrito carregado** (PDF, DOC, DOCX, ODT, HTML, EPUB ou MOBI) — ou digitadas, sem precisar de livro. Botão **Confirmar as dimensões**.
 - **Lombada calculada** pelo papel (offset, pólen, couchê, KDP ou espessura personalizada), capa dura, orelhas; **sangria automática** (3 mm; 0,125 pol. no KDP) ou manual.
