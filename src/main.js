@@ -10,6 +10,9 @@ const { importAny } = require('./main/importers');
 const { FontManager } = require('./main/fonts');
 const { ImageLibrary, analyzeImage, hashBuffer } = require('./main/library');
 const exporters = require('./main/exporters');
+const cmyk = require('./main/cmyk');
+const CoverGeometry = require('./shared/cover');
+const manuscript = require('./main/manuscript');
 
 const APP_ROOT = path.join(__dirname, '..');
 const PROJECT_EXT = 'livro';
@@ -244,7 +247,28 @@ ipcMain.handle('autosave:clear', async () => { try { await fs.promises.unlink(us
 ipcMain.handle('defaults:get', () => readJson(userFile('meu-padrao.json'), null));
 ipcMain.handle('defaults:set', (e, settings) => { writeJson(userFile('meu-padrao.json'), settings); return true; });
 ipcMain.handle('defaults:reset', () => { try { fs.unlinkSync(userFile('meu-padrao.json')); } catch (e) { /* ok */ } return true; });
-ipcMain.handle('defaults:newProject', () => newProject(readJson(userFile('meu-padrao.json'), null)));
+ipcMain.handle('defaults:newProject', () => {
+  const p = newProject(readJson(userFile('meu-padrao.json'), null));
+  const ficha = readJson(userFile('ficha-fixa.json'), null);
+  if (ficha) { p.catalog = Object.assign(p.catalog, ficha.catalog || {}); if (ficha.meta) Object.assign(p.meta, ficha.meta); if (ficha.titlePage) Object.assign(p.titlePage, ficha.titlePage); if (ficha.assets) Object.assign(p.assets, ficha.assets); }
+  return p;
+});
+
+// Ficha catalográfica fixa (aplicada a todo livro novo) e modelos salvos pelo usuário
+ipcMain.handle('catalog:fixedGet', () => readJson(userFile('ficha-fixa.json'), null));
+ipcMain.handle('catalog:fixedSet', (e, data) => { if (data) writeJson(userFile('ficha-fixa.json'), data); else { try { fs.unlinkSync(userFile('ficha-fixa.json')); } catch (err) { /* ok */ } } return true; });
+ipcMain.handle('catalog:templatesGet', () => readJson(userFile('modelos-ficha.json'), []));
+ipcMain.handle('catalog:templatesSet', (e, list) => { writeJson(userFile('modelos-ficha.json'), list || []); return true; });
+
+// Capa: prova de cor (CMYK simulado na tela) e leitura de manuscrito para calcular dimensões
+ipcMain.handle('cover:proof', async (e, cover, assets) => {
+  try { return await cmyk.softProof(APP_ROOT, cover || {}, assets || {}, CoverGeometry.geometry(cover || {})); } catch (err) { return { error: String(err.message || err) }; }
+});
+ipcMain.handle('cover:analyze', async (e, settings) => {
+  const res = await dialog.showOpenDialog(mainWindow, { title: 'Manuscrito para calcular a capa', filters: [{ name: 'Livros', extensions: ['pdf', 'doc', 'docx', 'odt', 'html', 'htm', 'epub', 'mobi', 'azw', 'azw3', 'txt', 'md'] }], properties: ['openFile'] });
+  if (res.canceled || !res.filePaths.length) return null;
+  try { return await manuscript.analyze(res.filePaths[0], settings || {}); } catch (err) { dialog.showErrorBox('Não foi possível ler o manuscrito', String(err.message || err)); return null; }
+});
 
 // Conjuntos tipográficos salvos
 ipcMain.handle('typesets:get', () => readJson(userFile('conjuntos-tipograficos.json'), {}));
@@ -368,12 +392,43 @@ async function renderPdf(project, opts) {
   opts = opts || {};
   return withRenderWindow(async win => {
     const { info } = await renderBookIn(win, project, { spreadsPrint: !!opts.spreads, pageRange: opts.range || '' });
-    const pdf = await win.webContents.printToPDF({
+    let pdf = await win.webContents.printToPDF({
       printBackground: true, preferCSSPageSize: true, margins: { marginType: 'none' },
       generateDocumentOutline: !!opts.outline, generateTaggedPDF: !!opts.tagged
     });
+    if (!opts.spreads) pdf = await finishPrintPdf(pdf, project);
     return { pdf, pages: info.pages, info };
   });
+}
+
+// Grava TrimBox (formato final de corte) e BleedBox em cada página e os metadados do livro
+async function finishPrintPdf(pdfBuf, project) {
+  try {
+    const { PDFDocument } = require('pdf-lib');
+    const doc = await PDFDocument.load(pdfBuf, { updateMetadata: false });
+    const s = normalizeProject(project).settings;
+    const ptmm = 72 / 25.4;
+    const tw = s.pageWidth * ptmm;
+    const th = s.pageHeight * ptmm;
+    doc.getPages().forEach(pg => {
+      const { width, height } = pg.getSize();
+      const ix = Math.max(0, (width - tw) / 2);
+      const iy = Math.max(0, (height - th) / 2);
+      pg.setBleedBox(0, 0, width, height);
+      pg.setTrimBox(ix, iy, width - 2 * ix, height - 2 * iy);
+      pg.setArtBox(ix, iy, width - 2 * ix, height - 2 * iy);
+    });
+    const m = project.meta || {};
+    doc.setTitle(m.title || '');
+    doc.setAuthor(m.author || '');
+    doc.setCreator('Diagramador de Livros');
+    doc.setProducer('Diagramador de Livros (Chromium/Skia PDF)');
+    doc.setLanguage(m.language || 'pt-BR');
+    return Buffer.from(await doc.save({ useObjectStreams: false }));
+  } catch (e) {
+    console.error('finishPrintPdf', e);
+    return pdfBuf;
+  }
 }
 
 function parseRange(spec, total) {
@@ -492,7 +547,7 @@ async function runExport(req) {
     const files = [];
     const { pdf, pages } = await renderPdf(project, opts);
     files.push({ name: `${base}-miolo.pdf`, data: pdf });
-    if (opts.includeCover && project.cover) files.push({ name: `${base}-capa.pdf`, data: await renderCover(project, { bleed: true, format: 'pdf' }) });
+    if (opts.includeCover && project.cover) files.push({ name: `${base}-capa-cmyk.pdf`, data: (await cmyk.buildCoverPdf(APP_ROOT, project.cover, project.assets || {}, project.meta, CoverGeometry.geometry(project.cover), { bleed: true })).pdf });
     if (opts.includeEpub && req.epub) files.push({ name: `${base}.epub`, data: await exporters.exportEpub(Object.assign({ uuid: crypto.randomUUID() }, req.epub), project.assets || {}) });
     if (req.report) files.push({ name: 'relatorio-pre-impressao.txt', data: Buffer.from('﻿' + req.report, 'utf8') });
     if (req.specs) files.push({ name: 'especificacoes-tecnicas.txt', data: Buffer.from('﻿' + req.specs, 'utf8') });
@@ -501,12 +556,13 @@ async function runExport(req) {
     return { files: [file], pages };
   }
   if (kind === 'cover') {
-    const fmt = opts.format || 'pdf';
-    const ext = fmt === 'jpeg' ? 'jpg' : fmt === 'tiff' ? 'tif' : fmt;
-    const file = opts.target || await askSavePath('Exportar capa', `${base}-capa${opts.bleed ? '' : '-sem-sangria'}.${ext}`, [{ name: fmt.toUpperCase(), extensions: [ext] }]);
+    // capa para gráfica: sempre PDF CMYK (PDF/X-1a) com o perfil ICC escolhido
+    const file = opts.target || await askSavePath('Exportar capa para gráfica (PDF CMYK)', `${base}-capa-cmyk${opts.bleed === false ? '-sem-sangria' : ''}.pdf`, [{ name: 'PDF', extensions: ['pdf'] }]);
     if (!file) return null;
-    fs.writeFileSync(file, await renderCover(project, opts));
-    return { files: [file] };
+    const cover = project.cover || {};
+    const r = await cmyk.buildCoverPdf(APP_ROOT, cover, project.assets || {}, project.meta, CoverGeometry.geometry(cover), { bleed: opts.bleed !== false });
+    fs.writeFileSync(file, r.pdf);
+    return { files: [file], report: r.report };
   }
   if (kind === 'coverFront') {
     return { dataUrl: 'data:image/jpeg;base64,' + (await renderCover(project, { format: 'jpeg', part: 'front', dpi: 150, bleed: false })).toString('base64') };
@@ -535,10 +591,7 @@ async function renderCover(project, opts) {
 async function renderCoverPdf(project, opts) {
   return withRenderWindow(async win => {
     const c = project.cover || {};
-    const t = c.texts || {};
-    if (!fonts.system) fonts.scanSystem();
-    const fontFaceCss = fonts.fontFaceCss([t.titleFont, t.authorFont, t.spineFont, t.backFont].filter(f => f && !BUNDLED_FONTS.includes(f))).css;
-    await win.webContents.executeJavaScript(`window.renderCover(${JSON.stringify({ cover: c, assets: project.assets, meta: project.meta, fontFaceCss })}, ${JSON.stringify({ bleed: opts.bleed !== false, guides: false, part: opts.part || 'all', print: true })})`, true);
+    await win.webContents.executeJavaScript(`window.renderCover(${JSON.stringify({ cover: c, assets: project.assets })}, ${JSON.stringify({ bleed: opts.bleed !== false, guides: false, part: opts.part || 'all', print: true })})`, true);
     return win.webContents.printToPDF({ printBackground: true, preferCSSPageSize: true, margins: { marginType: 'none' } });
   }, { page: 'src/renderer/cover.html?print', width: 1600, height: 1200 });
 }

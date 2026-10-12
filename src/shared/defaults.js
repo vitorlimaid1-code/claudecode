@@ -18,9 +18,10 @@
     'Grandes: acadêmicos, técnicos e ilustrados',
     'Quadrados',
     'Horizontais (paisagem)',
-    'Amazon KDP (polegadas)'
+    'Amazon KDP (polegadas)',
+    'Revistas e jornais'
   ];
-  const [G1, G2, G3, G4, G5, G6] = FORMAT_GROUPS;
+  const [G1, G2, G3, G4, G5, G6, G7] = FORMAT_GROUPS;
 
   const PAGE_FORMATS = [
     f(G1, 'Miniatura — 7 × 10 cm', 7, 10, 'Mini livros, colecionáveis'),
@@ -97,9 +98,44 @@
     fin(G6, '8,5 × 8,5 pol. (21,59 × 21,59 cm)', 8.5, 8.5),
     fin(G6, '8,5 × 11 pol. (21,59 × 27,94 cm)', 8.5, 11),
 
+    f(G7, 'Revista compacta — 13,5 × 20,5 cm', 13.5, 20.5, 'Revistas de bolso'),
+    f(G7, 'Revista padrão — 20,2 × 26,6 cm', 20.2, 26.6, 'Revistas semanais e mensais'),
+    f(G7, 'Revista — 20,5 × 27,5 cm', 20.5, 27.5, 'Revistas de variedades'),
+    f(G7, 'Revista A4 — 21 × 29,7 cm', 21, 29.7, 'Revistas técnicas e institucionais'),
+    f(G7, 'Revista grande — 23 × 30 cm', 23, 30, 'Moda, arte, decoração'),
+    f(G7, 'Jornal tabloide — 28 × 43 cm', 28, 43, 'Jornais populares e de bairro'),
+    f(G7, 'Jornal tabloide europeu — 29,7 × 42 cm (A3)', 29.7, 42, 'Informativos e jornais-mural'),
+    f(G7, 'Jornal berliner — 31,5 × 47 cm', 31.5, 47, 'Jornais diários'),
+    f(G7, 'Jornal standard — 38 × 58 cm', 38, 58, 'Grandes jornais diários'),
+
     { id: 'custom', group: 'Outro', label: 'Personalizado…', width: null, height: null, use: '' }
   ];
   const DEFAULT_FORMAT_ID = PAGE_FORMATS.find(p => p.width === 140 && p.height === 210).id;
+
+  // Amazon KDP — tamanhos de corte (confira sempre a tabela atual no site da Amazon)
+  const kdp = (win, hin, note) => ({ win, hin, width: +(win * IN).toFixed(2), height: +(hin * IN).toFixed(2), label: `${String(+(win * 2.54).toFixed(2)).replace('.', ',')} × ${String(+(hin * 2.54).toFixed(2)).replace('.', ',')} cm — ${String(win).replace('.', ',')} × ${String(hin).replace('.', ',')} pol.${note ? ' — ' + note : ''}` });
+  const KDP = {
+    paperback: [kdp(5, 8), kdp(5.06, 7.81), kdp(5.25, 8), kdp(5.5, 8.5), kdp(6, 9), kdp(6.14, 9.21), kdp(6.69, 9.61), kdp(7, 10), kdp(7.44, 9.69), kdp(7.5, 9.25), kdp(8, 10), kdp(8.25, 6, 'horizontal'), kdp(8.25, 8.25, 'quadrado'), kdp(8.5, 8.5, 'quadrado'), kdp(8.5, 11), kdp(8.27, 11.69, 'A4')],
+    hardcover: [kdp(5.5, 8.5), kdp(6, 9), kdp(6.14, 9.21), kdp(7, 10), kdp(8.25, 11)],
+    // espessura por página (pol.) para cálculo da lombada
+    paper: { white: { label: 'Branco', in: 0.002252 }, cream: { label: 'Creme', in: 0.0025 }, color: { label: 'Colorido (premium)', in: 0.002347 }, colorStd: { label: 'Colorido (padrão)', in: 0.002252 } },
+    limits: { paperback: { white: [24, 828], cream: [24, 776], color: [24, 828], colorStd: [72, 600] }, hardcover: { white: [75, 550], cream: [75, 550], color: [75, 550], colorStd: [75, 550] } },
+    bleedIn: 0.125,
+    // margem interna mínima por número de páginas (pol.)
+    gutter: [[150, 0.375], [300, 0.5], [500, 0.625], [700, 0.75], [Infinity, 0.875]],
+    outsideNoBleedIn: 0.25,
+    outsideBleedIn: 0.375,
+    spineTextMinPages: 79
+  };
+
+  // Sangria automática conforme o formato (pode ser ajustada manualmente)
+  function autoBleed(s) {
+    const fmt = PAGE_FORMATS.find(p => p.id === s.pageFormat);
+    if (fmt && fmt.group === 'Amazon KDP (polegadas)') return 3.2;
+    if (s.kdp && s.kdp.enabled) return 3.2;
+    if (Math.max(s.pageWidth, s.pageHeight) >= 420) return 5;
+    return 3;
+  }
 
   // Fontes embutidas no aplicativo (funcionam offline e são incorporadas ao PDF)
   const BUNDLED_FONTS = [
@@ -132,7 +168,7 @@
     { key: 'epigraph', label: 'Epígrafe', fields: ['font', 'size', 'color', 'align', 'italic', 'indentLeft'] },
     { key: 'reference', label: 'Referências', tag: 'p.reference', fields: ['font', 'size', 'lineHeight', 'color', 'indent', 'spaceAfter', 'align'] },
     { key: 'caption', label: 'Legenda', tag: 'figcaption', fields: ['font', 'size', 'color', 'align', 'italic'] },
-    { key: 'footnote', label: 'Nota de rodapé', fields: ['font', 'size', 'lineHeight', 'color'] },
+    { key: 'footnote', label: 'Nota de rodapé', fields: ['font', 'size', 'lineHeight', 'color', 'align'] },
     { key: 'box', label: 'Caixa de destaque', tag: 'div.box', fields: ['font', 'size', 'color', 'background', 'borderColor', 'align', 'spaceBefore', 'spaceAfter'] },
     { key: 'table', label: 'Tabela', tag: 'table', fields: ['font', 'size', 'color', 'borderColor', 'background'] },
     { key: 'header', label: 'Cabeçalho', fields: ['font', 'size', 'color', 'italic', 'uppercase', 'letterSpacing'] },
@@ -151,10 +187,10 @@
     phrase: { font: '', size: 14, lineHeight: 1.3, color: '#000000', align: 'center', italic: true, bold: false, uppercase: false, indentLeft: 8, indentRight: 8, spaceBefore: 5, spaceAfter: 5 },
     poem: { font: '', size: 11.5, lineHeight: 1.45, color: '#000000', align: 'left', italic: false, indentLeft: 12, spaceBefore: 4, spaceAfter: 4 },
     epigraph: { font: '', size: 10.5, color: '#000000', align: 'right', italic: true, indentLeft: 35 },
-    reference: { font: '', size: 10, lineHeight: 1.3, color: '#000000', indent: -1.5, spaceAfter: 1.5, align: 'left' },
+    reference: { font: '', size: 10, lineHeight: 1.3, color: '#000000', indent: -1.5, spaceAfter: 1.5, align: 'justify' },
     caption: { font: '', size: 9, color: '#333333', align: 'center', italic: true },
-    footnote: { font: '', size: 8.5, lineHeight: 1.25, color: '#000000' },
-    box: { font: '', size: 10.5, color: '#000000', background: '#f2efe9', borderColor: '#b9ad9a', align: 'left', spaceBefore: 4, spaceAfter: 4 },
+    footnote: { font: '', size: 8.5, lineHeight: 1.25, color: '#000000', align: 'justify' },
+    box: { font: '', size: 10.5, color: '#000000', background: '#f2efe9', borderColor: '#b9ad9a', align: 'justify', spaceBefore: 4, spaceAfter: 4 },
     table: { font: '', size: 9.5, color: '#000000', borderColor: '#555555', background: '#efece6' },
     header: { font: '', size: 8.5, color: '#222222', italic: false, uppercase: true, letterSpacing: 0.08 },
     pageNumber: { font: '', size: 9.5, color: '#000000' },
@@ -172,10 +208,14 @@
     marginOuter: 16,
     // Sangria por borda (mm). Superior/inferior/externa; a interna normalmente é 0 no miolo.
     bleed: 0,
-    bleedTop: 0,
-    bleedBottom: 0,
-    bleedOuter: 0,
+    bleedAuto: true,
+    bleedTop: 3,
+    bleedBottom: 3,
+    bleedOuter: 3,
     bleedInner: 0,
+    columns: 1,
+    columnGap: 5,
+    columnRule: true,
     safety: 5,
     cropMarks: false,
 
@@ -248,12 +288,12 @@
     infantil: {
       label: 'Infantojuvenil', separatorLibrary: 'estrelas',
       settings: { dropCap: true, header: 'none', pageNumbers: 'center', hyphenate: false, sceneBreak: '★' },
-      styles: { body: { font: 'Merriweather', size: 12.5, lineHeight: 1.65, align: 'left', indent: 1.2, spaceAfter: 1.5 }, chapterTitle: { font: 'Merriweather', size: 22, bold: true, color: '#1d4f8a', spaceBefore: 30 } }
+      styles: { body: { font: 'Merriweather', size: 12.5, lineHeight: 1.65, align: 'justify', indent: 1.2, spaceAfter: 1.5 }, chapterTitle: { font: 'Merriweather', size: 22, bold: true, color: '#1d4f8a', spaceBefore: 30 } }
     },
     autoajuda: {
       label: 'Autoajuda / negócios', separatorLibrary: 'linha-ponto',
       settings: { dropCap: false, header: 'author-title', pageNumbers: 'outer', sceneBreak: '—' },
-      styles: { body: { font: 'Lora', size: 10.5, lineHeight: 1.5, align: 'left', indent: 0, spaceAfter: 2 }, chapterTitle: { font: 'Playfair Display', size: 24, align: 'left', bold: true, spaceBefore: 25 }, h2: { font: 'Playfair Display', align: 'left', bold: true } }
+      styles: { body: { font: 'Lora', size: 10.5, lineHeight: 1.5, align: 'justify', indent: 0, spaceAfter: 2 }, chapterTitle: { font: 'Playfair Display', size: 24, align: 'left', bold: true, spaceBefore: 25 }, h2: { font: 'Playfair Display', align: 'left', bold: true } }
     },
     biografia: {
       label: 'Biografia / memórias', separatorLibrary: 'folhas',
@@ -321,13 +361,16 @@
     return {
       format: 'diagramador-de-livros',
       version: 2,
+      kind: 'book',
+      genre: '',
+      masthead: { name: '', tagline: '', edition: '', date: '', logo: null, show: true },
       meta: {
         title: 'Meu Livro', subtitle: '', author: 'Nome do Autor', publisher: '', city: '',
         year: String(new Date().getFullYear()), edition: '1ª edição', isbn: '',
         dedication: 'Para quem sempre acreditou nesta história.', epigraph: '', epigraphAuthor: '',
         language: 'pt-BR', description: ''
       },
-      front: { halfTitle: false, titlePage: true, copyright: true, dedication: true, epigraph: false, toc: true, tocTitle: 'Sumário' },
+      front: { halfTitle: false, titlePage: true, copyright: true, toc: true, tocTitle: 'Sumário', tocMode: 'auto', tocLevels: 1, tocEntries: [], dedication: false, epigraph: false },
       titlePage: { logo: null, logoWidth: 25, showPublisher: true, showYear: true },
       catalog: emptyCatalog(),
       back: {
@@ -397,13 +440,18 @@
           locked: !!c.locked,
           style: Object.assign({}, c.style || {}),
           separator: c.separator || 'default',
-          openingImage: c.openingImage || null
+          openingImage: c.openingImage || null,
+          kicker: c.kicker || '', lead: c.lead || '', byline: c.byline || '',
+          columns: c.columns || 0, newPage: c.newPage !== false
         }))
       : base.chapters;
     const catalog = Object.assign(emptyCatalog(), p.catalog || {});
     return {
       format: base.format,
       version: 2,
+      kind: ['book', 'magazine', 'newspaper'].includes(p.kind) ? p.kind : 'book',
+      genre: p.genre || '',
+      masthead: Object.assign({}, base.masthead, p.masthead || {}),
       meta: Object.assign({}, base.meta, p.meta || {}),
       front: Object.assign({}, base.front, p.front || {}),
       titlePage: Object.assign({}, base.titlePage, p.titlePage || {}),
@@ -440,6 +488,6 @@
     PAGE_FORMATS, FORMAT_GROUPS, DEFAULT_FORMAT_ID, BUNDLED_FONTS, SYSTEM_FONTS,
     STYLE_DEFS, DEFAULT_STYLES, DEFAULT_SETTINGS, GENRE_PRESETS,
     uid, newProject, normalizeProject, mergeSettings, applyGenrePreset, emptyCatalog,
-    toUnit, fromUnit, MM
+    toUnit, fromUnit, MM, KDP, autoBleed
   };
 });

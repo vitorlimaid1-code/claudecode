@@ -277,6 +277,13 @@ button.on { background: var(--accent-soft); border-color: #e2c3b2; }
 .cover-banner.info { background: #eef3fb; border: 1px solid #c9d8f0; }
 .cover-banner.ok { background: #eef7ef; border: 1px solid #c4e2c8; }
 .cover-banner.warn { background: #fdf4e0; border: 1px solid #ecd6a8; }
+.cover-total { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin-bottom: 6px; }
+.cover-total > div { display: flex; flex-direction: column; }
+.cover-total > div:first-child { grid-column: 1 / -1; }
+.cover-total > div:first-child strong { font-size: 20px; color: var(--accent, #7a3b1d); }
+.cover-stage { display: flex; flex-direction: column; overflow: auto; }
+.proof-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 10px; background: #fdf4e0; border: 1px solid #ecd6a8; border-radius: 6px; margin-bottom: 8px; }
+.proof-img { width: 100%; height: auto; min-height: 0; max-width: 100%; max-height: calc(100vh - 220px); object-fit: contain; align-self: center; box-shadow: 0 2px 10px rgba(0,0,0,.25); background: #fff; }
 
 /* ---------- biblioteca (gaveta) ---------- */
 .drawer { position: fixed; top: 50px; left: 250px; bottom: 0; width: 360px; background: var(--panel); border-right: 1px solid var(--line); box-shadow: 6px 0 24px rgba(0,0,0,.12); z-index: 20; display: none; flex-direction: column; padding: 10px 12px; overflow-y: auto; }

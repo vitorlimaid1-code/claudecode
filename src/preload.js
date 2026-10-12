@@ -44,6 +44,12 @@ contextBridge.exposeInMainWorld('api', {
   buildBook: project => inv('book:build', project),
   inspect: (project, opts) => inv('export:inspect', project, opts || {}),
   exportRun: req => inv('export:run', req),
+  coverAnalyze: s => inv('cover:analyze', s),
+  coverProof: (cover, assets) => inv('cover:proof', cover, assets),
+  catalogFixedGet: () => inv('catalog:fixedGet'),
+  catalogFixedSet: d => inv('catalog:fixedSet', d),
+  catalogTemplatesGet: () => inv('catalog:templatesGet'),
+  catalogTemplatesSet: d => inv('catalog:templatesSet', d),
 
   showItem: p => inv('shell:showItem', p),
   openPath: p => inv('shell:openPath', p),

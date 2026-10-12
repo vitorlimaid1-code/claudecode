@@ -1,5 +1,10 @@
 // Monta o HTML e o CSS paginável (Paged.js) a partir de um projeto de livro.
-const { normalizeProject, BUNDLED_FONTS } = require('./shared/defaults');
+const { normalizeProject, BUNDLED_FONTS, autoBleed } = require('./shared/defaults');
+
+function effectiveBleed(s) {
+  if (s.bleedAuto) return autoBleed(s);
+  return Math.max(Number(s.bleedTop) || 0, Number(s.bleedBottom) || 0, Number(s.bleedOuter) || 0, Number(s.bleed) || 0);
+}
 
 let hyphenatePt = null;
 function getHyphenator() {
@@ -184,7 +189,7 @@ function figureHtml(attrs, inner, ctx) {
   const frame = `<div class="fig-frame" style="aspect-ratio: ${A.toFixed(5)}; opacity: ${opacity};${wrap === 'behind' ? ' position:absolute; left:0; right:0; top:0; z-index:-1;' : ''}">${imgHtml}</div>`;
   const printW = colW * width / 100;
   ctx.figures.push({ asset: id, widthMM: printW });
-  return `<figure class="fig fig-${wrap}" data-asset="${esc(id)}" data-print-width="${printW.toFixed(2)}" data-px-width="${Math.round(iw * cw)}" style="${figStyle.join('; ')}">${frame}${caption && wrap !== 'behind' ? `<figcaption>${caption}</figcaption>` : ''}</figure>`;
+  return `<figure class="fig fig-${wrap}${align === 'full' ? ' fig-full' : ''}" data-asset="${esc(id)}" data-print-width="${printW.toFixed(2)}" data-px-width="${Math.round(iw * cw)}" style="${figStyle.join('; ')}">${frame}${caption && wrap !== 'behind' ? `<figcaption>${caption}</figcaption>` : ''}</figure>`;
 }
 
 function fullBleedHtml(assetId, fit, ctx, extraClass) {
@@ -292,11 +297,55 @@ function catalogHtml(project, ctx) {
 }
 
 // ---------------------------------------------------------------- HTML
+// Dá um id estável a cada título T1/T2/T3 do capítulo (para sumário e links)
+function anchorHeadings(html, chapterId, collect) {
+  let k = 0;
+  return String(html || '').replace(/<(h[234])\b([^>]*)>([\s\S]*?)<\/\1>/gi, (m, tag, attrs, inner) => {
+    k += 1;
+    const level = Number(tag[1]); // h2 (T1) = nível 2, h3 (T2) = nível 3, h4 = nível 4
+    const existing = /\sid="([^"]+)"/.exec(attrs);
+    const id = existing ? existing[1] : `${chapterId}-s${k}`;
+    if (collect) collect.push({ id, level, title: inner.replace(/<span class="footnote">[\s\S]*?<\/span>/g, '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(), index: k });
+    return existing ? m : `<${tag} id="${id}"${attrs}>${inner}</${tag}>`;
+  });
+}
+
+function tocHtml(project, items) {
+  const { front } = project;
+  let entries;
+  if (front.tocMode === 'manual' && Array.isArray(front.tocEntries) && front.tocEntries.length) {
+    entries = front.tocEntries.filter(e => e && e.title).map(e => ({ id: e.target || '', label: e.label || '', title: e.title, level: Number(e.level) || 1 }));
+  } else {
+    const max = Math.max(1, Math.min(3, Number(front.tocLevels) || 1));
+    entries = items.filter(e => e.level <= max);
+  }
+  if (!entries.length) return '';
+  const li = entries.map(c => {
+    const inner = `${c.label ? `<span class="toc-label">${esc(c.label)}</span>` : ''}<span class="toc-title">${esc(c.title)}</span><span class="toc-dots"></span><span class="toc-page"></span>`;
+    return `<li class="toc-l${c.level}">${c.id ? `<a href="#${esc(c.id)}">${inner}</a>` : `<a>${inner}</a>`}</li>`;
+  }).join('');
+  return `<section class="front toc" id="sumario"><h2 class="toc-heading">${esc(front.tocTitle || 'Sumário')}</h2><ul class="toc-list">${li}</ul></section>`;
+}
+
+function mastheadHtml(project, ctx) {
+  const m = project.masthead || {};
+  if (!m.show || !(m.name || '').trim()) return '';
+  const logo = m.logo && ctx.assets[m.logo];
+  return `<header class="masthead">
+    ${logo ? `<img class="mh-logo" src="${logo.dataUrl}">` : ''}
+    <div class="mh-name">${esc(m.name)}</div>
+    ${m.tagline ? `<div class="mh-tagline">${esc(m.tagline)}</div>` : ''}
+    <div class="mh-line"><span>${esc(m.edition || '')}</span><span>${esc(m.date || '')}</span></div>
+  </header>`;
+}
+
 function buildHtml(project, ctx) {
   const { meta, front, chapters, settings, back, titlePage } = project;
+  const periodical = project.kind === 'magazine' || project.kind === 'newspaper';
   const parts = [];
   const tocItems = [];
 
+  // Ordem padrão: página de rosto > ficha catalográfica > sumário > (dedicatória/epígrafe) > capítulos > páginas extras
   if (front.halfTitle) parts.push(`<section class="front half-title"><div class="ht-title">${esc(meta.title)}</div></section>`);
   if (front.titlePage) {
     const logo = titlePage.logo && ctx.assets[titlePage.logo];
@@ -312,46 +361,53 @@ function buildHtml(project, ctx) {
     </section>`);
   }
   if (front.copyright) parts.push(catalogHtml(project, ctx));
+  const tocIndex = parts.length;
   if (front.dedication && meta.dedication && meta.dedication.trim()) {
     parts.push(`<section class="front dedication"><div class="ded-text">${multiline(meta.dedication)}</div></section>`);
   }
   if (front.epigraph && meta.epigraph && meta.epigraph.trim()) {
     parts.push(`<section class="front epigraph"><div class="epi-text">${multiline(meta.epigraph)}</div>${meta.epigraphAuthor ? `<div class="epi-author">${esc(meta.epigraphAuthor)}</div>` : ''}</section>`);
   }
-  const tocIndex = parts.length;
+  if (periodical) parts.push(mastheadHtml(project, ctx));
 
   let n = 0;
   const hyph = settings.hyphenate ? getHyphenator() : null;
   chapters.forEach((c, i) => {
     let label = '';
     if (c.numbered) { n += 1; label = chapterLabel(settings, n); }
-    tocItems.push({ id: c.id, label, title: c.title });
+    tocItems.push({ id: c.id, label, title: c.title, level: 1 });
     const hasOpening = !!(c.openingImage && c.openingImage.asset && ctx.assets[c.openingImage.asset]);
     if (hasOpening) parts.push(fullBleedHtml(c.openingImage.asset, c.openingImage.fit, ctx, settings.chapterStartRight ? 'before-chapter' : ''));
-    let body = processBody(c.html, ctx);
+    const heads = [];
+    let body = processBody(anchorHeadings(c.html, c.id, heads), ctx);
+    heads.forEach(h => tocItems.push({ id: h.id, label: '', title: h.title, level: h.level }));
     if (hyph) { try { body = hyph(body); } catch (e) { /* sem hifenização */ } }
     const segments = splitFullBleed(body);
-    const pageName = `ch${i}`;
     segments.forEach((seg, k) => {
       if (seg.type === 'image') { parts.push(fullBleedHtml(seg.asset, seg.fit, ctx)); return; }
+      const cols = periodical ? (Number(c.columns) || Number(settings.columns) || 1) : (Number(c.columns) || 1);
       if (k === 0) {
-        parts.push(`<section class="chapter${i === 0 ? ' first-chapter' : ''}${hasOpening ? ' after-opening' : ''}" id="${esc(c.id)}" data-chapter="${i}">
+        const cls = `chapter${i === 0 ? ' first-chapter' : ''}${hasOpening ? ' after-opening' : ''}${periodical ? ' article' + (c.newPage === false ? ' flow' : '') : ''}`;
+        parts.push(`<section class="${cls}" id="${esc(c.id)}" data-chapter="${i}" data-cols="${cols}">
           <header class="chapter-head">
+            ${c.kicker ? `<div class="kicker">${esc(c.kicker)}</div>` : ''}
             ${label ? `<div class="chapter-label">${esc(label)}</div>` : ''}
             <h1 class="chapter-title">${esc(c.title)}</h1>
-            ${separatorHtml(c, settings, ctx)}
+            ${c.lead ? `<div class="lead">${esc(c.lead)}</div>` : ''}
+            ${c.byline ? `<div class="byline">${esc(c.byline)}</div>` : ''}
+            ${periodical ? '' : separatorHtml(c, settings, ctx)}
           </header>
           <div class="chapter-body">${seg.html}</div>
         </section>`);
       } else if (seg.html.replace(/<[^>]+>/g, '').trim() || /<img|<figure|<table/.test(seg.html)) {
-        parts.push(`<section class="chapter chapter-cont" data-chapter="${i}"><div class="chapter-body">${seg.html}</div></section>`);
+        parts.push(`<section class="chapter chapter-cont" data-chapter="${i}" data-cols="${cols}"><div class="chapter-body">${seg.html}</div></section>`);
       }
     });
   });
 
   if (back.bio && back.bio.enabled) {
     const photo = back.bio.photo && ctx.assets[back.bio.photo];
-    tocItems.push({ id: 'sobre-autor', label: '', title: back.bio.title });
+    tocItems.push({ id: 'sobre-autor', label: '', title: back.bio.title, level: 1 });
     parts.push(`<section class="back-matter bio" id="sobre-autor">
       <h1 class="back-title">${esc(back.bio.title || 'Sobre o autor')}</h1>
       ${photo ? `<img class="bio-photo" src="${photo.dataUrl}" style="width:${num(back.bio.photoWidth, 35)}mm">` : ''}
@@ -359,20 +415,20 @@ function buildHtml(project, ctx) {
     </section>`);
   }
   if (back.extra && back.extra.enabled) {
-    tocItems.push({ id: 'conteudo-extra', label: '', title: back.extra.title });
+    tocItems.push({ id: 'conteudo-extra', label: '', title: back.extra.title, level: 1 });
     parts.push(`<section class="back-matter extra" id="conteudo-extra">
       <h1 class="back-title">${esc(back.extra.title || '')}</h1>
       <div class="chapter-body">${processBody(back.extra.html, ctx)}</div>
     </section>`);
   }
 
-  if (front.toc && tocItems.length) {
-    const items = tocItems.map(c => `
-      <li><a href="#${esc(c.id)}">${c.label ? `<span class="toc-label">${esc(c.label)}</span>` : ''}<span class="toc-title">${esc(c.title)}</span><span class="toc-dots"></span><span class="toc-page"></span></a></li>`).join('');
-    parts.splice(tocIndex, 0, `<section class="front toc"><h2 class="toc-heading">${esc(front.tocTitle || 'Sumário')}</h2><ul class="toc-list">${items}</ul></section>`);
+  ctx.tocItems = tocItems;
+  if (front.toc) {
+    const toc = tocHtml(project, tocItems);
+    if (toc) parts.splice(tocIndex, 0, toc);
   }
 
-  return `<div class="book" lang="${esc(project.meta.language || 'pt-BR')}" data-number-from-first="${settings.numberFromFirstChapter ? 1 : 0}">${parts.join('\n')}</div>`;
+  return `<div class="book kind-${esc(project.kind || 'book')}" lang="${esc(project.meta.language || 'pt-BR')}" data-number-from-first="${settings.numberFromFirstChapter ? 1 : 0}">${parts.join('\n')}</div>`;
 }
 
 // ---------------------------------------------------------------- CSS
@@ -386,9 +442,12 @@ function buildCss(project, ctx) {
 
   let leftHeader = 'none';
   let rightHeader = 'none';
-  if (s.header === 'title-chapter') { leftHeader = cssString(meta.title); rightHeader = 'string(chaptitle)'; }
-  else if (s.header === 'author-title') { leftHeader = cssString(meta.author); rightHeader = cssString(meta.title); }
-  else if (s.header === 'chapter-chapter') { leftHeader = 'string(chaptitle)'; rightHeader = 'string(chaptitle)'; }
+  const periodical = project.kind === 'magazine' || project.kind === 'newspaper';
+  const mh = project.masthead || {};
+  if (periodical && s.header !== 'none') { leftHeader = cssString([mh.name || meta.title, mh.edition, mh.date].filter(Boolean).join('  ·  ')); rightHeader = 'string(chaptitle)'; }
+  else if (s.header === 'title-chapter') { leftHeader = cssString(meta.title); rightHeader = 'string(chaptitle)'; }
+  else if (!periodical && s.header === 'author-title') { leftHeader = cssString(meta.author); rightHeader = cssString(meta.title); }
+  else if (!periodical && s.header === 'chapter-chapter') { leftHeader = 'string(chaptitle)'; rightHeader = 'string(chaptitle)'; }
 
   const pn = s.pageNumbers;
   const H = S.header;
@@ -591,7 +650,6 @@ ${s.keepHeadingsWithNext ? '.chapter-body h2, .chapter-body h3, .chapter-body h4
   float: footnote;
   ${styleDecl(S.footnote, body, { noSpace: true })}
   text-indent: 0;
-  text-align: left;
   font-style: normal;
   font-weight: 400;
   text-transform: none;
@@ -599,6 +657,38 @@ ${s.keepHeadingsWithNext ? '.chapter-body h2, .chapter-body h3, .chapter-body h4
 .footnote::footnote-call { vertical-align: super; font-size: 0.65em; line-height: 0; }
 @page { @footnote { border-top: 0.5pt solid currentColor; margin-top: 3mm; padding-top: 1.5mm; } }
 ${s.footnoteNumbering === 'chapter' ? '.chapter:not(.chapter-cont) { counter-reset: footnote; }' : ''}
+
+/* ---------- sumário em níveis e links ---------- */
+.toc-list li.toc-l2 { padding-left: 1.4em; font-size: 0.95em; }
+.toc-list li.toc-l3 { padding-left: 2.8em; font-size: 0.9em; }
+.toc-list li.toc-l1 + li.toc-l2 { margin-top: 0.1em; }
+.chapter-body a, .back-matter a { color: inherit; text-decoration: none; }
+.chapter-body a[href^="http"] { text-decoration: underline; text-decoration-thickness: 0.4pt; }
+
+/* ---------- revista e jornal: colunas fixas ---------- */
+.chapter[data-cols="2"] .chapter-body, .chapter[data-cols="3"] .chapter-body, .chapter[data-cols="4"] .chapter-body {
+  column-gap: ${mm(s.columnGap || 5)};
+  ${s.columnRule ? `column-rule: 0.4pt solid ${color(S.table.borderColor, '#888')};` : ''}
+  column-fill: balance;
+}
+.chapter[data-cols="2"] .chapter-body { column-count: 2; }
+.chapter[data-cols="3"] .chapter-body { column-count: 3; }
+.chapter[data-cols="4"] .chapter-body { column-count: 4; }
+.chapter[data-cols] .fig-full, .chapter[data-cols] .chapter-body > h2, .chapter[data-cols] .chapter-body > table { column-span: all; }
+.chapter[data-cols] .fig-full { margin-left: 0; margin-right: 0; }
+.kind-magazine .chapter, .kind-newspaper .chapter { break-before: page; }
+.kind-magazine .article.flow, .kind-newspaper .article.flow { break-before: auto; margin-top: 7mm; padding-top: 4mm; border-top: 1.2pt solid currentColor; }
+.kind-magazine .chapter-head, .kind-newspaper .chapter-head { margin: 0 0 5mm; text-align: left; }
+.kind-newspaper .chapter-title { font-weight: 700; }
+.kicker { font-family: ${fontStack(S.chapterLabel.font || body.font)}; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.12em; color: ${color(S.chapterLabel.color, '#7a1f1f')}; margin-bottom: 2mm; }
+.lead { font-family: ${fontStack(S.chapterTitle.font || body.font)}; font-size: 1.2em; font-style: italic; line-height: 1.3; margin-top: 3mm; }
+.byline { font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 3mm; }
+.masthead { text-align: center; margin: 0 0 7mm; border-bottom: 2.2pt solid currentColor; padding-bottom: 2mm; break-after: avoid; }
+.masthead .mh-logo { max-height: 22mm; display: block; margin: 0 auto 2mm; }
+.masthead .mh-name { font-family: ${fontStack(S.chapterTitle.font || body.font)}; font-size: ${project.kind === 'newspaper' ? 54 : 40}pt; line-height: 1; font-weight: 700; letter-spacing: 0.02em; }
+.masthead .mh-tagline { font-style: italic; font-size: 10pt; margin-top: 1.5mm; }
+.masthead .mh-line { display: flex; justify-content: space-between; border-top: 0.6pt solid currentColor; margin-top: 2mm; padding-top: 1mm; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.08em; }
+.masthead + .chapter { break-before: avoid; }
 
 ${chapterOverrides}
 `;
@@ -610,7 +700,7 @@ async function buildBook(rawProject) {
   const s = project.settings;
   const contentH = num(s.pageHeight, 210) - num(s.marginTop, 20) - num(s.marginBottom, 22);
   const colW = num(s.pageWidth, 140) - num(s.marginInner, 22) - num(s.marginOuter, 16);
-  const bleed = Math.max(num(s.bleedTop, 0), num(s.bleedBottom, 0), num(s.bleedOuter, 0), num(s.bleed, 0));
+  const bleed = effectiveBleed(s);
   const ctx = { assets: project.assets || {}, settings: s, contentH, colW, bleed, missing: [], figures: [], qrImages: [] };
 
   // QR codes da ficha catalográfica (gerados localmente)
@@ -640,6 +730,7 @@ async function buildBook(rawProject) {
     bundledFonts: [...fams].filter(f => BUNDLED_FONTS.includes(f)),
     overlays,
     missingAssets: [...new Set(ctx.missing)],
+    tocItems: ctx.tocItems || [],
     figures: ctx.figures,
     page: {
       width: num(s.pageWidth, 140), height: num(s.pageHeight, 210),
@@ -650,4 +741,4 @@ async function buildBook(rawProject) {
   };
 }
 
-module.exports = { buildBook, chapterLabel, roman, words, stripFootnotes, esc };
+module.exports = { buildBook, chapterLabel, roman, words, stripFootnotes, esc, effectiveBleed, anchorHeadings };
