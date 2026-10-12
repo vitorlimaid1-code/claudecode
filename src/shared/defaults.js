@@ -199,6 +199,7 @@
     separatorColor: '#000000',
 
     footnotesVisible: true,
+    footnoteNumbering: 'book',
 
     header: 'title-chapter',
     pageNumbers: 'outer',
@@ -415,6 +416,8 @@
       assets: Object.assign({}, p.assets || {}),
       overlays: Array.isArray(p.overlays) ? p.overlays : [],
       cover: p.cover || null,
+      fontSubstitutions: Array.isArray(p.fontSubstitutions) ? p.fontSubstitutions : [],
+      exportLog: Array.isArray(p.exportLog) ? p.exportLog : [],
       settings
     };
   }

@@ -167,7 +167,7 @@ async function importPdf(filePath) {
       if (!cur || Math.abs(cur.y - y) > Math.max(2, size * 0.45)) {
         // possível sobrescrito: mesmo trecho de linha, ligeiramente acima e menor
         if (cur && it.str.trim() && size < cur.size * 0.8 && y > cur.y && y - cur.y < cur.size * 0.8) {
-          cur.parts.push({ text: it.str, sup: true });
+          cur.parts.push({ text: it.str, sup: true, size });
           continue;
         }
         cur = { y, x, size, parts: [], maxX: x + it.width };
@@ -175,7 +175,7 @@ async function importPdf(filePath) {
       }
       if (it.str) {
         const sup = size < cur.size * 0.8 && y > cur.y + 1;
-        cur.parts.push({ text: it.str, sup });
+        cur.parts.push({ text: it.str, sup, size });
         cur.size = Math.max(cur.size, sup ? 0 : size);
         cur.maxX = Math.max(cur.maxX, x + it.width);
       }

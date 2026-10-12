@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { buildBook } = require('./book');
-const { normalizeProject, newProject } = require('./shared/defaults');
+const { normalizeProject, newProject, BUNDLED_FONTS } = require('./shared/defaults');
 const { importAny } = require('./main/importers');
 const { FontManager } = require('./main/fonts');
 const { ImageLibrary, analyzeImage, hashBuffer } = require('./main/library');
@@ -116,11 +116,14 @@ function setupScreenshot() {
     if (e.level === 'error' || e.level === 'warning') console.log('CONSOLE ' + e.level + ': ' + e.message);
   });
   mainWindow.webContents.once('did-finish-load', () => setTimeout(async () => {
-    const r = await mainWindow.webContents.executeJavaScript(process.env.SCREENSHOT_JS || 'void 0', true).catch(e => 'ERR ' + e.message);
-    if (r !== undefined) console.log('JS_RESULT ' + JSON.stringify(r));
-    await new Promise(res => setTimeout(res, Number(process.env.SCREENSHOT_WAIT || 2500)));
-    const img = await mainWindow.webContents.capturePage();
-    fs.writeFileSync(process.env.SCREENSHOT_OUT, img.toPNG());
+    const steps = process.env.SCREENSHOT_STEPS ? JSON.parse(fs.readFileSync(process.env.SCREENSHOT_STEPS, 'utf8')) : [process.env.SCREENSHOT_JS || 'void 0'];
+    for (let i = 0; i < steps.length; i++) {
+      const r = await mainWindow.webContents.executeJavaScript(steps[i], true).catch(e => 'ERR ' + e.message);
+      if (r !== undefined) console.log('JS_RESULT ' + i + ' ' + JSON.stringify(r));
+      await new Promise(res => setTimeout(res, Number(process.env.SCREENSHOT_WAIT || 2500)));
+      const img = await mainWindow.webContents.capturePage();
+      fs.writeFileSync(steps.length > 1 ? process.env.SCREENSHOT_OUT.replace(/\.png$/, `-${i}.png`) : process.env.SCREENSHOT_OUT, img.toPNG());
+    }
     allowClose = true;
     app.quit();
   }, 4000));
@@ -531,10 +534,13 @@ async function renderCover(project, opts) {
 
 async function renderCoverPdf(project, opts) {
   return withRenderWindow(async win => {
-    const dims = await win.webContents.executeJavaScript(`window.renderCover(${JSON.stringify({ cover: project.cover, assets: project.assets, meta: project.meta })}, ${JSON.stringify({ bleed: opts.bleed !== false, guides: false, part: opts.part || 'all', print: true })})`, true);
-    void dims;
+    const c = project.cover || {};
+    const t = c.texts || {};
+    if (!fonts.system) fonts.scanSystem();
+    const fontFaceCss = fonts.fontFaceCss([t.titleFont, t.authorFont, t.spineFont, t.backFont].filter(f => f && !BUNDLED_FONTS.includes(f))).css;
+    await win.webContents.executeJavaScript(`window.renderCover(${JSON.stringify({ cover: c, assets: project.assets, meta: project.meta, fontFaceCss })}, ${JSON.stringify({ bleed: opts.bleed !== false, guides: false, part: opts.part || 'all', print: true })})`, true);
     return win.webContents.printToPDF({ printBackground: true, preferCSSPageSize: true, margins: { marginType: 'none' } });
-  }, { page: 'src/renderer/cover.html', width: 1600, height: 1200 });
+  }, { page: 'src/renderer/cover.html?print', width: 1600, height: 1200 });
 }
 
 // ---------------------------------------------------------------- utilidades de interface

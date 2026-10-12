@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; img-src 'self' app: data: blob:; font-src 'self' app: data:; style-src 'self' app: 'unsafe-inline'; script-src 'self' app:; frame-src 'self' app:">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; img-src 'self' app: data: blob:; font-src 'self' app: data:; style-src 'self' app: 'unsafe-inline'; script-src 'self' app:; frame-src 'self' app:; connect-src 'self' app: data: blob:">
 <title>Diagramador de Livros</title>
 <link rel="stylesheet" href="vendor/fonts.css">
 <link rel="stylesheet" href="styles.css">
@@ -17,22 +17,44 @@
     <button data-cmd="new" title="Novo livro (Ctrl+N)">Novo</button>
     <button data-cmd="open" title="Abrir (Ctrl+O)">Abrir</button>
     <button data-cmd="save" title="Salvar (Ctrl+S)">Salvar</button>
-    <button data-cmd="import" title="Importar Word, TXT ou Markdown (Ctrl+I)">Importar texto</button>
+    <button data-cmd="import" title="Importar DOCX, DOC, EPUB, PDF, ODT, TXT, MD (Ctrl+I)">Importar</button>
     <span class="sep"></span>
-    <button data-cmd="exportPdf" class="primary" title="Exportar PDF (Ctrl+E)">Exportar PDF</button>
+    <button data-cmd="projectUndo" id="btnUndo" title="Desfazer ação do projeto (Ctrl+Alt+Z)">↶ Desfazer</button>
+    <button data-cmd="projectRedo" id="btnRedo" title="Refazer ação do projeto (Ctrl+Alt+Y)">↷</button>
+    <button data-cmd="history" title="Histórico de alterações">Histórico</button>
+    <span class="sep"></span>
+    <button data-cmd="library" id="btnLibrary" title="Biblioteca de imagens (arraste para o texto ou para a página)">Biblioteca</button>
+    <button data-cmd="export" class="primary" title="Exportar (Ctrl+E)">Exportar</button>
   </div>
 </header>
 
 <div class="layout">
   <aside class="sidebar">
     <nav class="nav">
-      <button class="nav-item" data-view="book"><span class="ic">ℹ</span>Dados do livro</button>
-      <button class="nav-item" data-view="layout"><span class="ic">▤</span>Diagramação</button>
+      <div class="nav-group">Livro</div>
+      <button class="nav-item" data-view="book"><span class="ic">ℹ</span>Dados e páginas iniciais</button>
+      <button class="nav-item" data-view="catalog"><span class="ic">▦</span>Créditos e ficha</button>
+      <button class="nav-item" data-view="back"><span class="ic">✎</span>Páginas finais</button>
+      <div class="nav-group">Design</div>
+      <button class="nav-item" data-view="layout"><span class="ic">▤</span>Formato e diagramação</button>
+      <button class="nav-item" data-view="styles"><span class="ic">¶</span>Estilos de texto</button>
+      <button class="nav-item" data-view="fonts"><span class="ic">A</span>Fontes</button>
+      <button class="nav-item" data-view="assets"><span class="ic">▣</span>Imagens do projeto</button>
+      <button class="nav-item" data-view="layers"><span class="ic">◧</span>Camadas da página</button>
+      <div class="nav-group">Produção</div>
+      <button class="nav-item" data-view="notes"><span class="ic">¹</span>Notas de rodapé</button>
+      <button class="nav-item" data-view="tools"><span class="ic">✓</span>Revisão do texto</button>
+      <button class="nav-item" data-view="cover"><span class="ic">▭</span>Capa e lombada</button>
+      <button class="nav-item" data-view="export"><span class="ic">⇩</span>Exportar</button>
     </nav>
     <div class="chapters-head">
       <span>Capítulos</span>
-      <button id="addChapter" class="icon-btn" title="Adicionar capítulo">＋</button>
+      <span class="ch-actions">
+        <button id="selectMode" class="icon-btn" title="Selecionar vários capítulos para editar em conjunto">☑</button>
+        <button id="addChapter" class="icon-btn" title="Adicionar capítulo">＋</button>
+      </span>
     </div>
+    <div id="bulkBar" class="bulk-bar"></div>
     <ol id="chapterList" class="chapter-list"></ol>
     <div class="sidebar-foot">
       <div id="wordCount">0 palavras</div>
@@ -42,20 +64,40 @@
 
   <main class="workspace">
     <section id="view-book" class="view"></section>
+    <section id="view-catalog" class="view"></section>
+    <section id="view-back" class="view"></section>
     <section id="view-layout" class="view"></section>
+    <section id="view-styles" class="view"></section>
+    <section id="view-fonts" class="view"></section>
+    <section id="view-assets" class="view"></section>
+    <section id="view-layers" class="view"></section>
+    <section id="view-notes" class="view"></section>
+    <section id="view-tools" class="view"></section>
+    <section id="view-cover" class="view"></section>
+    <section id="view-export" class="view"></section>
+    <section id="view-bulk" class="view"></section>
     <section id="view-chapter" class="view chapter-view">
       <div class="chapter-meta">
         <input id="chapterTitle" class="chapter-title-input" placeholder="Título do capítulo">
         <label class="chk"><input type="checkbox" id="chapterNumbered"> Numerado</label>
+        <button id="chapterLock" class="ghost" title="Bloquear contra edição e exclusão acidental">🔓 Bloquear</button>
+        <button id="chapterLook" class="ghost" title="Cor da página, fontes, cores, separador e imagem de abertura deste capítulo">🎨 Aparência</button>
         <button id="chapterDelete" class="ghost danger" title="Excluir capítulo">Excluir</button>
       </div>
+      <div id="chapterLookPanel" class="look-panel"></div>
+      <div id="lockBanner" class="lock-banner">🔒 Capítulo bloqueado — desbloqueie para editar, mover ou excluir.</div>
       <div class="toolbar" id="editorToolbar">
         <select id="blockFormat" title="Estilo do parágrafo">
-          <option value="p">Parágrafo</option>
-          <option value="h2">Subtítulo</option>
-          <option value="h3">Seção</option>
-          <option value="h4">Tópico</option>
-          <option value="blockquote">Citação</option>
+          <option value="p">Texto principal</option>
+          <option value="h2">T1 — Título de seção</option>
+          <option value="h3">T2 — Subtítulo</option>
+          <option value="h4">T3 — Intertítulo</option>
+          <option value="blockquote">Citação longa</option>
+          <option value="phrase">Frase em destaque</option>
+          <option value="poem">Poesia</option>
+          <option value="epigraph-inline">Epígrafe</option>
+          <option value="reference">Referência</option>
+          <option value="box">Caixa de destaque</option>
         </select>
         <span class="tsep"></span>
         <button data-exec="bold" title="Negrito (Ctrl+B)"><b>N</b></button>
@@ -73,16 +115,25 @@
         <button data-exec="insertUnorderedList" title="Lista">•</button>
         <button data-exec="insertOrderedList" title="Lista numerada">1.</button>
         <span class="tsep"></span>
-        <button data-action="scene" title="Quebra de cena">✱✱</button>
-        <button data-action="pagebreak" title="Quebra de página">⤓ Pág.</button>
-        <button data-action="image" title="Inserir imagem">🖼 Imagem</button>
+        <button data-action="footnote" title="Inserir nota de rodapé">¹ Nota</button>
+        <button data-action="scene" title="Quebra de cena">✱</button>
+        <button data-action="pagebreak" title="Quebra de página (Ctrl+Enter)">⤓ Pág.</button>
+        <button data-action="image" title="Inserir imagem do computador">🖼 Imagem</button>
+        <button data-action="fullbleed" title="Inserir imagem de página inteira (sangrada)">▣ Pág. inteira</button>
+        <button data-action="table" title="Inserir tabela">▦ Tabela</button>
+        <button data-action="chart" title="Inserir gráfico">📊 Gráfico</button>
         <span class="tsep"></span>
-        <button data-exec="removeFormat" title="Limpar formatação">⌫ Formatação</button>
-        <button data-exec="undo" title="Desfazer (Ctrl+Z)">↶</button>
+        <button data-exec="removeFormat" title="Limpar formatação">⌫</button>
+        <button data-action="invisibles" title="Mostrar caracteres invisíveis">¶</button>
+        <button data-exec="undo" title="Desfazer digitação (Ctrl+Z)">↶</button>
         <button data-exec="redo" title="Refazer (Ctrl+Y)">↷</button>
       </div>
-      <div class="editor-scroll">
-        <article id="editor" class="editor" contenteditable="true" spellcheck="true" lang="pt-BR"></article>
+      <div class="editor-wrap">
+        <div class="editor-scroll" id="editorScroll">
+          <article id="editor" class="editor" contenteditable="true" spellcheck="true" lang="pt-BR"></article>
+          <div id="dropIndicator" class="drop-indicator"></div>
+        </div>
+        <aside id="figPanel" class="fig-panel"></aside>
       </div>
     </section>
   </main>
@@ -95,10 +146,15 @@
       <span id="pageInfo" class="muted">—</span>
       <span class="grow"></span>
       <button id="zoomOut" class="icon-btn" title="Diminuir zoom">−</button>
-      <span id="zoomLabel" class="zoom-label">60%</span>
+      <span id="zoomLabel" class="zoom-label">50%</span>
       <button id="zoomIn" class="icon-btn" title="Aumentar zoom">＋</button>
-      <label class="chk small" title="Mostrar páginas lado a lado como no livro aberto"><input type="checkbox" id="spread" checked> Dupla</label>
-      <label class="chk small" title="Mostrar a área da mancha gráfica"><input type="checkbox" id="guides"> Guias</label>
+      <select id="previewMode" title="Modo de visualização">
+        <option value="spread">Páginas duplas</option>
+        <option value="single">Página individual</option>
+        <option value="overview">Visão geral</option>
+      </select>
+      <label class="chk small" title="Corte (vermelho), sangria, área segura (verde), margens (azul)"><input type="checkbox" id="guides"> Guias</label>
+      <label class="chk small" title="Pré-visualizar em tons de cinza"><input type="checkbox" id="gray"> Cinza</label>
       <label class="chk small" title="Atualizar a prévia automaticamente"><input type="checkbox" id="autoRefresh" checked> Auto</label>
       <button id="refresh" title="Atualizar prévia (F5)">Atualizar</button>
     </div>
@@ -108,23 +164,25 @@
   </section>
 </div>
 
+<aside id="libraryDrawer" class="drawer"></aside>
 <div id="toast" class="toast" role="status"></div>
-
-<dialog id="helpDialog" class="help">
-  <h2>Como usar</h2>
-  <ol>
-    <li><b>Dados do livro:</b> preencha título, autor, ficha/créditos e escolha quais páginas iniciais incluir (folha de rosto, dedicatória, sumário…).</li>
-    <li><b>Capítulos:</b> clique em ＋ para criar, arraste para reordenar e clique para editar. Desmarque “Numerado” para seções como Prefácio ou Agradecimentos.</li>
-    <li><b>Texto:</b> escreva, cole ou use <i>Importar texto</i> (Word .docx, .txt ou .md). Títulos do Word (Título 1) viram capítulos automaticamente.</li>
-    <li><b>Diagramação:</b> formato da página, margens, fontes, entrelinha, cabeçalhos e numeração. Experimente os estilos prontos.</li>
-    <li><b>Exportar PDF:</b> gera o miolo pronto para gráfica ou impressão sob demanda (KDP, Clube de Autores, UICLAP…).</li>
-  </ol>
-  <p class="muted">Tudo é processado e salvo no seu computador. Os projetos são arquivos <b>.livro</b>; há também salvamento automático de recuperação.</p>
-  <form method="dialog"><button class="primary">Entendi</button></form>
-</dialog>
+<div id="modalRoot"></div>
 
 <script src="../shared/defaults.js"></script>
 <script src="sanitize.js"></script>
+<script src="core.js"></script>
+<script src="editor.js"></script>
+<script src="panels.js"></script>
+<script src="styles-ui.js"></script>
+<script src="fonts-ui.js"></script>
+<script src="library-ui.js"></script>
+<script src="layers.js"></script>
+<script src="tools.js"></script>
+<script src="cover-render.js"></script>
+<script src="cover-ui.js"></script>
+<script src="exportprep.js"></script>
+<script src="export-ui.js"></script>
+<script src="preview-ui.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

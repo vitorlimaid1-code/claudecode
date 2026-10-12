@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; img-src 'self' app: data: blob:; font-src 'self' app: data:; style-src 'self' app: 'unsafe-inline'; script-src 'self' app:">
+<title>Capa</title>
+<link rel="stylesheet" href="vendor/fonts.css">
+<style>
+  html, body { margin: 0; padding: 0; }
+  @media screen { body { background: #d8d5cf; padding: 18px; } #cover { box-shadow: 0 4px 20px rgba(0,0,0,.25); margin: 0 auto; } body.print { padding: 0; background: none; } body.print #cover { box-shadow: none; margin: 0; } }
+  #cover { position: relative; overflow: hidden; background: #fff; }
+  .cv-stage { position: absolute; }
+  .cv-part, .cv-img, .cv-front-text, .cv-spine-text, .cv-back-text, .cv-barcode, .cv-spine-logo, .g, .g-label { position: absolute; box-sizing: border-box; }
+  .cv-img { background-repeat: no-repeat; }
+  .cv-front-text { display: flex; flex-direction: column; }
+  .cv-title { line-height: 1.1; }
+  .cv-sub { margin-top: 3mm; font-style: italic; line-height: 1.2; }
+  .cv-author { letter-spacing: .06em; }
+  .cv-spine-text { display: flex; align-items: center; justify-content: center; }
+  .cv-spine-text > div { transform: rotate(90deg); white-space: nowrap; letter-spacing: .05em; }
+  .cv-back-text { line-height: 1.45; }
+  .cv-barcode { background: #fff; border: 0.3mm dashed #999; color: #999; font: 7pt sans-serif; display: flex; align-items: center; justify-content: center; text-align: center; padding: 2mm; }
+  .cv-spine-logo { object-fit: contain; }
+  .g { pointer-events: none; }
+  .g-trim { outline: 0.3mm solid rgba(220,40,40,.9); }
+  .g-fold { width: 0; border-left: 0.3mm dashed rgba(40,90,220,.9); }
+  .g-safe { outline: 0.3mm dashed rgba(30,150,80,.85); }
+  .g-label { font: 9px sans-serif; color: #333; text-align: center; }
+</style>
+<script src="cover-render.js"></script>
+</head>
+<body>
+<div id="cover"></div>
+<script src="cover-boot.js"></script>
+</body>
+</html>

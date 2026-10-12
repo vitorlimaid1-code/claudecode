@@ -26,18 +26,34 @@ jobs:
       - name: Teste (gera um PDF de exemplo)
         run: npm test
 
-      - name: Gerar instalador .exe
+      - name: Gerar instalador, versão portátil e ZIP
         run: npm run dist:win
 
-      - name: Publicar instalador como artefato
+      - name: Publicar instalador
         uses: actions/upload-artifact@v4
         with:
           name: Diagramador-de-Livros-Instalador
-          path: dist/*.exe
+          path: dist/Diagramador-de-Livros-Setup-*.exe
+          if-no-files-found: error
+
+      - name: Publicar versão portátil (um único .exe, sem instalação)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Diagramador-de-Livros-Portatil
+          path: dist/Diagramador-de-Livros-Portatil-*.exe
+          if-no-files-found: error
+
+      - name: Publicar versão portátil em pasta (ZIP)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Diagramador-de-Livros-ZIP
+          path: dist/Diagramador-de-Livros-*-x64.zip
           if-no-files-found: error
 
       - name: Criar release (somente em tags v*)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.exe
+          files: |
+            dist/*.exe
+            dist/*.zip
