@@ -57,6 +57,7 @@ Como os executáveis não têm assinatura digital, o Windows SmartScreen pode av
 ### Páginas iniciais e finais
 - Ordem padrão: **página de rosto › ficha catalográfica › sumário › capítulos › páginas finais** (falsa folha de rosto, dedicatória e epígrafe opcionais).
 - **Sumário automático** a partir dos títulos (só capítulos, + T1, + T2) ou **manual**: “Gerar a partir dos títulos” cria uma lista editável (rótulo, título, nível, ordem, destino); os números de página são preenchidos sozinhos.
+- **Ficha pronta colada** (módulo à parte na tela da ficha): o texto colado é reorganizado com a mesma aparência do modelo selecionado (cabeçalho, número de chamada, entrada, recuos, assuntos, CDD e bibliotecário), com opção de manter exatamente como colado.
 - **Créditos e ficha catalográfica (CIP)**: todos os campos (entrada, título, subtítulo, autor, tradução, ilustração, edição, cidade, editora, ano, páginas automáticas, dimensões, série, ISBN, assuntos, CDD, CDU, Cutter, notas, bibliotecário/CRB), créditos de toda a equipe, direitos, contato, **imagens e QR codes** — ou ficha manual.
 - **Galeria de modelos de ficha** (romance, poesia, contos, crônicas, terror, fantasia, infantojuvenil, ficção traduzida, autoajuda, biografia, religioso, acadêmico, compacta…) com aparências diferentes (caixa, sem borda, borda dupla, cantos arredondados, padrão CBL), e os seus próprios modelos.
 - **Ficha fixa**: salve a ficha (créditos, editora, direitos, bibliotecário, logotipo) e todo livro novo já começa com ela preenchida.
@@ -78,6 +79,20 @@ Todo livro novo nasce no padrão do **Manual de Preparação de Arquivos do Cede
 - **Padrão de cada modelo**: CEDET → manual Cedet (5 mm, segurança de 20 mm, marcas 0,25 pt); Amazon KDP → especificação da Amazon (0,125 pol. e margens mínimas pelo número de páginas); demais formatos → padrão do sistema (3 mm; 5 mm em formatos grandes).
 - **Medidas editáveis em qualquer modelo de formato**: altere largura e altura, salve no modelo e volte às medidas originais do sistema com um clique.
 - **Restaurar padrões** (menu Sistema): devolve ao original do sistema o livro aberto (formato, estilos, opções, cores, capa — com desfazer) e as personalizações do sistema (meu padrão, formatos editados, perfis de exportação, ficha fixa, modelos de ficha, conjuntos tipográficos, favoritos, preferências da tela), além de remover imagens e fontes adicionadas, se desejado. Perfis de exportação alterados têm “Restaurar as opções originais do perfil”.
+
+### Elementos: tabelas, planilhas, gráficos e extras
+- **Gaveta Elementos** (botão no topo): tabela, planilha (importar **XLSX, ODS, CSV**), colar planilha do Excel/LibreOffice/Google, gráfico, caixa de destaque, citação, frase, poema, epígrafe, quebras, **QR code** e página de imagem. **Arraste** para o texto do editor ou para uma página da prévia (o elemento entra no fluxo naquele ponto e o texto se reorganiza) ou clique para inserir no cursor.
+- **Tabelas**: grade editável (colar várias células expande a grade), título, fonte (“Fonte: …”), linhas alternadas, números à direita; movem-se no editor pela alça “⠿ mover”.
+- **Gráficos** com várias séries: colunas, colunas empilhadas, barras horizontais, linhas, área, pizza e rosca; tons de cinza com tracejado para P&B (padrão no CEDET); números no padrão brasileiro.
+- **Numeração automática** (Tabela 1, Gráfico 1, Figura 1) e **listas de tabelas, gráficos e figuras** com número de página, logo depois do sumário; a mesma numeração no EPUB.
+
+### Notas de rodapé
+- A nota fica **inteira na página da chamada**: se não couber, o texto desce para a página seguinte (padrão editorial). Só notas maiores que a página inteira continuam na seguinte. A paginação é conferida palavra por palavra (nada some).
+
+### Livro digital (EPUB e MOBI)
+- Ao exportar, o app **pede a imagem da capa** (ou usa a frente do módulo Capa): ela abre o livro em página inteira e é a capa na Amazon, na biblioteca do Kindle e nos aplicativos de leitura.
+- **EPUB 3** validado pelo epubcheck, com todos os metadados (ISBN, título e subtítulo, autor, colaboradores com seus papéis, editora, data, idioma, descrição, assuntos, direitos, série, edição, acessibilidade), sumário, guia e NCX. É o formato que a Amazon KDP recebe.
+- **MOBI** para Kindle gerado pelo próprio app (capa, metadados, sumário com links e imagens).
 
 ### Formato
 - Modelo CEDET por padrão e todos os formatos pedidos: pequenos (miniatura a 13 × 20), médios (13,8 × 21 a 17 × 24), grandes (18 × 24 a A3), quadrados, paisagem, lista do **Amazon KDP**, e qualquer medida personalizada (com decimais e conversão de unidades).
