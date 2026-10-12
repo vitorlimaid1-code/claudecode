@@ -431,18 +431,28 @@ async function renderBookIn(win, project, options) {
   options = options || {};
   const url = win.webContents.getURL();
   const run = o => win.webContents.executeJavaScript(`window.renderBook(${JSON.stringify(book)}, ${JSON.stringify(o)})`, true);
-  let info = await run(options);
-  // Nota de rodapé cortada pelo Paged.js: pagina de novo levando a linha da chamada junto com a nota;
-  // se isso perder conteúdo, volta à primeira paginação e mostra a nota inteira (nada some do livro)
-  if (info.clippedNotes && info.clippedNotes.length) {
+  const dbg = (label, i) => { if (process.env.DEBUG_LAYOUT) console.log('PASS', label, JSON.stringify({ pages: i.pages, complete: i.complete, words: [i.sourceWords, i.pageWords], clipped: i.clippedNotes })); };
+  // Notas de rodapé: a nota fica inteira na página da chamada (o texto desce). O Paged.js às vezes
+  // falha com notas grandes; então tenta regras alternativas e fica com a primeira paginação completa
+  // (todas as palavras visíveis) e sem notas cortadas/divididas — nunca com uma que perca texto.
+  const better = (a, b) => !b || (a.complete && !b.complete) || (a.complete === b.complete && a.clippedNotes.length < b.clippedNotes.length);
+  let info = null, best = null, bestOpts = null, lastOpts = null;
+  const attempts = [{ notePolicy: 'line' }, { notePolicy: 'block' }, { notePolicy: '' }];
+  for (let k = 0; k < attempts.length; k++) {
+    const o = Object.assign({}, options, attempts[k]);
+    if (best && best.clippedNotes.length && attempts[k].notePolicy === '') o.lineNotes = best.clippedNotes;
+    if (k) await win.loadURL(url);
+    info = await run(o);
+    lastOpts = o;
+    dbg(String(k + 1) + (attempts[k].notePolicy || 'auto'), info);
+    if (better(info, best)) { best = info; bestOpts = o; }
+    if (info.complete && !info.clippedNotes.length) break;
+  }
+  if (lastOpts !== bestOpts || best.clippedNotes.length) {
+    // volta à melhor paginação; o que ainda restar fica inteiro e visível (nada do texto some)
     await win.loadURL(url);
-    const second = await run(Object.assign({}, options, { lineNotes: info.clippedNotes }));
-    if ((second.complete || !info.complete) && !second.clippedNotes.length) info = second;
-    else {
-      await win.loadURL(url);
-      info = await run(Object.assign({}, options, { showClippedNotes: true }));
-      info.revealedNotes = info.clippedNotes;
-    }
+    info = await run(Object.assign({}, bestOpts, { showClippedNotes: true }));
+    if (info.clippedNotes.length) info.revealedNotes = info.clippedNotes;
   }
   if (!info.complete) console.error('AVISO: a paginação não chegou ao fim do livro');
   return { book, info };
@@ -617,7 +627,7 @@ ipcMain.handle('export:inspect', async (e, project, opts) => {
     res.missingAssets = book.missingAssets;
     res.chapterPages = info.chapterPages;
     res.issues = res.issues || [];
-    if (info.revealedNotes && info.revealedNotes.length) res.issues.push({ level: 'warn', type: 'notes', msg: `${info.revealedNotes.length} nota(s) de rodapé não couberam na área de notas e foram mantidas inteiras sobre a margem inferior. Confira a página (encurtar a nota ou o parágrafo resolve).` });
+    if (info.revealedNotes && info.revealedNotes.length) res.issues.push({ level: 'warn', type: 'notes', msg: `${info.revealedNotes.length} nota(s) de rodapé são maiores que o espaço da página e continuam na página seguinte (ou ocupam a margem inferior). Confira: encurtar a nota resolve.` });
     if (!info.complete) res.issues.push({ level: 'error', type: 'pages', msg: 'A paginação não chegou ao fim do livro: parte do texto pode estar faltando. Verifique imagens ou tabelas maiores que a página.' });
     return res;
   });

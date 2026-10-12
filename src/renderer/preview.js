@@ -32,15 +32,22 @@
     await Promise.all(Array.from(tpl.content.querySelectorAll('img')).map(img => (img.decode ? img.decode().catch(() => null) : null)));
 
     // notas numeradas (para reconhecer uma nota cortada) e marca do fim do livro (para conferir que nada se perdeu)
-    tpl.content.querySelectorAll('.footnote').forEach((n, i) => { n.dataset.fn = String(i); if ((options.lineNotes || []).includes(i)) n.classList.add('fn-line'); });
+    tpl.content.querySelectorAll('.footnote').forEach((n, i) => {
+      n.dataset.fn = String(i);
+      // padrão editorial: a nota fica inteira na página da chamada; se não couber, o texto desce
+      const pol = options.notePolicy === undefined ? 'line' : (options.notePolicy || ((options.lineNotes || []).includes(i) ? 'line' : ''));
+      if (pol) n.dataset.fnPolicy = pol;
+    });
     let last = tpl.content.lastElementChild;
     while (last && last.lastElementChild && !/^(IMG|SVG|BR|HR)$/.test(last.lastElementChild.tagName)) last = last.lastElementChild;
     if (last) last.setAttribute('data-book-end', '1');
-    if (options.lineNotes && options.lineNotes.length && !window.__fnLineHandler) {
-      // só nestas notas: se não couber no pé da página, a linha da chamada vai junto para a página seguinte
-      window.__fnLineHandler = true;
-      class FnLine extends Paged.Handler { afterParsed(parsed) { parsed.querySelectorAll('.footnote.fn-line').forEach(n => n.setAttribute('data-note-policy', 'line')); } }
-      Paged.registerHandlers(FnLine);
+    const countWords = t => (String(t).replace(/[\u00ad\u200b]/g, '').match(/\S+/g) || []).length;
+    const sourceWords = countWords(tpl.content.textContent);
+    if (!window.__fnPolicyHandler && tpl.content.querySelector('[data-fn-policy]')) {
+      // nestas notas: se não couber no pé da página, a linha (ou o parágrafo) da chamada vai junto para a página seguinte
+      window.__fnPolicyHandler = true;
+      class FnPolicy extends Paged.Handler { afterParsed(parsed) { parsed.querySelectorAll('[data-fn-policy]').forEach(n => n.setAttribute('data-note-policy', n.dataset.fnPolicy)); } }
+      Paged.registerHandlers(FnPolicy);
     }
 
     const target = document.getElementById('render');
@@ -57,10 +64,31 @@
       blank: pg.classList.contains('pagedjs_blank_page'),
       text: (pg.querySelector('.pagedjs_page_content') || pg).textContent.trim().slice(0, 30)
     }));
-    const clippedNotes = findClippedNotes();
+    // notas cortadas (escondidas) e notas que continuam na página seguinte: as duas voltam inteiras
+    // para a página da chamada na nova paginação (o texto desce, a nota fica)
+    const clippedNotes = [...new Set(findClippedNotes().concat(findSplitNotes()))];
     if (options.showClippedNotes) clippedNotes.forEach(i => revealNote(i));
-    const complete = !!document.querySelector('.pagedjs_pages [data-book-end]');
-    return { clippedNotes, complete, pages: flow.total, ms: Math.round(flow.performance), pageInfo, chapterPages: chapterStartPages(), targetPages: targetPages(offset) };
+    // conferência de conteúdo: todas as palavras da origem precisam estar nas páginas (nada some no meio)
+    // só conta palavras realmente visíveis: texto empurrado para fora da área da página não sai no PDF
+    let pageWords = 0;
+    document.querySelectorAll('.pagedjs_page .pagedjs_area').forEach(area => {
+      const ar = area.getBoundingClientRect();
+      const tw = document.createTreeWalker(area, NodeFilter.SHOW_TEXT);
+      let n;
+      while ((n = tw.nextNode())) {
+        const w = countWords(n.nodeValue);
+        if (!w) continue;
+        const r = document.createRange();
+        r.selectNodeContents(n);
+        const rects = Array.from(r.getClientRects()).filter(rc => rc.width >= 1);
+        if (!rects.length) continue;
+        const vis = rects.filter(rc => rc.top >= ar.top - 2 && rc.bottom <= ar.bottom + 2 && rc.left >= ar.left - 2 && rc.right <= ar.right + 2).length;
+        pageWords += w * vis / rects.length;
+      }
+    });
+    pageWords = Math.round(pageWords);
+    const complete = !!document.querySelector('.pagedjs_pages [data-book-end]') && pageWords >= sourceWords * 0.998;
+    return { clippedNotes, complete, sourceWords, pageWords, pages: flow.total, ms: Math.round(flow.performance), pageInfo, chapterPages: chapterStartPages(), targetPages: targetPages(offset) };
   };
 
   // O Paged.js 0.5 troca id por data-id quando divide um elemento entre páginas: procura os dois
@@ -90,6 +118,23 @@
       if (r.height > 0 && (r.bottom > Math.min(box.bottom, area.bottom) + 1.5 || r.top < area.top - 1.5)) out.push(Number(n.dataset.fn));
     });
     return [...new Set(out)];
+  }
+  // Nota dividida entre páginas (o padrão editorial pede a nota inteira na página da chamada).
+  // Notas maiores que a área útil da página não cabem inteiras em lugar nenhum: essas continuam.
+  function findSplitNotes() {
+    const parts = {};
+    document.querySelectorAll('.pagedjs_footnote_area .footnote[data-fn]').forEach(n => {
+      const i = n.dataset.fn;
+      (parts[i] = parts[i] || []).push(n);
+    });
+    const out = [];
+    Object.entries(parts).forEach(([i, list]) => {
+      if (list.length < 2) return;
+      const area = list[0].closest('.pagedjs_page').querySelector('.pagedjs_page_content') || list[0].closest('.pagedjs_area');
+      const total = list.reduce((h, n) => h + n.getBoundingClientRect().height, 0);
+      if (area && total < area.getBoundingClientRect().height * 0.8) out.push(Number(i));
+    });
+    return out;
   }
   // Último recurso: deixa a nota inteira visível (nada do texto pode sumir)
   function revealNote(i) {

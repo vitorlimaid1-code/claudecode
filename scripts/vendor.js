@@ -21,6 +21,12 @@ let paged = fs.readFileSync(path.join(nm, 'pagedjs', 'dist', 'paged.js'), 'utf8'
 const BUG = 'offset += node.textContent.indexOf(container.textContent);';
 if (!paged.includes(BUG)) throw new Error('paged.js: trecho a corrigir não encontrado (versão diferente?)');
 paged = paged.replace(BUG, 'offset += node.textContent.lastIndexOf(container.textContent);');
+// Segunda correção: quando o Paged.js só mede a página (sem retirar o excesso), o gancho
+// afterOverflowRemoved era chamado sem o conteúdo removido e lançava um erro que interrompia o
+// livro inteiro (notas de rodapé muito grandes). Sem conteúdo removido, não há o que tratar.
+const BUG2 = 'this.hooks && this.hooks.afterOverflowRemoved.trigger(overflow.content, rendered, this);';
+if (!paged.includes(BUG2)) throw new Error('paged.js: segundo trecho a corrigir não encontrado (versão diferente?)');
+paged = paged.replace(BUG2, 'if (overflow.content) this.hooks && this.hooks.afterOverflowRemoved.trigger(overflow.content, rendered, this);');
 fs.writeFileSync(path.join(out, 'paged.js'), paged);
 
 let css = '/* Gerado por scripts/vendor.js — não editar */\n';

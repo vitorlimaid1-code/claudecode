@@ -35,14 +35,19 @@
       await new Promise((res, rej) => { frame.onload = res; frame.onerror = rej; });
       const book = await App.api.buildBook(App.serialize());
       book.overlays = App.layers.resolved();
-      let info = await frame.contentWindow.renderBook(book, opts());
-      if (info.clippedNotes && info.clippedNotes.length) {
-        // mesma correção da exportação: a prévia mostra exatamente o que sai no PDF
-        const again = async o => { frame.src = 'preview.html?' + Date.now(); await new Promise((res, rej) => { frame.onload = res; frame.onerror = rej; }); return frame.contentWindow.renderBook(book, Object.assign(opts(), o)); };
-        const second = await again({ lineNotes: info.clippedNotes });
-        if ((second.complete || !info.complete) && !second.clippedNotes.length) info = second;
-        else { info = await again({ showClippedNotes: true }); info.revealedNotes = info.clippedNotes; }
+      // mesma estratégia da exportação: a prévia mostra exatamente o que sai no PDF
+      const again = async o => { frame.src = 'preview.html?' + Date.now(); await new Promise((res, rej) => { frame.onload = res; frame.onerror = rej; }); return frame.contentWindow.renderBook(book, Object.assign(opts(), o)); };
+      const better = (a, b) => !b || (a.complete && !b.complete) || (a.complete === b.complete && a.clippedNotes.length < b.clippedNotes.length);
+      let info = await frame.contentWindow.renderBook(book, Object.assign(opts(), { notePolicy: 'line' }));
+      let best = info, bestO = { notePolicy: 'line' }, lastO = bestO;
+      for (const o of [{ notePolicy: 'block' }, { notePolicy: '' }]) {
+        if (best.complete && !best.clippedNotes.length) break;
+        if (o.notePolicy === '' && best.clippedNotes.length) o.lineNotes = best.clippedNotes;
+        info = await again(o); lastO = o;
+        if (better(info, best)) { best = info; bestO = o; }
       }
+      if (lastO !== bestO || best.clippedNotes.length) { info = await again(Object.assign({}, bestO, { showClippedNotes: true })); if (info.clippedNotes.length) info.revealedNotes = info.clippedNotes; }
+      else info = best;
       const prev = active;
       let ratio = 0;
       if (prev && prev.contentDocument) { const se = prev.contentDocument.scrollingElement; ratio = se.scrollHeight ? se.scrollTop / se.scrollHeight : 0; }
