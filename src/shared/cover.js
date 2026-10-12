@@ -82,7 +82,7 @@
   // Marcas de corte e de dobra da capa (mm): deslocamento a partir do corte, comprimento, espessura (pt)
   function marks(c) {
     const m = (c && c.marks) || {};
-    if (!(c && (c.cedet || m.enabled))) return null;
+    if (!(c && (m.enabled || (c.cedet && m.enabled === undefined)))) return null; // opcional (o Cedet exige: vem ligado)
     return { offset: Math.max(0, n(m.offset, 5)), len: Math.max(1, n(m.len, 5)), weight: Math.max(0.1, n(m.weight, 0.25)) };
   }
 

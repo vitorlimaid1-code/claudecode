@@ -6,6 +6,7 @@
   const { el, $, api } = App;
   let frame = null;
   let proof = null;
+  const guideState = { bleedLines: true, guides: true, bleed: true }; // linhas na prévia (não vão para o PDF)
 
   // Critério de página chapada (manual Cedet): imagem ou fundo impresso até a borda em alguma página do miolo
   function hasChapada() {
@@ -45,7 +46,9 @@
       // CEDET: papel do miolo pelo critério de página chapada, orelhas de 6, 7 ou 8 cm, sangria 5 mm
       c.paper = cedetPaper(c);
       c.bleedAuto = true;
-      if (c.flaps && ![60, 70, 80].includes(Number(c.flaps))) c.flaps = 70;
+      c.flaps = 0; // livros Cedet nunca têm orelhas
+      c.hardcover = false;
+      c.totalsManual = false;
     }
     // “inteira” deixava faixas brancas: a imagem sempre preenche o espaço (ou estica)
     Object.values(c.images).forEach(it => { if (it && it.fit === 'contain') it.fit = 'cover'; });
@@ -128,7 +131,7 @@
     const assets = {};
     Object.values(c.images).forEach(it => { if (it && App.project.assets[it.asset]) assets[it.asset] = { dataUrl: App.assetUrl(it.asset) }; });
     const cc = Object.assign({}, c, { isbnBarcode: Object.assign({}, c.isbnBarcode, { isbn: (c.isbnBarcode && c.isbnBarcode.isbn) || App.project.meta.isbn }) });
-    const r = await frame.contentWindow.renderCover({ cover: cc, assets }, { bleed: $('#cvBleed') ? $('#cvBleed').checked : true, guides: $('#cvGuides') ? $('#cvGuides').checked : true });
+    const r = await frame.contentWindow.renderCover({ cover: cc, assets }, { bleed: guideState.bleed, guides: guideState.guides, bleedLines: guideState.bleedLines });
     const box = $('#coverStage');
     if (box) frame.contentWindow.setCoverZoom(Math.min(1.5, (box.clientWidth - 40) / r.wpx, (box.clientHeight - 40) / r.hpx));
   }
@@ -195,9 +198,10 @@
     if (Math.abs(c.trimW - s.pageWidth) > 0.3 || Math.abs(c.trimH - s.pageHeight) > 0.3) out.push('A capa não está no mesmo formato do miolo.');
     if (c.spineMode !== 'manual') out.push('Lombada ainda estimada: digite a lombada calculada na calculadora do Cedet indicada pelo critério de página chapada.');
     const b = c.isbnBarcode || {};
-    if (!b.enabled) out.push('Código de barras do ISBN desativado (obrigatório na contracapa).');
+    const isbnTxt = b.isbn || App.project.meta.isbn;
+    if (!b.enabled || !isbnTxt) out.push('Sem código de barras do ISBN: o manual Cedet pede o código na contracapa (digite o ISBN quando tiver o número).');
     else {
-      const lay = window.Isbn.layout(b.isbn || App.project.meta.isbn, b);
+      const lay = window.Isbn.layout(isbnTxt, b);
       if (!lay.ok) out.push('Código de barras: ' + lay.error);
       else {
         const pos = window.Isbn.place(g, lay, b);
@@ -218,7 +222,7 @@
     const hint = el('span', { class: 'hint' });
     const showLay = l => {
       const v2 = b.isbn || meta.isbn || '';
-      hint.textContent = l.ok ? `✓ EAN-13 ${l.isbn13}${l.converted ? ' (convertido do ISBN-10)' : ''}` : (v2 ? '✗ ' + l.error : 'Digite o ISBN de 13 dígitos (o ISBN-10 é convertido).');
+      hint.textContent = l.ok ? `✓ EAN-13 ${l.isbn13}${l.converted ? ' (convertido do ISBN-10)' : ''}` : (v2 ? '✗ ' + l.error : 'Opcional: digite o ISBN de 13 dígitos (o ISBN-10 é convertido) para gerar o código. Sem ISBN, a capa sai sem código de barras.');
       hint.className = 'hint ' + (l.ok ? 'good' : v2 ? 'bad' : '');
       svgBox.innerHTML = l.ok ? window.Isbn.toSvg(l) : '';
     };
@@ -231,8 +235,8 @@
     const posOpts = [{ value: 'br', label: 'Inferior direito (junto à lombada)' }, { value: 'bc', label: 'Inferior, centralizado' }, { value: 'bl', label: 'Inferior esquerdo (lado externo)' }];
     const reb = () => { proof = null; render(); };
     return App.card('Código de barras do ISBN (EAN-13) — contracapa', [
-      el('label', { class: 'chk' }, [on(b, 'enabled', 'checkbox', { onChange: reb }), ' Gerar o código de barras na contracapa']),
-      el('label', { class: 'field' }, [el('span', { class: 'flabel', text: 'ISBN (o mesmo do pré-cadastro)' }), isbnIn, hint]),
+      el('label', { class: 'chk' }, [on(b, 'enabled', 'checkbox', { onChange: reb }), ' Gerar o código de barras do ISBN na contracapa (opcional)']),
+      el('label', { class: 'field' }, [el('span', { class: 'flabel', text: 'Número do ISBN (opcional — o mesmo do pré-cadastro)' }), isbnIn, hint]),
       App.field('Posição', on(b, 'pos', 'select', { options: posOpts, onChange: reb })),
       App.field('Distância do corte inferior (mm)', on(b, 'dy', 'number', { step: 0.5, min: 0 })),
       b.pos !== 'bc' ? App.field(b.pos === 'bl' ? 'Distância do corte externo (mm)' : 'Distância da lombada (mm)', on(b, 'dx', 'number', { step: 0.5, min: 0 })) : null,
@@ -254,11 +258,11 @@
     const spineIn = el('input', { type: 'number', step: 0.1, min: 0, placeholder: 'mm', value: c.spineMode === 'manual' ? c.spine : '' });
     spineIn.addEventListener('change', () => { const v2 = parseFloat(spineIn.value); if (isFinite(v2) && v2 > 0) { c.spineMode = 'manual'; c.spine = v2; } else { c.spineMode = 'auto'; } App.changed('Lombada (calculadora Cedet)', { preview: false }); proof = null; render(); });
     return App.card('Padrão CEDET (manual de preparação de arquivos)', [
-      el('label', { class: 'chk' }, [on(c, 'cedet', 'checkbox', { onChange: v2 => { if (v2) { c.marks.enabled = true; c.isbnBarcode.enabled = true; c.hardcover = false; } proof = null; render(); } }), ' Capa no padrão CEDET']),
-      c.cedet ? App.field('Orelhas', on(c, 'flaps', 'select', { options: [{ value: 0, label: 'Sem orelhas' }, { value: 60, label: 'Com orelhas de 6 cm' }, { value: 70, label: 'Com orelhas de 7 cm' }, { value: 80, label: 'Com orelhas de 8 cm' }], onChange: v2 => { c.flaps = Number(v2); proof = null; render(); } }), g.flap ? `Com orelhas, capa e contracapa ficam com ${App.fmtNum(g.W / 10)} × ${App.fmtNum(g.H / 10)} cm (2 mm a mais na largura).` : 'Capa e contracapa no mesmo formato do miolo.') : null,
+      el('label', { class: 'chk' }, [on(c, 'cedet', 'checkbox', { onChange: v2 => { if (v2) { c.marks.enabled = true; c.hardcover = false; c.flaps = 0; c.totalsManual = false; } proof = null; render(); } }), ' Capa no padrão CEDET (sem orelhas)']),
+      c.cedet ? el('div', { class: 'small', text: `Capa sem orelhas (o Cedet não usa orelhas): capa e contracapa com ${App.fmtNum(g.W / 10)} × ${App.fmtNum(g.H / 10)} cm, o mesmo formato do miolo; capa aberta ${App.fmtNum(g.trimTotalW)} × ${App.fmtNum(g.H)} mm sem sangria, ${App.fmtNum(g.totalW)} × ${App.fmtNum(g.totalH)} mm com 5 mm de sangria.` }) : null,
       c.cedet ? App.field('Página chapada no miolo', on(c, 'chapada', 'select', { options: [{ value: 'auto', label: `Detectar automaticamente (${det ? 'há' : 'não há'} página chapada)` }, { value: 'yes', label: 'Sim — há pelo menos uma página chapada' }, { value: 'no', label: 'Não — nenhuma página chapada' }], onChange: () => { proof = null; render(); } }), ch ? 'Com página chapada: gráfica externa · miolo Pólen Bold 70 g · capa cartão 250 g → use a calculadora de lombada da gráfica externa.' : 'Sem página chapada: gráfica interna · miolo Avena 80 g · capa cartão 250 g → use a calculadora de lombada da gráfica interna.') : null,
       c.cedet ? App.field('Lombada pela calculadora Cedet (mm)', spineIn, c.spineMode === 'manual' ? `Usando ${App.fmtNum(g.spine)} mm.` : `Obrigatório: a lombada não pode ser calculada manualmente. Estimativa só de referência: ${App.fmtNum(g.autoSpine)} mm.`) : null,
-      c.cedet ? el('div', { class: 'small muted', text: 'Sangria 5 mm · marcas de corte e de dobra de 0,25 pt a 5 mm do corte (capa, contracapa, lombada e orelhas) · CMYK · 300 dpi · capa aberta em um único PDF (páginas espelhadas). Dúvidas sobre a lombada: editoras-parceiras@cedet.com.br.' }) : null,
+      c.cedet ? el('div', { class: 'small muted', text: 'Sangria 5 mm · marcas de corte e de dobra de 0,25 pt a 5 mm do corte (capa, contracapa e lombada) · CMYK · 300 dpi · capa aberta em um único PDF (páginas espelhadas). Dúvidas sobre a lombada: editoras-parceiras@cedet.com.br.' }) : null,
       c.cedet && issues.length ? el('ul', { class: 'small warn' }, issues.map(x => el('li', { text: x }))) : c.cedet ? el('div', { class: 'good small', text: '✓ Capa conforme o manual Cedet.' }) : null
     ], '', 'span-all');
   }
@@ -331,17 +335,23 @@
           el('label', { class: 'chk' }, [on(c, 'bleedAuto', 'checkbox', { onChange: () => render() }), c.cedet ? ' Sangria automática (CEDET: 5 mm)' : ' Sangria automática (3 mm; KDP: 3,175 mm = 0,125 pol.)']),
           !c.bleedAuto ? f('Sangria manual (mm)', on(c, 'bleed', 'number', { step: 0.1, min: 0, max: 25 })) : null,
           c.cedet ? null : f('Orelhas (mm, 0 = sem)', on(c, 'flaps', 'number', { step: 1, min: 0, max: 150 })),
-          c.cedet ? null : el('label', { class: 'chk' }, [on(c.marks, 'enabled', 'checkbox', { onChange: () => { proof = null; } }), ' Marcas de corte e de dobra no PDF (0,25 pt a 5 mm do corte)']),
+
           el('label', { class: 'chk' }, [on(c, 'hardcover', 'checkbox', { onChange: () => render() }), ' Capa dura']),
           c.hardcover ? f('Dobra do revestimento (mm)', on(c, 'wrapExtra', 'number', { step: 1 })) : null,
           c.hardcover ? f('Acréscimo da lombada pelo cartão (mm)', on(c, 'boardExtra', 'number', { step: 0.5 })) : null,
           f('Área de segurança (mm)', on(c, 'safety', 'number', { step: 0.5 }))
         ], 'A espessura do papel varia por fabricante: confirme a lombada com a gráfica.'),
         App.card('Capa pronta (imagens)', [
-          imgSlot('wrap', 'Capa inteira já montada (contracapa + lombada + capa)', 'Ideal: arquivo no tamanho total com sangria, 300 dpi'),
-          imgSlot('front', 'Capa (frente)'), imgSlot('back', 'Contracapa (quarta capa)'), imgSlot('spine', 'Lombada'),
-          c.flaps ? imgSlot('flapFront', 'Orelha da capa') : null, c.flaps ? imgSlot('flapBack', 'Orelha da contracapa') : null
-        ], 'Imagens CMYK (JPEG) mantêm seus valores; imagens RGB são convertidas com o perfil ICC escolhido abaixo, respeitando o perfil embutido na imagem.', 'span-all'),
+          imgSlot('wrap', 'Capa inteira já montada (contracapa + lombada + capa)', `Ideal: arquivo único de ${App.fmtNum(g.totalW)} × ${App.fmtNum(g.totalH)} mm (com sangria), 300 dpi`),
+          el('div', { class: 'field wide' }, [el('span', { class: 'flabel', text: 'Ou envie cada parte separadamente — na ordem da capa aberta (páginas espelhadas):' })]),
+          el('div', { class: 'cover-spread-slots wide' }, [
+            c.flaps ? imgSlot('flapBack', 'Orelha da contracapa') : null,
+            imgSlot('back', '① Contracapa (quarta capa)', `${App.fmtNum(g.panels.back[1])} × ${App.fmtNum(g.totalH)} mm com sangria`),
+            imgSlot('spine', '② Lombada', `${App.fmtNum(g.spine)} × ${App.fmtNum(g.totalH)} mm`),
+            imgSlot('front', '③ Capa (frente)', `${App.fmtNum(g.panels.front[1])} × ${App.fmtNum(g.totalH)} mm com sangria`),
+            c.flaps ? imgSlot('flapFront', 'Orelha da capa') : null
+          ])
+        ], 'Cada imagem preenche toda a sua parte até a borda da sangria, sem faixas brancas (o excesso é recortado pelo centro; ou escolha “Esticar”). Imagens CMYK (JPEG) mantêm seus valores; imagens RGB são convertidas com o perfil ICC escolhido abaixo, respeitando o perfil embutido na imagem.', 'span-all'),
         App.card('Cor de fundo (áreas sem imagem)', [f('Capa', on(c.bg, 'front', 'color')), f('Lombada', on(c.bg, 'spine', 'color')), f('Contracapa', on(c.bg, 'back', 'color'))]),
         barcodeCard(c, on),
         App.card('Saída para gráfica — PDF CMYK', [
@@ -352,6 +362,7 @@
           el('label', { class: 'chk' }, [on(c, 'sharpen', 'checkbox'), ' Nitidez (realça os detalhes após o redimensionamento)']),
           f('Resolução', on(c, 'dpi', 'select', { options: [{ value: 300, label: '300 dpi (padrão de gráfica)' }, { value: 400, label: '400 dpi' }, { value: 600, label: '600 dpi' }], onChange: v2 => { c.dpi = Number(v2); } })),
           el('label', { class: 'chk' }, [el('input', { type: 'checkbox', id: 'cvExpBleed', checked: true }), ' Com sangria (desmarque para baixar sem sangria, no formato final)']),
+          el('label', { class: 'chk' }, [on(c.marks, 'enabled', 'checkbox'), ' Linhas de corte e de dobra no PDF (marcas de 0,25 pt a 5 mm do corte, fora da sangria)' + (c.cedet ? ' — exigidas pelo manual Cedet' : '')]),
           el('div', { class: 'inline wrap' }, [
             el('button', { class: 'primary', text: '⇩ Exportar PDF CMYK para gráfica', onclick: exportPdf }),
             el('button', { text: 'Prova de cor (simulação CMYK)', onclick: runProof }),
@@ -360,7 +371,11 @@
         ], 'O PDF sai no padrão PDF/X-1a: somente CMYK, sem transparências, com o perfil de saída (OutputIntent), caixas de corte e sangria. Confira a prova impressa da gráfica antes da tiragem.', 'span-all')
       ]),
       el('div', { class: 'cover-preview' }, [
-        el('div', { class: 'inline' }, [el('label', { class: 'chk small' }, [el('input', { type: 'checkbox', id: 'cvGuides', checked: true, onchange: redraw }), ' Guias (corte, dobras, área segura)']), el('label', { class: 'chk small' }, [el('input', { type: 'checkbox', id: 'cvBleed', checked: true, onchange: redraw }), ' Mostrar sangria'])]),
+        el('div', { class: 'inline wrap' }, [
+          el('label', { class: 'chk small' }, [el('input', { type: 'checkbox', id: 'cvBleedLines', checked: guideState.bleedLines, onchange: e => { guideState.bleedLines = e.target.checked; redraw(); } }), ' Linhas da sangria e do corte']),
+          el('label', { class: 'chk small' }, [el('input', { type: 'checkbox', id: 'cvGuides', checked: guideState.guides, onchange: e => { guideState.guides = e.target.checked; redraw(); } }), ' Dobras e área segura']),
+          el('label', { class: 'chk small' }, [el('input', { type: 'checkbox', id: 'cvBleed', checked: guideState.bleed, onchange: e => { guideState.bleed = e.target.checked; redraw(); } }), ' Mostrar a área de sangria'])
+        ]),
         el('div', { id: 'coverStage', class: 'cover-stage' })
       ])
     ]));

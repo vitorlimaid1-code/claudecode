@@ -293,6 +293,12 @@ function catalogHtml(project, ctx) {
       </div>`);
     }
   }
+  // crédito de distribuição logo abaixo da ficha (CEDET: obrigatório; usa o texto do manual se o campo estiver vazio)
+  const dist = String(c.distribution || (s.standard === 'cedet' ? CEDET.distribution : '')).replace(/\r\n?/g, '\n').trim();
+  if (dist) {
+    const [first, ...rest] = dist.split('\n');
+    parts.push(`<div class="cat-dist"><div class="cat-dist-head">${esc(first)}</div>${rest.length ? multiline(rest.join('\n')) : ''}</div>`);
+  }
   const media = [];
   (c.images || []).forEach(im => {
     const a = ctx.assets[im.asset];
@@ -303,12 +309,6 @@ function catalogHtml(project, ctx) {
   });
   if (media.length) parts.push(`<div class="cat-medias">${media.join('')}</div>`);
   if (c.contact) parts.push(`<div class="cat-contact">${multiline(c.contact)}</div>`);
-  // crédito de distribuição (CEDET: obrigatório na ficha; usa o texto do manual se o campo estiver vazio)
-  const dist = String(c.distribution || (s.standard === 'cedet' ? CEDET.distribution : '')).replace(/\r\n?/g, '\n').trim();
-  if (dist) {
-    const [first, ...rest] = dist.split('\n');
-    parts.push(`<div class="cat-dist"><div class="cat-dist-head">${esc(first)}</div>${rest.length ? multiline(rest.join('\n')) : ''}</div>`);
-  }
   return `<section class="front copyright-page cat-style-${esc(c.style || 'box')} cat-pos-${c.position === 'top' ? 'top' : 'bottom'}" id="ficha">${parts.join('')}</section>`;
 }
 function catHead(c) {

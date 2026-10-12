@@ -388,7 +388,7 @@ async function compose(appRoot, cover, assets, geometry, opts) {
 // Código de barras configurado na capa: { lay, x, y } em mm na capa aberta com sangria
 function barcodeFor(cover, g, meta) {
   const b = cover && cover.isbnBarcode;
-  if (!b || !b.enabled || !g.panels.back) return null;
+  if (!b || !b.enabled || !g.panels.back || !String(b.isbn || (meta && meta.isbn) || '').trim()) return null; // ISBN opcional
   const lay = Isbn.layout(b.isbn || (meta && meta.isbn), { scale: b.scale, barHeight: b.barHeight, showIsbnText: b.showIsbnText !== false });
   if (!lay.ok) return { lay };
   const pos = Isbn.place(g, lay, b);

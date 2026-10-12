@@ -799,13 +799,13 @@ async function runSmokeTest() {
   const gr = await finishPrintPdf(pdf, project, { color: 'gray', noProfile: true });
   const d3 = await PDFDocument.load(gr.pdf);
   assert(gr.colorReport.onlyBlack && !d3.catalog.get(PDFName.of('OutputIntents')), 'miolo CEDET só preto ' + JSON.stringify(gr.colorReport));
-  const cc = Object.assign({}, cover, { cedet: true, flaps: 70, spineMode: 'manual', spine: 12, isbnBarcode: { enabled: true, isbn: '978-85-333-0227-3', pos: 'br', dx: 12, dy: 12 } });
+  const cc = Object.assign({}, cover, { cedet: true, flaps: 0, marks: { enabled: true }, spineMode: 'manual', spine: 12, isbnBarcode: { enabled: true, isbn: '978-85-333-0227-3', pos: 'br', dx: 12, dy: 12 } });
   const gc = CoverGeometry.geometry(cc);
   const cv2 = await cmyk.buildCoverPdf(APP_ROOT, cc, project.assets, project.meta, gc, { bleed: true, dpi: 100 });
   if (process.env.SMOKE_SAVE) { fs.writeFileSync(out.replace(/\.pdf$/, '-cedet-miolo.pdf'), gr.pdf); fs.writeFileSync(out.replace(/\.pdf$/, '-cedet-capa.pdf'), cv2.pdf); }
   const d4 = await PDFDocument.load(cv2.pdf);
   const cmb = d4.getPage(0).getMediaBox(), ctb = d4.getPage(0).getTrimBox();
-  assert(gc.bleed === 5 && gc.W === s.pageWidth + 2 && cv2.report.barcode === '9788533302273' && cv2.report.marks && Math.abs(ctb.width - gc.trimTotalW * ptmm) < 0.05 && cmb.width > (gc.totalW + 9) * ptmm, 'capa CEDET ' + JSON.stringify([cmb, ctb, cv2.report]));
+  assert(gc.bleed === 5 && gc.W === s.pageWidth && !gc.flap && cv2.report.barcode === '9788533302273' && cv2.report.marks && Math.abs(ctb.width - gc.trimTotalW * ptmm) < 0.05 && cmb.width > (gc.totalW + 9) * ptmm, 'capa CEDET ' + JSON.stringify([cmb, ctb, cv2.report]));
   console.log(`SMOKE_CHECKS caixas=ok miolo_cmyk=${cm.colorReport.colors}cores miolo_cedet=só_preto capa=${cv.report.widthPx}x${cv.report.heightPx}px capa_cedet=${Math.round(cmb.width / ptmm)}x${Math.round(cmb.height / ptmm)}mm`);
   console.log(`SMOKE_OK pages=${pages} bytes=${pdf.length} out=${out}`);
 }

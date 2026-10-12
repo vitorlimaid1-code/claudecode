@@ -132,8 +132,8 @@
     bleed: 5,
     safety: 20,
     marks: { offset: 5, len: 5, weight: 0.25 },
-    flaps: [60, 70, 80],
-    flapPanelExtra: 2,
+    // livros Cedet NUNCA têm orelhas: capa e miolo seguem as especificações “sem orelhas”
+    flaps: [],
     barcode: { minW: 31, minH: 19, clearance: 2.5 },
     settings: {
       standard: 'cedet', marginTop: 28, marginBottom: 28, marginInner: 23, marginOuter: 20, safety: 20,
@@ -477,7 +477,13 @@
 
   function newProject(userDefaults) {
     const settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-    if (userDefaults && typeof userDefaults === 'object') mergeSettings(settings, userDefaults);
+    if (userDefaults && typeof userDefaults === 'object') {
+      // “meu padrão” salvo antes do modelo CEDET: só os estilos de texto são aproveitados
+      if (userDefaults.standard === undefined) mergeSettings(settings, { styles: userDefaults.styles || {} });
+      else mergeSettings(settings, userDefaults);
+    }
+    // o modelo CEDET é o padrão: formato, margens, sangria, marcas e numeração sempre conforme o manual
+    if (isCedet(settings)) applyCedet(settings, settings.pageFormat);
     return {
       format: 'diagramador-de-livros',
       version: 2,
