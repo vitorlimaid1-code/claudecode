@@ -586,5 +586,38 @@
     return m ? m.length : 0;
   }
 
-  window.BookText = { sanitizeHtml, htmlToChapters, textToChapters, markdownToChapters, convertImport, countWords, escapeHtml, splitChapterTitle };
+  // Padroniza o texto já gravado: tira fontes, tamanhos, cores, entrelinhas e espaçamentos
+  // embutidos (vindos de colagens antigas), para que o livro siga os estilos configurados.
+  // Mantém negrito/itálico, versalete, notas, figuras e só o alinhamento centralizado/à direita.
+  function normalizeStyles(html) {
+    if (!html || !/style=|<font/i.test(html)) return html;
+    const tpl = document.createElement('template');
+    tpl.innerHTML = html;
+    const root = tpl.content;
+    root.querySelectorAll('font').forEach(f => f.replaceWith(...Array.from(f.childNodes)));
+    root.querySelectorAll('[style]').forEach(e => {
+      if (e.closest('figure.img, div.fullbleed')) return;
+      const st = e.style;
+      const tag = e.tagName;
+      if (/^(P|H2|H3|H4|LI|BLOCKQUOTE|TD|TH)$/.test(tag)) {
+        const ta = /^(center|right)$/.test(st.textAlign) ? st.textAlign : '';
+        e.removeAttribute('style');
+        if (ta) e.style.textAlign = ta;
+        return;
+      }
+      if (tag === 'SPAN' && !e.className) {
+        let node = document.createDocumentFragment();
+        Array.from(e.childNodes).forEach(n => node.appendChild(n));
+        const wrap = t => { const w = document.createElement(t); w.appendChild(node); node = w; };
+        if (st.fontStyle === 'italic') wrap('i');
+        if (st.fontWeight === 'bold' || Number(st.fontWeight) >= 600) wrap('b');
+        e.replaceWith(node);
+        return;
+      }
+      e.removeAttribute('style');
+    });
+    return tpl.innerHTML;
+  }
+
+  window.BookText = { sanitizeHtml, normalizeStyles, htmlToChapters, textToChapters, markdownToChapters, convertImport, countWords, escapeHtml, splitChapterTitle };
 })();

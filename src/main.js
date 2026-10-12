@@ -401,14 +401,24 @@ async function renderBookIn(win, project, options) {
 
 async function renderPdf(project, opts) {
   opts = opts || {};
+  const t0 = Date.now();
+  const tm = label => { if (process.env.DEBUG_TIMING) console.log('TIMING', label, Date.now() - t0, 'ms'); };
   return withRenderWindow(async win => {
+    tm('janela');
     const { info } = await renderBookIn(win, project, { spreadsPrint: !!opts.spreads, pageRange: opts.range || '' });
+    tm('paginação');
+    if (process.env.DEBUG_LAYOUT) {
+      const dbg = await win.webContents.executeJavaScript(`(() => { const t = document.querySelector('.pagedjs_pages').innerText; return { clipped: window.findClippedText().slice(0, 6), chars: t.length, w: innerWidth, h: innerHeight, dpr: devicePixelRatio }; })()`, true);
+      console.log('DEBUG_LAYOUT', JSON.stringify(dbg));
+    }
     let pdf = await win.webContents.printToPDF({
       printBackground: true, preferCSSPageSize: true, margins: { marginType: 'none' },
       generateDocumentOutline: !!opts.outline, generateTaggedPDF: !!opts.tagged
     });
+    tm('printToPDF');
     let colorReport = null;
     if (!opts.spreads) ({ pdf, colorReport } = await finishPrintPdf(pdf, project, opts));
+    tm('caixas/cor');
     return { pdf, pages: info.pages, info, colorReport };
   });
 }

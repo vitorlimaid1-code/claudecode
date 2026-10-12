@@ -112,6 +112,9 @@
   function loadProject(project, filePath, dirty) {
     App.editorChapterId = null;
     App.project = D.normalizeProject(project);
+    // padroniza a formatação do texto ao abrir: o livro inteiro segue os estilos configurados
+    App.project.chapters.forEach(c => { c.html = BookText.normalizeStyles(c.html); });
+    ['bio', 'extra'].forEach(k => { const b = App.project.back[k]; if (b && b.html) b.html = BookText.normalizeStyles(b.html); });
     App.filePath = filePath || null;
     App.dirty = !!dirty;
     App.selection.clear();
@@ -122,6 +125,7 @@
     App.resetHistory('Livro aberto');
     App.setView(App.chapterId ? 'chapter' : 'book', undefined, { noFlush: true });
     App.genre.sync();
+    App.preview.resetMode();
     App.preview.schedule(true);
     setTimeout(() => App.fontsUi.checkMissing(false), 1500);
   }

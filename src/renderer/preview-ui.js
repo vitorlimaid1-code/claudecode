@@ -47,6 +47,7 @@
       active = frame;
       wire(frame);
       App.lastRender = info;
+      if (P.fitNext) { P.fitNext = false; setTimeout(P.fit, 30); }
       App.lastRender.missingFonts = book.missingFonts;
       $('#pageInfo').textContent = `${info.pages} páginas${book.missingFonts && book.missingFonts.length ? ' · ⚠ fonte ausente' : ''}${book.missingAssets && book.missingAssets.length ? ' · ⚠ imagem ausente' : ''}`;
       P.setLayerEditing(App.view === 'layers');
@@ -77,6 +78,15 @@
   P.scrollTo = id => { try { win() && win().scrollToId(id); } catch (e) { /* ok */ } };
   P.goToPage = n => { P.currentPage = n; markCurrent(); try { win() && win().scrollToPage(n); } catch (e) { /* ok */ } };
   P.updateOverlays = list => { try { win() && win().updateOverlays(list); P.highlightLayers([...App.layers.sel]); } catch (e) { /* ok */ } };
+  // volta ao modo padrão (ao abrir/criar/importar um livro)
+  P.resetMode = () => {
+    const sel = $('#previewMode');
+    P.fitNext = true;
+    if (sel.value === 'single') return;
+    sel.value = 'single';
+    try { win() && win().setPreviewOptions(opts()); } catch (e) { /* ok */ }
+    setTimeout(P.fit, 60);
+  };
   P.refreshTools = () => { const d = doc(); if (d) App.pageTools.attach(d); };
   // zoom que faz caber 1, 2, 3, 4 ou 5 páginas na largura da prévia
   P.fit = () => {
@@ -267,8 +277,10 @@
     $('#autoRefresh').addEventListener('change', e => { if (e.target.checked) P.schedule(true); });
     const setOpts = () => { try { win() && win().setPreviewOptions(opts()); } catch (e) { /* ok */ } };
     ['#previewMode', '#guides', '#gray'].forEach(s => $(s).addEventListener('change', setOpts));
-    $('#previewMode').addEventListener('change', () => { try { localStorage.setItem('previewMode', $('#previewMode').value); } catch (e) { /* ok */ } setTimeout(P.fit, 60); });
-    try { const m = localStorage.getItem('previewMode'); if (m && $(`#previewMode option[value="${m}"]`)) $('#previewMode').value = m; } catch (e) { /* ok */ }
+    // padrão: sempre 1 página por vez, rolando na vertical; outros modos só quando o usuário escolhe
+    $('#previewMode').value = 'single';
+    P.fitNext = true;
+    $('#previewMode').addEventListener('change', () => setTimeout(P.fit, 60));
     $('#zoomFit').addEventListener('click', () => P.fit());
     $('#insertBleedPage').addEventListener('click', () => App.pageTools.insertBleedPage(null));
     const splitter = $('#splitter');

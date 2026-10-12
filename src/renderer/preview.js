@@ -290,4 +290,27 @@
   };
 
   window.updateOverlays = function (overlays) { renderOverlays(overlays); };
+
+  // Diagnóstico: texto do corpo desenhado fora da área visível da página (seria cortado)
+  window.findClippedText = function () {
+    const out = [];
+    document.querySelectorAll('.pagedjs_page').forEach(pg => {
+      const area = pg.querySelector('.pagedjs_page_content');
+      if (!area) return;
+      const ar = area.getBoundingClientRect();
+      const tw = document.createTreeWalker(area, NodeFilter.SHOW_TEXT);
+      let n;
+      while ((n = tw.nextNode())) {
+        if (!n.nodeValue.trim() || n.parentElement.closest('.pagedjs_footnote_area, .fullbleed, .ov')) continue;
+        const r = document.createRange();
+        r.selectNodeContents(n);
+        for (const rc of r.getClientRects()) {
+          if (rc.width < 1) continue;
+          const below = rc.bottom - ar.bottom, right = rc.left - ar.right;
+          if (below > 1 && right < 0) { out.push({ page: Number(pg.dataset.pageNumber), below: Math.round(below), text: n.nodeValue.trim().slice(0, 40) }); break; }
+        }
+      }
+    });
+    return out;
+  };
 })();

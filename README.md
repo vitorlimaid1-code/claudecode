@@ -25,7 +25,7 @@ Como os executáveis não têm assinatura digital, o Windows SmartScreen pode av
 - O texto importado é **padronizado** com os estilos do livro (fontes, tamanhos, espaçamentos, títulos e subtítulos do manuscrito são trocados pela configuração escolhida). Na importação dá para escolher o **gênero do livro** e remover o sumário que já vinha no manuscrito (o livro gera o seu, com as páginas certas).
 - Todo o texto é **justificado** (exceto poesia, alinhada à esquerda); o botão **Gênero do livro**, na barra superior, aplica fontes, títulos e alinhamento de uma vez.
 - **Sem páginas em branco**: cada capítulo começa na página seguinte (nunca em uma página vazia), e rosto, ficha, sumário, dedicatória, epígrafe e páginas finais não recebem número de página.
-- **Paginação automática** (Paged.js, com correção própria para parágrafos longos com frases repetidas): o texto que não cabe é empurrado para a página seguinte sem mudar o tamanho da fonte; controle de viúvas/órfãs e de títulos isolados.
+- **Paginação automática** (Paged.js 0.5, com correção própria para parágrafos longos com frases repetidas; verificada palavra a palavra — nenhum trecho é duplicado ou ocultado): o texto que não cabe é empurrado para a página seguinte sem mudar o tamanho da fonte; controle de viúvas/órfãs e de títulos isolados.
 - No editor: **notas de rodapé** no cursor (¹ Nota), **ligações** (🔗, Ctrl+K) para outro capítulo ou título — com o número da página de destino (“p. 41”) preenchido após a paginação — ou para sites/e-mails, **＋ Seção** (nova página com título logo depois do capítulo atual, também pelo ＋ na lista) e **✂ Dividir** (o texto a partir do cursor vira um novo capítulo, sem alterar o resto).
 
 ### Texto e estilos
@@ -64,7 +64,7 @@ Como os executáveis não têm assinatura digital, o Windows SmartScreen pode av
 
 ### Formato
 - 14 × 21 cm por padrão e todos os formatos pedidos: pequenos (miniatura a 13 × 20), médios (13,8 × 21 a 17 × 24), grandes (18 × 24 a A3), quadrados, paisagem, lista do **Amazon KDP**, e qualquer medida personalizada (com decimais e conversão de unidades).
-- **Prévia**: 1 página por vez (rolando o livro), páginas duplas, ou 2, 3, 4 e 5 páginas lado a lado, com ajuste automático do zoom. No modo 1 página, ao lado de cada página: **cor da página** e **cor do texto** (grade de cores, código hexadecimal ou seletor; o app pergunta se vale só para a página ou para o capítulo), **cadeado** contra alterações acidentais e **inserir página de imagem sangrada** antes/depois de um capítulo (com guias de sangria opcionais para conferência).
+- **Prévia**: sempre abre em 1 página por vez (rolando o livro na vertical) — outros modos só quando você escolhe: páginas duplas, ou 2, 3, 4 e 5 páginas lado a lado, com ajuste automático do zoom. No modo 1 página, ao lado de cada página: **cor da página** e **cor do texto** (grade de cores, código hexadecimal ou seletor; o app pergunta se vale só para a página ou para o capítulo), **cadeado** contra alterações acidentais e **inserir página de imagem sangrada** antes/depois de um capítulo (com guias de sangria opcionais para conferência).
 - **Margens espelhadas** automáticas, **sangria automática pelo formato** (3 mm; 5 mm em formatos grandes; 0,125 pol. no KDP) ou digitada, área de segurança, marcas de corte; guias de corte, sangria, área segura e margens na prévia; prévia em tons de cinza; visualização individual, dupla ou geral.
 
 ### Amazon KDP
