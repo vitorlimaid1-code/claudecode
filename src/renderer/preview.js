@@ -34,7 +34,7 @@
     const target = document.getElementById('render');
     const previewer = new Paged.Previewer();
     const flow = await previewer.preview(tpl.content, [{ [location.href]: book.css }], target);
-    fixPageNumbers();
+    const offset = fixPageNumbers();
     renderOverlays(book.overlays || []);
     drawGuides(book.page);
     if (options.spreadsPrint) enablePrintSpreads(book.page);
@@ -45,7 +45,7 @@
       blank: pg.classList.contains('pagedjs_blank_page'),
       text: (pg.querySelector('.pagedjs_page_content') || pg).textContent.trim().slice(0, 30)
     }));
-    return { pages: flow.total, ms: Math.round(flow.performance), pageInfo, chapterPages: chapterStartPages() };
+    return { pages: flow.total, ms: Math.round(flow.performance), pageInfo, chapterPages: chapterStartPages(), targetPages: targetPages(offset) };
   };
 
   function pageOf(el) {
@@ -56,6 +56,13 @@
   function chapterStartPages() {
     const out = {};
     document.querySelectorAll('.chapter[id], .back-matter[id]').forEach(el => { out[el.id] = pageOf(el); });
+    return out;
+  }
+
+  // Página (já com a numeração do livro) de cada capítulo e título com id: usada no editor do sumário
+  function targetPages(offset) {
+    const out = {};
+    document.querySelectorAll('.chapter[id], .back-matter[id], .chapter-body h2[id], .chapter-body h3[id], .chapter-body h4[id]').forEach(el => { const n = pageOf(el); if (n && !out[el.id]) out[el.id] = n - (offset || 0); });
     return out;
   }
 
@@ -77,6 +84,7 @@
     });
     const total = document.querySelectorAll('.pagedjs_page').length;
     document.querySelectorAll('.cat-pages').forEach(s => { s.textContent = String(total); });
+    return offset;
   }
 
   // ---------- camadas (elementos fixos na página) ----------

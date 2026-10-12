@@ -328,9 +328,9 @@
         el('label', { class: 'chk' }, [bind(f, 'copyright', 'checkbox'), ' Créditos e ficha catalográfica']),
         el('label', { class: 'chk' }, [bind(f, 'dedication', 'checkbox'), ' Dedicatória']),
         el('label', { class: 'chk' }, [bind(f, 'epigraph', 'checkbox'), ' Epígrafe']),
-        el('label', { class: 'chk' }, [bind(f, 'toc', 'checkbox'), ' Sumário']),
-        field('Título do sumário', bind(f, 'tocTitle', 'text'))
-      ], 'Cada elemento abre em página ímpar (à direita), como em livros impressos; os créditos ficam no verso da página de rosto.'),
+        el('label', { class: 'chk' }, [bind(f, 'toc', 'checkbox', { onChange: () => App.hooks.viewRender.book() }), ' Sumário'])
+      ], 'Ordem padrão: página de rosto › ficha catalográfica › sumário › (dedicatória, epígrafe) › capítulos › páginas extras. Cada elemento abre em página ímpar; os créditos ficam no verso da página de rosto.'),
+      App.toc.card(() => App.hooks.viewRender.book()),
       card('Página de rosto', [
         el('div', { class: 'field' }, [el('span', { class: 'flabel', text: 'Logotipo da editora' }), el('div', { class: 'inline' }, [
           logo ? el('img', { class: 'mini-thumb', src: App.assetUrl(tp.logo) }) : el('span', { class: 'muted', text: 'Nenhum' }),
@@ -378,6 +378,7 @@
     v.appendChild(el('div', { class: 'form-wrap' }, [
       el('h2', { text: 'Créditos e ficha catalográfica' }),
       el('p', { class: 'muted', text: 'Página de créditos (verso da página de rosto). A quantidade de páginas e as dimensões são preenchidas automaticamente a partir da diagramação.' }),
+      App.catalogUi.gallery(rerender),
       card('Créditos do desenvolvimento do livro', [
         credits,
         el('div', { class: 'inline wrap' }, roles.map(r => el('button', { class: 'chip', text: '+ ' + r, onclick: () => { c.credits.push({ role: r, name: '' }); App.changed('Crédito adicionado'); rerender(); } }))
@@ -390,6 +391,8 @@
       card('Ficha catalográfica (CIP)', [
         el('label', { class: 'chk' }, [bind(c, 'enabled', 'checkbox'), ' Incluir ficha catalográfica']),
         field('Modo', bind(c, 'mode', 'select', { options: [{ value: 'fields', label: 'Montar a partir dos campos' }, { value: 'manual', label: 'Texto manual (colar ficha pronta do bibliotecário)' }], onChange: rerender })),
+        field('Aparência', bind(c, 'style', 'select', { options: App.catalogUi.STYLES })),
+        field('Posição na página', bind(c, 'position', 'select', { options: [{ value: 'bottom', label: 'No pé da página (padrão)' }, { value: 'top', label: 'No alto da página' }] })),
         c.mode === 'manual' ? field('Ficha catalográfica (texto completo)', bind(c, 'manualText', 'textarea', { rows: 9 }), '', 'wide') : null,
         c.mode !== 'manual' ? field('Entrada principal (autor)', bind(c, 'authorEntry', 'text', { placeholder: 'SOBRENOME, Nome, 1980-' })) : null,
         c.mode !== 'manual' ? field('Título do livro', bind(m, 'title', 'text')) : null,
@@ -479,18 +482,11 @@
     unitSel.value = App.unit;
     const presetSel = el('select', { onchange: async () => {
       const key = presetSel.value;
-      const p = D.GENRE_PRESETS[key];
-      if (!p) return;
-      const ok = await App.confirmPreview('Aplicar configuração pronta', `“${p.label}” vai substituir fontes, tamanhos, títulos, cabeçalhos e o separador. O formato da página e as margens não mudam.`, ['Estilos de texto e títulos', 'Capitular, cabeçalho e numeração', p.separatorLibrary ? 'Separador: ' + p.separatorLibrary : 'Sem separador ilustrado']);
-      if (!ok) { presetSel.value = ''; return; }
-      D.applyGenrePreset(s, key);
-      if (p.separatorLibrary) {
-        try { s.separatorAsset = await App.addAssetFromUrl(`app://local/assets/library/separadores/${p.separatorLibrary}.png`, { name: p.separatorLibrary, kind: 'separadores' }); s.separator = 'image'; } catch (e) { s.separator = 'line'; }
-      }
-      App.changed('Configuração pronta: ' + p.label);
-      App.toast('Configuração “' + p.label + '” aplicada.');
+      if (!(await App.genre.apply(key, true))) { presetSel.value = App.project.genre || ''; return; }
+      App.toast('Configuração “' + D.GENRE_PRESETS[key].label + '” aplicada.');
       rerender();
     } }, [el('option', { value: '', text: 'Escolha um gênero…' })].concat(Object.entries(D.GENRE_PRESETS).map(([k, p]) => el('option', { value: k, text: p.label }))));
+    presetSel.value = App.project.genre || '';
     const sepAsset = s.separatorAsset && App.project.assets[s.separatorAsset];
     const contentW = s.pageWidth - s.marginInner - s.marginOuter;
     const contentH = s.pageHeight - s.marginTop - s.marginBottom;

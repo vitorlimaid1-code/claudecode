@@ -350,6 +350,8 @@
       ],
       rights: '',
       contact: '',
+      style: 'box', // box, plain, double, rounded, cbl, compact
+      position: 'bottom', // bottom (pé da página) ou top
       images: [], // { asset, width (mm), caption }
       qrcodes: [] // { text, caption, size (mm) }
     };

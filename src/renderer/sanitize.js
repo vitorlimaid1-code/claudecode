@@ -112,7 +112,8 @@
     if ((tag === 'TD' || tag === 'TH') && node.getAttribute('colspan')) e.setAttribute('colspan', node.getAttribute('colspan'));
     if ((tag === 'TD' || tag === 'TH') && node.getAttribute('rowspan')) e.setAttribute('rowspan', node.getAttribute('rowspan'));
     const align = (node.style && node.style.textAlign) || node.getAttribute('align');
-    if (align && /^(center|right|left)$/i.test(align) && ['p', 'h2', 'h3', 'h4'].includes(outTag)) e.style.textAlign = align.toLowerCase();
+    // parágrafos alinhados à esquerda no original seguem o padrão do livro (justificado)
+    if (align && /^(center|right|left)$/i.test(align) && ['p', 'h2', 'h3', 'h4'].includes(outTag) && !(outTag === 'p' && /^left$/i.test(align))) e.style.textAlign = align.toLowerCase();
     if (outTag === 'h2' && tag === 'H1') e.setAttribute('data-h1', '1');
     return children(node, doc, e);
   }

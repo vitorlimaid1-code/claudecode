@@ -347,3 +347,31 @@ body[data-view="cover"] .layout { grid-template-columns: 250px 1fr 0 0; }
 body[data-view="cover"] .preview, body[data-view="cover"] .splitter { display: none; }
 .chapter-meta button { white-space: nowrap; }
 .grid .chk { white-space: normal; }
+
+/* ---------- gênero e sumário ---------- */
+.topbar select#genreSelect { background: #3a332d; color: #f5efe7; border: 1px solid #4a433c; border-radius: 6px; padding: 5px 6px; max-width: 170px; }
+.toc-edit.auto { margin: 6px 0 0; padding-left: 22px; max-height: 300px; overflow-y: auto; font-size: 13px; }
+.toc-edit.auto li.toc-l2 { margin-left: 16px; }
+.toc-edit.auto li.toc-l3 { margin-left: 32px; font-size: 12px; }
+.toc-edit.manual { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; max-height: 420px; overflow-y: auto; }
+.toc-row { display: grid; grid-template-columns: 110px minmax(0, 1fr) 30px 30px 30px; grid-template-areas: 'lab tit up down del' 'lev tgt tgt tgt tgt'; gap: 4px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.toc-row > :nth-child(1) { grid-area: lab; } .toc-row > :nth-child(2) { grid-area: tit; } .toc-row > :nth-child(3) { grid-area: lev; } .toc-row > :nth-child(4) { grid-area: tgt; } .toc-row > :nth-child(5) { grid-area: up; } .toc-row > :nth-child(6) { grid-area: down; } .toc-row > :nth-child(7) { grid-area: del; }
+.toc-row input, .toc-row select { min-width: 0; }
+
+/* ---------- galeria de fichas ---------- */
+.cat-fixed { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 8px; margin: 8px 0 12px; }
+.cat-fixed.on { border: 1px solid #c4e2c8; background: #eef7ef; }
+.cat-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.cat-tile { border: 1px solid var(--line); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 4px; background: var(--panel); }
+.cat-tile.user { border-color: var(--accent-2); }
+.cat-tile-name { font-weight: 600; font-size: 12.5px; }
+.cat-mini { background: #fff; height: 92px; display: flex; align-items: flex-end; padding: 6px; border-radius: 4px; box-shadow: inset 0 0 0 1px #eee; }
+.cat-mini-box { width: 100%; font: 6.5px/1.35 Georgia, serif; color: #222; border: 0.5px solid #333; padding: 3px 4px; }
+.cm-st-plain .cat-mini-box { border: 0; padding: 0; }
+.cm-st-double .cat-mini-box { border: 2px double #333; }
+.cm-st-rounded .cat-mini-box { border-radius: 5px; }
+.cm-st-compact .cat-mini-box { font-size: 5.5px; }
+.cat-mini .cm-head { text-align: center; font-weight: 700; margin-bottom: 2px; }
+.cat-mini .cm-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cat-mini .cm-line.ind { padding-left: 6px; }
+.cat-mini .cm-line.r { text-align: right; }

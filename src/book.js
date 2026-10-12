@@ -259,7 +259,7 @@ function catalogHtml(project, ctx) {
   parts.push(`<div class="cat-rights">${multiline(c.rights || `© ${meta.year || ''} ${meta.author || ''}\nTodos os direitos reservados. Nenhuma parte desta obra pode ser reproduzida sem autorização prévia, exceto em citações breves com indicação da fonte.`)}</div>`);
   if (c.enabled !== false) {
     if (c.mode === 'manual') {
-      if (c.manualText) parts.push(`<div class="cat-box"><div class="cat-head">Dados Internacionais de Catalogação na Publicação (CIP)</div><div class="cat-manual">${multiline(c.manualText)}</div></div>`);
+      if (c.manualText) parts.push(`<div class="cat-box">${catHead(c)}<div class="cat-manual">${multiline(c.manualText)}</div></div>`);
     } else {
       const wcm = (num(s.pageWidth, 140) / 10).toLocaleString('pt-BR');
       const hcm = (num(s.pageHeight, 210) / 10).toLocaleString('pt-BR');
@@ -275,7 +275,7 @@ function catalogHtml(project, ctx) {
       if (meta.isbn) lines.push(`<div class="cat-indent">ISBN ${esc(meta.isbn)}</div>`);
       if (subjects.length) lines.push(`<div class="cat-indent cat-subjects">${subjects.map((x, i) => `${i + 1}. ${esc(x)}.`).join(' ')} I. Título.</div>`);
       const cls = [c.cdd ? `CDD ${esc(c.cdd)}` : '', c.cdu ? `CDU ${esc(c.cdu)}` : ''].filter(Boolean).join('&emsp;');
-      parts.push(`<div class="cat-box"><div class="cat-head">Dados Internacionais de Catalogação na Publicação (CIP)</div>
+      parts.push(`<div class="cat-box">${catHead(c)}
         ${c.cutter ? `<div class="cat-cutter">${esc(c.cutter)}</div>` : ''}
         <div class="cat-body"${c.cutter ? ' style="margin-left:12mm"' : ''}>${lines.join('')}</div>
         ${cls ? `<div class="cat-class">${cls}</div>` : ''}
@@ -293,7 +293,10 @@ function catalogHtml(project, ctx) {
   });
   if (media.length) parts.push(`<div class="cat-medias">${media.join('')}</div>`);
   if (c.contact) parts.push(`<div class="cat-contact">${multiline(c.contact)}</div>`);
-  return `<section class="front copyright-page" id="ficha">${parts.join('')}</section>`;
+  return `<section class="front copyright-page cat-style-${esc(c.style || 'box')} cat-pos-${c.position === 'top' ? 'top' : 'bottom'}" id="ficha">${parts.join('')}</section>`;
+}
+function catHead(c) {
+  return `<div class="cat-head">Dados Internacionais de Catalogação na Publicação (CIP)${c.style === 'cbl' ? '<br>(Câmara Brasileira do Livro, SP, Brasil)' : ''}</div>`;
 }
 
 // ---------------------------------------------------------------- HTML
@@ -541,6 +544,13 @@ ${pageNames}
 .title-page .tp-place { font-size: 0.85em; }
 .copyright-page { font-size: 7.5pt; line-height: 1.4; text-align: left; height: ${(contentH - 2).toFixed(1)}mm; display: flex; flex-direction: column; justify-content: flex-end; gap: 3mm; hyphens: manual; }
 .copyright-page .cat-role { font-weight: 700; }
+.copyright-page.cat-pos-top { justify-content: flex-start; }
+.cat-style-plain .cat-box { border: 0; padding: 0; }
+.cat-style-double .cat-box { border: 2pt double currentColor; }
+.cat-style-rounded .cat-box { border-radius: 2.5mm; }
+.cat-style-cbl .cat-box { border-width: 0.75pt; }
+.cat-style-compact { font-size: 6.8pt; line-height: 1.3; }
+.cat-style-compact .cat-box { padding: 1.5mm 2mm; }
 .cat-box { border: 0.5pt solid currentColor; padding: 2.5mm 3mm; }
 .cat-head { text-align: center; font-weight: 700; margin-bottom: 1.5mm; }
 .cat-cutter { float: left; width: 12mm; }

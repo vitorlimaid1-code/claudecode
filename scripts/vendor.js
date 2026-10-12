@@ -14,7 +14,14 @@ const SUBSETS = ['latin', 'latin-ext'];
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(path.join(out, 'fonts'), { recursive: true });
 
-fs.copyFileSync(path.join(nm, 'pagedjs', 'dist', 'paged.js'), path.join(out, 'paged.js'));
+// Paged.js com uma correção: o trecho de texto que continua de uma página para a outra é um
+// sufixo do texto original; procurá-lo do início (indexOf) erra quando há frases repetidas
+// (refrões, "Não. Não."), repetindo conteúdo. Procurando a partir do fim, a posição é sempre a certa.
+let paged = fs.readFileSync(path.join(nm, 'pagedjs', 'dist', 'paged.js'), 'utf8');
+const BUG = 'offset += node.textContent.indexOf(container.textContent);';
+if (!paged.includes(BUG)) throw new Error('paged.js: trecho a corrigir não encontrado (versão diferente?)');
+paged = paged.replace(BUG, 'offset += node.textContent.lastIndexOf(container.textContent);');
+fs.writeFileSync(path.join(out, 'paged.js'), paged);
 
 let css = '/* Gerado por scripts/vendor.js — não editar */\n';
 for (const font of FONTS) {

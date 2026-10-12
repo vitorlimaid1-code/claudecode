@@ -48,20 +48,32 @@
     const warn = [];
     if (res.kind === 'pdf') warn.push('PDF não guarda a estrutura do texto: parágrafos, títulos e notas foram reconstruídos automaticamente pela posição das letras. Confira os títulos dos capítulos e as notas. Imagens do PDF não são importadas.');
     if (res.kind === 'doc') warn.push('Arquivos .doc antigos não preservam itálico/negrito na importação. Se possível, salve como .docx no Word e importe novamente.');
+    // sumário que já vem no manuscrito: o livro gera o seu, com os números de página corretos
+    const TOC_RE = /^(sum[áa]rio|[íi]ndice( geral)?|conte[úu]do|contents|table of contents)$/i;
+    const tocChapters = chapters.filter(c => TOC_RE.test(String(c.title || '').replace(/<[^>]+>/g, '').trim()));
+    const dropToc = el('input', { type: 'checkbox', checked: tocChapters.length > 0 });
+    const tocText = tocChapters.map(c => c.html.replace(/<[^>]+>/g, ' ')).join(' ').toLowerCase();
+    const subTitles = [];
+    chapters.forEach(c => { const t = document.createElement('template'); t.innerHTML = c.html; t.content.querySelectorAll('h2').forEach(h => subTitles.push(h.textContent.trim().toLowerCase())); });
+    const tocHasSections = subTitles.some(t => t.length > 3 && tocText.includes(t));
+    const genreSel = el('select', {}, [el('option', { value: '', text: App.project.genre ? 'Manter o atual (' + (D.GENRE_PRESETS[App.project.genre] || {}).label + ')' : 'Manter a configuração atual' })].concat(Object.entries(D.GENRE_PRESETS).map(([k, p]) => el('option', { value: k, text: p.label }))));
     const list = el('ol', { class: 'import-list' }, chapters.slice(0, 80).map(c => el('li', { text: `${c.title}${c.numbered === false ? ' (sem número)' : ''} — ${BookText.countWords(c.html).toLocaleString('pt-BR')} palavras` })));
     App.modal({
       title: `Importar “${res.name}${res.ext || ''}”`, wide: true,
       body: el('div', {}, [
         el('p', { text: `${KIND_NAMES[res.kind] || res.kind}: ${chapters.length} capítulo(s), ${words.toLocaleString('pt-BR')} palavras, ${noteCount} nota(s) de rodapé, ${images} imagem(ns). O texto será padronizado com os estilos do livro (fontes, tamanhos e espaçamentos do manuscrito são substituídos pela configuração atual).` }),
         warn.length ? el('div', { class: 'warn-box' }, warn.map(w => el('p', { text: '⚠ ' + w }))) : null,
-        el('div', { class: 'grid' }, [App.field('Como importar', mode), App.field('Notas de rodapé', notesSel), meta && meta.title ? el('label', { class: 'chk' }, [useMeta, ` Usar título/autor do arquivo (“${meta.title}”${meta.author ? ', ' + meta.author : ''})`]) : null]),
+        el('div', { class: 'grid' }, [App.field('Como importar', mode), App.field('Notas de rodapé', notesSel), App.field('Gênero do livro (estilos, títulos e alinhamento)', genreSel, 'Texto justificado; poesia alinhada à esquerda'),
+          tocChapters.length ? el('label', { class: 'chk' }, [dropToc, ` Remover o sumário do manuscrito (“${tocChapters[0].title}”) e gerar o sumário automático com as páginas certas`]) : null,
+          meta && meta.title ? el('label', { class: 'chk' }, [useMeta, ` Usar título/autor do arquivo (“${meta.title}”${meta.author ? ', ' + meta.author : ''})`]) : null]),
         el('h4', { text: 'Capítulos encontrados' }),
         list,
         chapters.length > 80 ? el('p', { class: 'muted', text: `… e mais ${chapters.length - 80}` }) : null
       ]),
-      buttons: [{ label: 'Cancelar' }, { label: 'Importar', primary: true, onClick: () => {
+      buttons: [{ label: 'Cancelar' }, { label: 'Importar', primary: true, onClick: async () => {
         App.flush();
         App.commit('Antes da importação');
+        if (dropToc.checked) chapters = chapters.filter(c => !tocChapters.includes(c));
         const chs = chapters.map(c => ({ id: D.uid(), title: c.title, numbered: c.numbered !== false, html: c.html, locked: false, style: {}, separator: 'default', openingImage: null }));
         if (notesSel.value === 'remove') chs.forEach(c => { const t = document.createElement('template'); t.innerHTML = c.html; t.content.querySelectorAll('span.footnote').forEach(n => n.remove()); c.html = t.innerHTML; });
         if (notesSel.value === 'hide') App.project.settings.footnotesVisible = false;
@@ -71,7 +83,10 @@
           if (locked.length) App.toast(`${locked.length} capítulo(s) bloqueado(s) foram mantidos.`, 4000);
         } else App.project.chapters.push(...chs);
         if (useMeta.checked && meta) { if (meta.title) App.project.meta.title = meta.title.replace(/<[^>]+>/g, ''); if (meta.author) App.project.meta.author = meta.author.replace(/<[^>]+>/g, ''); if (meta.publisher) App.project.meta.publisher = meta.publisher.replace(/<[^>]+>/g, ''); }
+        const f = App.project.front;
+        if (dropToc.checked || chs.length > 1) { f.toc = true; if (dropToc.checked) { f.tocMode = 'auto'; f.tocLevels = Math.max(Number(f.tocLevels) || 1, tocHasSections ? 2 : 1); } }
         App.editorChapterId = null;
+        if (genreSel.value) await App.genre.apply(genreSel.value, false);
         App.changed(`Importação de “${res.name}” (${chs.length} capítulos)`);
         App.setView('chapter', chs[0].id);
         App.toast(`${chs.length} capítulo(s) importado(s). A paginação é aplicada automaticamente.`, 4000);
@@ -106,6 +121,7 @@
     App.updateTitle();
     App.resetHistory('Livro aberto');
     App.setView(App.chapterId ? 'chapter' : 'book', undefined, { noFlush: true });
+    App.genre.sync();
     App.preview.schedule(true);
     setTimeout(() => App.fontsUi.checkMissing(false), 1500);
   }
@@ -193,6 +209,7 @@
   async function init() {
     App.editor.setup();
     App.preview.setup();
+    $('#genreSlot').appendChild(App.genre.select());
     $$('[data-cmd]').forEach(b => b.addEventListener('click', () => runCommand(b.dataset.cmd)));
     $$('.nav-item').forEach(b => b.addEventListener('click', () => App.setView(b.dataset.view)));
     $('#addChapter').addEventListener('click', () => App.chapters.add());
