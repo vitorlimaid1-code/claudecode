@@ -226,7 +226,7 @@
 
     chapterLabel: 'Capítulo',
     chapterNumbering: 'arabic',
-    chapterStartRight: true,
+    chapterStartRight: false, // páginas em branco nunca são inseridas
     dropCap: true,
     dropCapLines: 2,
     smallCapsFirstLine: false,
@@ -309,6 +309,36 @@
       label: 'Acadêmico / técnico', separatorLibrary: null,
       settings: { dropCap: false, header: 'author-title', pageNumbers: 'outer', separator: 'none', chapterStartRight: false, chapterLabel: '' },
       styles: { body: { font: 'Libre Baskerville', size: 10, lineHeight: 1.5, indent: 1.25 }, chapterTitle: { font: 'Libre Baskerville', size: 17, align: 'left', bold: true, spaceBefore: 15 }, h2: { align: 'left', bold: true, size: 12.5 }, h3: { size: 11, bold: true, italic: false } }
+    },
+    naoficcao: {
+      label: 'Não-ficção / ensaio', separatorLibrary: 'linha-fina-afinada',
+      settings: { dropCap: false, header: 'author-title', pageNumbers: 'outer', sceneBreak: '—' },
+      styles: { body: { font: 'Merriweather', size: 10, lineHeight: 1.5, align: 'justify', indent: 1.3 }, chapterTitle: { font: 'Merriweather', size: 20, bold: true, align: 'left', spaceBefore: 28 }, h2: { font: 'Merriweather', size: 13, bold: true, align: 'left' }, h3: { font: 'Merriweather', size: 11, bold: true, italic: false, align: 'left' } }
+    },
+    humanas: {
+      label: 'Ciências humanas', separatorLibrary: 'linha-simples',
+      settings: { dropCap: false, header: 'author-title', pageNumbers: 'outer', chapterLabel: 'Capítulo', sceneBreak: '*' },
+      styles: { body: { font: 'Crimson Pro', size: 11.5, lineHeight: 1.45, align: 'justify', indent: 1.5 }, chapterTitle: { font: 'Crimson Pro', size: 21, smallcaps: true, align: 'center', spaceBefore: 32 }, h2: { font: 'Crimson Pro', size: 14, italic: false, bold: true, align: 'left' }, h3: { font: 'Crimson Pro', size: 12, italic: true, align: 'left' }, quote: { size: 10.5, indentLeft: 12 }, reference: { size: 10 } }
+    },
+    historia: {
+      label: 'História', separatorLibrary: 'art-deco',
+      settings: { dropCap: true, header: 'title-chapter', pageNumbers: 'outer', sceneBreak: '❧' },
+      styles: { body: { font: 'Libre Baskerville', size: 10, lineHeight: 1.5, align: 'justify' }, chapterTitle: { font: 'Cormorant Garamond', size: 24, uppercase: true, letterSpacing: 0.08, spaceBefore: 36 }, h2: { font: 'Cormorant Garamond', size: 15, smallcaps: true } }
+    },
+    filosofia: {
+      label: 'Filosofia', separatorLibrary: 'tres-losangos',
+      settings: { dropCap: false, header: 'chapter-chapter', pageNumbers: 'center', sceneBreak: '§' },
+      styles: { body: { font: 'EB Garamond', size: 11.5, lineHeight: 1.5, align: 'justify', indent: 1.5 }, chapterTitle: { font: 'EB Garamond', size: 20, italic: true, align: 'center', spaceBefore: 38 }, h2: { font: 'EB Garamond', size: 13.5, smallcaps: true, align: 'center' } }
+    },
+    jornalismo: {
+      label: 'Jornalismo / reportagem', separatorLibrary: 'linha-dupla',
+      settings: { dropCap: true, header: 'title-chapter', pageNumbers: 'outer', sceneBreak: '■' },
+      styles: { body: { font: 'Merriweather', size: 9.5, lineHeight: 1.5, align: 'justify', indent: 1.2 }, chapterTitle: { font: 'Playfair Display', size: 26, bold: true, align: 'left', spaceBefore: 22 }, h2: { font: 'Playfair Display', size: 14, bold: true, align: 'left' } }
+    },
+    culinaria: {
+      label: 'Culinária / guias práticos', separatorLibrary: 'pontos',
+      settings: { dropCap: false, header: 'chapter-chapter', pageNumbers: 'outer', chapterNumbering: 'none', sceneBreak: '•' },
+      styles: { body: { font: 'Lora', size: 10.5, lineHeight: 1.5, align: 'justify', indent: 0, spaceAfter: 2 }, chapterTitle: { font: 'Playfair Display', size: 28, italic: true, align: 'center', spaceBefore: 20 }, h2: { font: 'Lora', size: 13, bold: true, align: 'left', uppercase: true, letterSpacing: 0.06 }, box: { background: '#f6efe2' } }
     }
   };
 
@@ -465,6 +495,8 @@
       chapters,
       assets: Object.assign({}, p.assets || {}),
       overlays: Array.isArray(p.overlays) ? p.overlays : [],
+      // cores de páginas isoladas: { "<nº da página>": { bg, color } }
+      pageStyles: p.pageStyles && typeof p.pageStyles === 'object' ? p.pageStyles : {},
       cover: p.cover || null,
       fontSubstitutions: Array.isArray(p.fontSubstitutions) ? p.fontSubstitutions : [],
       exportLog: Array.isArray(p.exportLog) ? p.exportLog : [],

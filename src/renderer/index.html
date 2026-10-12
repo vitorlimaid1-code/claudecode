@@ -39,17 +39,22 @@
       <button class="nav-item" data-view="back"><span class="ic">✎</span>Páginas finais</button>
       <div class="nav-group">Design</div>
       <button class="nav-item" data-view="layout"><span class="ic">▤</span>Formato e diagramação</button>
+      <button class="nav-item" data-view="stylelib"><span class="ic">❦</span>Biblioteca de estilos</button>
       <button class="nav-item" data-view="styles"><span class="ic">¶</span>Estilos de texto</button>
       <button class="nav-item" data-view="fonts"><span class="ic">A</span>Fontes</button>
       <button class="nav-item" data-view="assets"><span class="ic">▣</span>Imagens do projeto</button>
       <button class="nav-item" data-view="layers"><span class="ic">◧</span>Camadas da página</button>
-      <button class="nav-item" data-view="periodical"><span class="ic">▥</span>Revista e jornal</button>
       <div class="nav-group">Produção</div>
       <button class="nav-item" data-view="notes"><span class="ic">¹</span>Notas de rodapé</button>
       <button class="nav-item" data-view="tools"><span class="ic">✓</span>Revisão do texto</button>
       <button class="nav-item" data-view="cover"><span class="ic">▭</span>Capa e lombada</button>
-      <button class="nav-item" data-view="kdp"><span class="ic">a</span>Amazon KDP</button>
       <button class="nav-item" data-view="export"><span class="ic">⇩</span>Exportar</button>
+      <button class="nav-group nav-toggle" id="modulesToggle" title="Módulos opcionais: o padrão é o livro">Outros módulos <span class="caret">▸</span></button>
+      <div id="modulesList" class="nav-modules">
+        <button class="nav-item" data-view="poetry"><span class="ic">✒</span>Poesia</button>
+        <button class="nav-item" data-view="periodical"><span class="ic">▥</span>Revista e jornal</button>
+        <button class="nav-item" data-view="kdp"><span class="ic">a</span>Amazon KDP</button>
+      </div>
     </nav>
     <div class="chapters-head">
       <span>Capítulos</span>
@@ -80,6 +85,8 @@
     <section id="view-cover" class="view"></section>
     <section id="view-kdp" class="view"></section>
     <section id="view-periodical" class="view"></section>
+    <section id="view-poetry" class="view"></section>
+    <section id="view-stylelib" class="view"></section>
     <section id="view-export" class="view"></section>
     <section id="view-bulk" class="view"></section>
     <section id="view-chapter" class="view chapter-view">
@@ -122,6 +129,7 @@
         <button data-exec="insertOrderedList" title="Lista numerada">1.</button>
         <span class="tsep"></span>
         <button data-action="footnote" title="Inserir nota de rodapé no cursor (clique na nota para editar ou remover)">¹ Nota</button>
+        <button data-action="removenotes" title="Remover todas as notas de rodapé do livro (pode ser desfeito)">¹✕ Notas</button>
         <button data-action="link" title="Ligação para outro capítulo/título (com nº de página) ou para um site (Ctrl+K)">🔗 Ligação</button>
         <button data-action="scene" title="Quebra de cena">✱</button>
         <button data-action="pagebreak" title="Quebra de página (Ctrl+Enter)">⤓ Pág.</button>
@@ -159,10 +167,15 @@
       <span id="zoomLabel" class="zoom-label">50%</span>
       <button id="zoomIn" class="icon-btn" title="Aumentar zoom">＋</button>
       <select id="previewMode" title="Modo de visualização">
-        <option value="spread">Páginas duplas</option>
-        <option value="single">Página individual</option>
-        <option value="overview">Visão geral</option>
+        <option value="single">1 página por vez (rolar)</option>
+        <option value="spread">Páginas duplas (livro aberto)</option>
+        <option value="cols2">2 páginas lado a lado</option>
+        <option value="cols3">3 páginas lado a lado</option>
+        <option value="cols4">4 páginas lado a lado</option>
+        <option value="cols5">5 páginas lado a lado</option>
       </select>
+      <button id="zoomFit" class="icon-btn" title="Ajustar à largura da prévia">⤢</button>
+      <button id="insertBleedPage" title="Inserir uma página de imagem (página inteira, sangrada) antes ou depois de um capítulo">🖼 Página de imagem</button>
       <label class="chk small" title="Corte (vermelho), sangria, área segura (verde), margens (azul)"><input type="checkbox" id="guides"> Guias</label>
       <label class="chk small" title="Pré-visualizar em tons de cinza"><input type="checkbox" id="gray"> Cinza</label>
       <label class="chk small" title="Atualizar a prévia automaticamente"><input type="checkbox" id="autoRefresh" checked> Auto</label>
@@ -195,8 +208,11 @@
 <script src="cover-ui.js"></script>
 <script src="kdp-ui.js"></script>
 <script src="periodical-ui.js"></script>
+<script src="poetry-ui.js"></script>
+<script src="stylelib-ui.js"></script>
 <script src="exportprep.js"></script>
 <script src="export-ui.js"></script>
+<script src="page-tools.js"></script>
 <script src="preview-ui.js"></script>
 <script src="app.js"></script>
 </body>

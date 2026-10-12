@@ -281,8 +281,10 @@
   };
 
   window.setPreviewOptions = function (options) {
-    document.body.classList.toggle('single', options.mode === 'single');
-    document.body.classList.toggle('overview', options.mode === 'overview');
+    const mode = options.mode === 'overview' ? 'cols4' : options.mode;
+    document.body.classList.toggle('single', mode === 'single');
+    ['cols2', 'cols3', 'cols4', 'cols5'].forEach(c => document.body.classList.toggle(c, mode === c));
+    document.body.classList.toggle('grid', /^cols/.test(mode || ''));
     document.body.classList.toggle('guides', !!options.guides);
     document.body.classList.toggle('gray', !!options.gray);
   };

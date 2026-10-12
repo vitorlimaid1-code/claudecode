@@ -396,6 +396,9 @@ window.App = (function () {
     if (sec) sec.classList.add('active');
     $$('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === view));
     document.body.dataset.view = view;
+    // módulos opcionais (poesia, revista/jornal, KDP) ficam recolhidos até serem usados
+    const modOpen = ['poetry', 'periodical', 'kdp'].includes(view) || (App.project && ['magazine', 'newspaper'].includes(App.project.kind));
+    if (modOpen) { const t = $('#modulesToggle'); const l = $('#modulesList'); if (t && l) { t.classList.add('open'); l.classList.add('open'); } }
     const fn = App.hooks.viewRender[view];
     if (fn) fn();
     if (App.renderChapterList) App.renderChapterList();

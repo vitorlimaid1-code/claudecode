@@ -155,6 +155,9 @@ function figureHtml(attrs, inner, ctx) {
     else if (wrap === 'square' || wrap === 'contour') floatSide = align === 'right' ? 'right' : 'left';
   }
 
+  // com texto ao redor, a imagem ocupa no máximo 50% da mancha: sobra coluna de texto suficiente
+  // para a justificação não abrir buracos nem quebrar linhas de forma desproporcional
+  if (floatSide) width = Math.min(width, 50);
   const figStyle = [`width: ${width.toFixed(2)}%`];
   if (floatSide) {
     figStyle.push(`float: ${floatSide}`);
@@ -383,7 +386,7 @@ function buildHtml(project, ctx) {
     if (c.numbered) { n += 1; label = chapterLabel(settings, n); }
     tocItems.push({ id: c.id, label, title: c.title, level: 1 });
     const hasOpening = !!(c.openingImage && c.openingImage.asset && ctx.assets[c.openingImage.asset]);
-    if (hasOpening) parts.push(fullBleedHtml(c.openingImage.asset, c.openingImage.fit, ctx, settings.chapterStartRight ? 'before-chapter' : ''));
+    if (hasOpening) parts.push(fullBleedHtml(c.openingImage.asset, c.openingImage.fit, ctx));
     const heads = [];
     let body = processBody(anchorHeadings(c.html, c.id, heads), ctx);
     heads.forEach(h => tocItems.push({ id: h.id, label: '', title: h.title, level: h.level }));
@@ -463,7 +466,7 @@ function buildCss(project, ctx) {
   const boxStyle = `font-family: ${fontStack(H.font || body.font)}; font-size: ${num(H.size, 8.5)}pt; letter-spacing: ${num(H.letterSpacing, 0)}em; text-transform: ${H.uppercase ? 'uppercase' : 'none'}; font-style: ${H.italic ? 'italic' : 'normal'}; color: ${color(H.color, '#222')}; vertical-align: bottom; padding-bottom: 4mm;`;
   const numStyle = `font-family: ${fontStack(P.font || body.font)}; font-size: ${num(P.size, 9.5)}pt; color: ${color(P.color, '#000')}; text-transform: none; letter-spacing: 0; font-style: normal;`;
 
-  function marginRules(name, extra) {
+  function marginRules(name, extra, textColor) {
     const L = [];
     const R = [];
     const hl = pn === 'top-outer' ? '@top-center' : '@top-left';
@@ -473,6 +476,7 @@ function buildCss(project, ctx) {
     if (pn === 'outer') { L.push(`@bottom-left { content: counter(page); ${numStyle} }`); R.push(`@bottom-right { content: counter(page); ${numStyle} }`); }
     if (pn === 'center') { L.push(`@bottom-center { content: counter(page); ${numStyle} }`); R.push(`@bottom-center { content: counter(page); ${numStyle} }`); }
     if (pn === 'top-outer') { L.push(`@top-left { content: counter(page); ${numStyle} vertical-align: bottom; padding-bottom: 4mm; }`); R.push(`@top-right { content: counter(page); ${numStyle} vertical-align: bottom; padding-bottom: 4mm; }`); }
+    if (textColor) { const add = x => x.replace(/; \}/g, `; color: ${textColor}; }`); L.splice(0, L.length, ...L.map(add)); R.splice(0, R.length, ...R.map(add)); }
     return `
 @page ${name}:left { ${extra || ''} ${L.join(' ')} }
 @page ${name}:right { ${extra || ''} ${R.join(' ')} }
@@ -482,7 +486,7 @@ function buildCss(project, ctx) {
   const pageNames = chapters.map((c, i) => `.chapter[data-chapter="${i}"] { page: ch${i}; }`).join('\n');
   const chapterPages = chapters.map((c, i) => {
     const st = c.style || {};
-    return marginRules(`ch${i}`, st.pageColor ? `background: ${color(st.pageColor, '#fff')};` : '');
+    return marginRules(`ch${i}`, st.pageColor ? `background: ${color(st.pageColor, '#fff')};` : '', st.textColor ? color(st.textColor, '#000') : '');
   }).join('\n');
 
   const chapterOverrides = chapters.map((c, i) => {
@@ -491,8 +495,8 @@ function buildCss(project, ctx) {
     const b = [];
     if (st.font) b.push(`font-family: ${fontStack(st.font)}`);
     if (st.fontSize) b.push(`font-size: ${num(st.fontSize, 11)}pt`);
-    if (st.textColor) b.push(`color: ${color(st.textColor, '#000')}`);
     if (b.length) out.push(`.chapter[data-chapter="${i}"] .chapter-body { ${b.join('; ')}; }`);
+    if (st.textColor) out.push(`.chapter[data-chapter="${i}"], .chapter[data-chapter="${i}"] .chapter-body *, .chapter[data-chapter="${i}"] .chapter-head * { color: ${color(st.textColor, '#000')} !important; }`);
     const t = [];
     if (st.titleFont) t.push(`font-family: ${fontStack(st.titleFont)}`);
     if (st.titleSize) t.push(`font-size: ${num(st.titleSize, 22)}pt`);
@@ -523,7 +527,7 @@ function buildCss(project, ctx) {
 @page :blank { ${none6} }
 @page front { ${none6} }
 @page fullbleed { margin: 0; ${none6} }
-${marginRules('back')}
+@page back { ${none6} }
 ${chapterPages}
 ${pageNames}
 
@@ -536,8 +540,7 @@ ${pageNames}
 }
 
 /* ---------- pré-textuais ---------- */
-.front { page: front; break-before: right; }
-.front.copyright-page { break-before: left; }
+.front { page: front; break-before: page; }
 .half-title .ht-title { margin-top: ${(contentH * 0.28).toFixed(1)}mm; text-align: center; font-family: ${fontStack(S.chapterTitle.font || body.font)}; font-size: 1.5em; letter-spacing: 0.04em; }
 .title-page { text-align: center; font-family: ${fontStack(S.chapterTitle.font || body.font)}; height: ${(contentH - 2).toFixed(1)}mm; display: flex; flex-direction: column; }
 .title-page .tp-author { margin-top: ${(contentH * 0.06).toFixed(1)}mm; font-size: 1.15em; letter-spacing: 0.12em; text-transform: uppercase; }
@@ -580,11 +583,10 @@ ${pageNames}
 
 /* ---------- imagem de página inteira (sangrada) ---------- */
 .fullbleed { page: fullbleed; break-before: page; break-after: page; height: ${num(s.pageHeight, 210) - 0.5}mm; position: relative; }
-.fullbleed.before-chapter { break-before: left; }
 .fullbleed .fb-img { position: absolute; left: -${mm(bleed)}; top: -${mm(bleed)}; width: calc(100% + ${(2 * bleed).toFixed(2)}mm); height: calc(100% + ${(2 * bleed + 0.5).toFixed(2)}mm); background-position: center; background-repeat: no-repeat; }
 
 /* ---------- capítulos ---------- */
-.chapter { break-before: ${s.chapterStartRight ? 'right' : 'page'}; }
+.chapter { break-before: page; }
 .chapter.after-opening, .chapter.chapter-cont { break-before: page; }
 .chapter-head { text-align: ${S.chapterTitle.align}; margin: ${mm(S.chapterTitle.spaceBefore)} 0 ${mm(S.chapterTitle.spaceAfter)} 0; break-after: avoid; }
 .chapter-label { ${styleDecl(S.chapterLabel, body, { noIndent: true })} margin-top: 0; }
@@ -592,11 +594,12 @@ ${pageNames}
 .chapter-sep { margin-top: 4mm; text-align: ${S.chapterTitle.align}; line-height: 0; }
 .chapter-sep img { display: inline-block; max-height: 18mm; object-fit: contain; }
 .chapter-sep .sep-line { display: inline-block; border: 0; border-top: 0.6pt solid ${color(s.separatorColor, '#000')}; height: 0; margin: 0; }
-.back-matter { page: back; break-before: right; }
+.back-matter { page: back; break-before: page; }
 .back-title { ${styleDecl(S.chapterTitle, body, { noSpace: true })} margin: ${mm(Math.max(10, num(S.chapterTitle.spaceBefore, 30) * 0.6))} 0 8mm; }
 .bio-photo { float: left; margin: 1mm 5mm 3mm 0; border-radius: 1mm; object-fit: cover; }
 
 .chapter-body p {
+  text-align: ${body.align || 'justify'};
   margin: 0 0 ${mm(body.spaceAfter)} 0;
   text-indent: ${num(body.indent, 1.5)}em;
   hyphens: manual;
@@ -679,6 +682,21 @@ ${s.footnoteNumbering === 'chapter' ? '.chapter:not(.chapter-cont) { counter-res
 .toc-list li.toc-l1 + li.toc-l2 { margin-top: 0.1em; }
 .chapter-body a, .back-matter a { color: inherit; text-decoration: none; }
 .chapter-body a[href^="http"] { text-decoration: underline; text-decoration-thickness: 0.4pt; }
+
+/* ---------- segurança: nada passa da mancha ---------- */
+.chapter-body, .back-matter .chapter-body { overflow-wrap: break-word; }
+.chapter-body a[href^="http"], .chapter-body a[href^="mailto"] { overflow-wrap: anywhere; }
+.chapter-body table { max-width: 100%; table-layout: fixed; }
+.chapter-body img { max-width: 100%; }
+
+/* ---------- cores de páginas isoladas ---------- */
+${Object.entries(project.pageStyles || {}).map(([n, ps]) => {
+    const sel = `.pagedjs_page[data-page-number="${Number(n)}"]`;
+    const r = [];
+    if (ps && ps.bg) r.push(`${sel} .pagedjs_sheet, ${sel} .pagedjs_pagebox { background: ${color(ps.bg, '#fff')} !important; }`);
+    if (ps && ps.color) r.push(`${sel} .pagedjs_pagebox *, ${sel} .pagedjs_margin-content::after { color: ${color(ps.color, '#000')} !important; }`);
+    return r.join('\n');
+  }).join('\n')}
 
 /* ---------- revista e jornal: colunas fixas ---------- */
 .chapter[data-cols="2"] .chapter-body, .chapter[data-cols="3"] .chapter-body, .chapter[data-cols="4"] .chapter-body {

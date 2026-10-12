@@ -227,6 +227,7 @@
     $('#genreSlot').appendChild(App.genre.select());
     $$('[data-cmd]').forEach(b => b.addEventListener('click', () => runCommand(b.dataset.cmd)));
     $$('.nav-item').forEach(b => b.addEventListener('click', () => App.setView(b.dataset.view)));
+    $('#modulesToggle').addEventListener('click', () => { $('#modulesToggle').classList.toggle('open'); $('#modulesList').classList.toggle('open'); });
     $('#addChapter').addEventListener('click', () => App.chapters.add());
     $('#selectMode').addEventListener('click', () => { App.selectMode = !App.selectMode; if (!App.selectMode) App.selection.clear(); App.renderChapterList(); });
     api.onMenu(runCommand);

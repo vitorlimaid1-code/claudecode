@@ -17,7 +17,7 @@
     if (kind === 'book') {
       s.columns = 1;
       Object.assign(f, { titlePage: true, copyright: true, toc: true, tocTitle: f.tocTitle === 'Nesta edição' ? 'Sumário' : f.tocTitle });
-      s.chapterStartRight = true;
+      s.chapterStartRight = false;
       if (s.chapterNumbering === 'none') s.chapterNumbering = 'arabic';
       return;
     }

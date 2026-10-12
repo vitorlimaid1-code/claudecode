@@ -751,6 +751,16 @@
   }
 
   // ---------------------------------------------------------------- arrastar e soltar
+  // Lado onde a imagem foi solta: esquerda/direita = texto ao redor; centro = centralizada
+  function zoneAt(x, rect) {
+    const f = (x - rect.left) / Math.max(1, rect.width);
+    return f < 0.3 ? 'left' : f > 0.7 ? 'right' : 'center';
+  }
+  function zoneOpts(zone) {
+    if (zone === 'left') return { align: 'left', wrap: 'square', width: 40 };
+    if (zone === 'right') return { align: 'right', wrap: 'square', width: 40 };
+    return { align: 'center', wrap: 'none' };
+  }
   function blockAtPoint(y) {
     const ed = editor();
     const kids = Array.from(ed.children);
@@ -772,8 +782,11 @@
     else { const r = ref.getBoundingClientRect(); top = pos.before ? r.top - 4 : r.bottom + 2; }
     const er = ed.getBoundingClientRect();
     ind.style.top = (top - sr.top + scroll.scrollTop) + 'px';
-    ind.style.left = (er.left - sr.left + 40) + 'px';
-    ind.style.width = (er.width - 80) + 'px';
+    const zone = showIndicator.x != null ? zoneAt(showIndicator.x, er) : 'center';
+    const inner = er.width - 80;
+    ind.style.left = (er.left - sr.left + 40 + (zone === 'right' ? inner * 0.6 : 0)) + 'px';
+    ind.style.width = (zone === 'center' ? inner : inner * 0.4) + 'px';
+    ind.dataset.zone = zone === 'left' ? 'à esquerda, texto ao redor' : zone === 'right' ? 'à direita, texto ao redor' : 'centralizada';
     ind.classList.add('show');
     ind.classList.toggle('invalid', !valid);
     return pos;
@@ -808,6 +821,7 @@
       const valid = !(c && c.locked) && kind !== 'separator';
       e.preventDefault();
       e.dataTransfer.dropEffect = valid ? (kind === 'figure' ? 'move' : 'copy') : 'none';
+      showIndicator.x = e.clientX;
       showIndicator(e.clientY, valid);
     });
     scroll.addEventListener('dragleave', e => { if (!scroll.contains(e.relatedTarget)) hideIndicator(); });
@@ -820,12 +834,18 @@
       if (c && c.locked) return App.toast('Capítulo bloqueado: desbloqueie para inserir elementos.');
       if (kind === 'separator') return App.toast('Imagens da biblioteca de separadores só podem ser usadas abaixo dos títulos — arraste para o título do capítulo ou use “Aparência”.', 5000);
       const pos = blockAtPoint(e.clientY);
+      const zone = zoneAt(e.clientX, ed.getBoundingClientRect());
       if (kind === 'figure') {
         const fid = e.dataTransfer.getData('application/x-dl-figure');
         const fig = ed.querySelector(`[data-fid="${fid}"]`);
         if (!fig) return;
-        if (pos.before === fig || pos.after === fig) return;
-        if (pos.before) ed.insertBefore(fig, pos.before); else if (pos.after) pos.after.after(fig);
+        if (fig.classList.contains('img')) {
+          const z = zoneOpts(zone);
+          fig.dataset.align = z.align; fig.dataset.wrap = z.wrap;
+          if (z.width && Number(fig.dataset.width) > 50) fig.dataset.width = String(z.width);
+          styleFigure(fig);
+        }
+        if (pos.before !== fig && pos.after !== fig) { if (pos.before) ed.insertBefore(fig, pos.before); else if (pos.after) pos.after.after(fig); }
         onInput();
         App.commit('Imagem movida');
         return;
@@ -833,7 +853,7 @@
       const ids = await App.editor.assetsFromDrop(e.dataTransfer, 'corpo');
       if (ids && ids.manuscript) return App.importer.fromPath(ids.manuscript);
       if (!ids || !ids.length) return;
-      insertBlocks(ids.map(id => figureHtml(id)).join(''), pos.before, pos.after);
+      insertBlocks(ids.map(id => figureHtml(id, zoneOpts(zone))).join(''), pos.before, pos.after);
       App.toast(ids.length > 1 ? `${ids.length} imagens inseridas.` : 'Imagem inserida.');
     });
     // separadores podem ser soltos no título do capítulo
@@ -895,6 +915,7 @@
     if (action === 'pagebreak') return insertBlocks('<div class="page-break"></div><p><br></p>');
     if (action === 'footnote') return insertFootnote();
     if (action === 'link') return linkDialog();
+    if (action === 'removenotes') return App.removeAllNotes();
     if (action === 'split') return splitChapter();
     if (action === 'newsection') return newSection();
     if (action === 'table') return tableDialog();
@@ -1024,6 +1045,8 @@
     $('#chapterTitle').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); editor().focus(); } });
     $('#chapterNumbered').addEventListener('change', e => { const c = App.chapter(); if (!c || c.locked) return; c.numbered = e.target.checked; App.changed('Numeração do capítulo'); App.renderChapterList(); });
     $('#chapterDelete').addEventListener('click', () => App.chapters.remove([App.chapterId]));
+    // apagar o título por completo e apertar Backspace/Delete de novo oferece excluir o capítulo
+    $('#chapterTitle').addEventListener('keydown', e => { if ((e.key === 'Backspace' || e.key === 'Delete') && !e.target.value) { e.preventDefault(); App.chapters.remove([App.chapterId]); } });
     $('#chapterLock').addEventListener('click', () => {
       const c = App.chapter();
       if (!c) return;
@@ -1037,7 +1060,26 @@
     setupDnD();
   }
 
-  App.editor = { setup, load, flush, decorate, figureHtml, insertBlocks, assetsFromDrop, chartDialog, styleFigure, renderLookPanel, selectFigure };
+  // Insere imagens num capítulo junto do bloco cujo texto começa com `probe` (usado pela prévia)
+  function insertIntoChapter(ch, probe, before, ids, zone) {
+    if (!ch || ch.locked) return false;
+    App.flush();
+    const tpl = document.createElement('template');
+    tpl.innerHTML = ch.html || '';
+    const norm = t => String(t || '').replace(/[\u00ad\u2011\u200b]/g, '').replace(/\s+/g, ' ').trim();
+    const kids = Array.from(tpl.content.children);
+    const pr = norm(probe).slice(0, 60);
+    let at = pr ? kids.find(k => norm(k.textContent).includes(pr)) : null;
+    const html = ids.map(id => figureHtml(id, zoneOpts(zone))).join('');
+    const frag = document.createElement('template');
+    frag.innerHTML = html;
+    if (at) { if (before) at.before(frag.content); else at.after(frag.content); } else tpl.content.appendChild(frag.content);
+    ch.html = tpl.innerHTML;
+    if (ch.id === App.editorChapterId) { App.editorChapterId = null; if (App.view === 'chapter') load(); }
+    return true;
+  }
+
+  App.editor = { setup, insertIntoChapter, zoneAt, load, flush, decorate, figureHtml, insertBlocks, assetsFromDrop, chartDialog, styleFigure, renderLookPanel, selectFigure };
   App.hooks.viewRender.chapter = () => {
     const c = App.chapter();
     if (!c) { if (App.project.chapters.length) { App.chapterId = App.project.chapters[0].id; } else return App.setView('book'); }

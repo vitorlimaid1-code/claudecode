@@ -68,7 +68,7 @@
   function applyZoom(frame) {
     frame = frame || active;
     $('#zoomLabel').textContent = Math.round(zoom * 100) + '%';
-    if (frame && frame.contentDocument) frame.contentDocument.documentElement.style.zoom = zoom;
+    if (frame && frame.contentDocument) { frame.contentDocument.documentElement.style.zoom = zoom; frame.contentDocument.documentElement.style.setProperty('--tools-zoom', String(Math.min(2.5, 1 / zoom))); }
   }
 
   const doc = () => (active && active.contentDocument) || null;
@@ -77,6 +77,19 @@
   P.scrollTo = id => { try { win() && win().scrollToId(id); } catch (e) { /* ok */ } };
   P.goToPage = n => { P.currentPage = n; markCurrent(); try { win() && win().scrollToPage(n); } catch (e) { /* ok */ } };
   P.updateOverlays = list => { try { win() && win().updateOverlays(list); P.highlightLayers([...App.layers.sel]); } catch (e) { /* ok */ } };
+  P.refreshTools = () => { const d = doc(); if (d) App.pageTools.attach(d); };
+  // zoom que faz caber 1, 2, 3, 4 ou 5 páginas na largura da prévia
+  P.fit = () => {
+    const d = doc();
+    const pg = d && d.querySelector('.pagedjs_page');
+    if (!pg) return;
+    const mode = $('#previewMode').value;
+    const n = mode === 'single' ? 1 : mode === 'spread' ? 2 : Number(mode.replace('cols', '')) || 1;
+    const avail = $('#previewFrames').clientWidth - 40 - (mode === 'single' ? 120 : 0);
+    const w = pg.offsetWidth * n + 22 * (n - 1) + 40;
+    zoom = Math.max(0.15, Math.min(2.5, +(avail / w).toFixed(2)));
+    applyZoom();
+  };
   P.setLayerEditing = on => { const d = doc(); if (d) d.body.classList.toggle('edit-layers', !!on); };
   P.inspect = o => (win() ? win().inspectBook(o) : null);
 
@@ -116,6 +129,7 @@
     const st = d.createElement('style');
     st.textContent = '.pagedjs_page.current { outline: 2px solid rgba(197,106,63,.55); outline-offset: 2px; } .ov-handle { position:absolute; right:-5px; bottom:-5px; width:10px; height:10px; background:#d9822b; border:1px solid #fff; cursor:nwse-resize; pointer-events:auto; }';
     d.head.appendChild(st);
+    App.pageTools.attach(d);
 
     d.addEventListener('mousedown', e => {
       const pg = pageAt(d, e.clientX, e.clientY);
@@ -217,6 +231,26 @@
       if (Array.from(e.dataTransfer.types).includes('application/x-dl-separator')) return App.toast('Separadores são usados abaixo dos títulos dos capítulos.');
       const p = mmIn(pg, e.clientX, e.clientY);
       const n = Number(pg.dataset.pageNumber);
+      // solto sobre o texto de um capítulo: a imagem entra no fluxo e o texto se reorganiza
+      const hit = d.elementFromPoint(e.clientX, e.clientY);
+      const body = hit && hit.closest('.chapter-body');
+      const sec = hit && hit.closest('[data-chapter]');
+      if (body && sec) {
+        let blk = hit;
+        while (blk && blk.parentElement !== body) blk = blk.parentElement;
+        const ch = App.project.chapters[Number(sec.dataset.chapter)];
+        if (ch && ch.locked) return App.toast('Capítulo bloqueado: desbloqueie no cadeado para inserir imagens.');
+        const ids = await App.editor.assetsFromDrop(e.dataTransfer, 'corpo');
+        if (!ids || !ids.length) return;
+        const r = blk ? blk.getBoundingClientRect() : null;
+        const before = r ? e.clientY < r.top + r.height / 2 : false;
+        const zone = App.editor.zoneAt(e.clientX, body.getBoundingClientRect());
+        if (App.editor.insertIntoChapter(ch, blk ? blk.textContent : '', before, ids, zone)) {
+          App.changed('Imagem inserida no texto de “' + ch.title + '”');
+          App.toast(`Imagem inserida no texto (${zone === 'left' ? 'à esquerda, com texto ao redor' : zone === 'right' ? 'à direita, com texto ao redor' : 'centralizada'}). A paginação é refeita.`);
+        }
+        return;
+      }
       const ids = await App.editor.assetsFromDrop(e.dataTransfer, 'corpo');
       if (!ids || !ids.length) return;
       let off = 0;
@@ -233,6 +267,10 @@
     $('#autoRefresh').addEventListener('change', e => { if (e.target.checked) P.schedule(true); });
     const setOpts = () => { try { win() && win().setPreviewOptions(opts()); } catch (e) { /* ok */ } };
     ['#previewMode', '#guides', '#gray'].forEach(s => $(s).addEventListener('change', setOpts));
+    $('#previewMode').addEventListener('change', () => { try { localStorage.setItem('previewMode', $('#previewMode').value); } catch (e) { /* ok */ } setTimeout(P.fit, 60); });
+    try { const m = localStorage.getItem('previewMode'); if (m && $(`#previewMode option[value="${m}"]`)) $('#previewMode').value = m; } catch (e) { /* ok */ }
+    $('#zoomFit').addEventListener('click', () => P.fit());
+    $('#insertBleedPage').addEventListener('click', () => App.pageTools.insertBleedPage(null));
     const splitter = $('#splitter');
     splitter.addEventListener('mousedown', e => {
       e.preventDefault();

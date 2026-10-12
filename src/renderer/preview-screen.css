@@ -37,11 +37,24 @@
   body.single .pagedjs_pages { flex-direction: column; align-items: center; width: auto; }
   body.single .pagedjs_first_page { margin-left: 0 !important; }
 
-  body.overview .pagedjs_pages { width: auto; max-width: none; justify-content: center; column-gap: 0; padding: 0 20px; }
-  body.overview .pagedjs_first_page { margin-left: var(--pagedjs-width) !important; }
-  body.overview .pagedjs_left_page { margin-left: 30px !important; }
-  body.overview .pagedjs_first_page.pagedjs_right_page { margin-left: calc(var(--pagedjs-width) + 30px) !important; }
+  /* 2 a 5 páginas lado a lado, em ordem, sem deslocar a primeira página */
+  body.grid .pagedjs_pages { display: grid; width: auto; justify-content: center; column-gap: 22px; row-gap: 34px; padding: 0 20px; }
+  body.cols2 .pagedjs_pages { grid-template-columns: repeat(2, var(--pagedjs-width)); }
+  body.cols3 .pagedjs_pages { grid-template-columns: repeat(3, var(--pagedjs-width)); }
+  body.cols4 .pagedjs_pages { grid-template-columns: repeat(4, var(--pagedjs-width)); }
+  body.cols5 .pagedjs_pages { grid-template-columns: repeat(5, var(--pagedjs-width)); }
+  body.grid .pagedjs_first_page { margin-left: 0 !important; }
+  body.single .pagedjs_pages { row-gap: 40px; }
 
+  /* ferramentas ao lado da página (modo 1 página por vez) */
+  .page-tools { display: none; position: absolute; top: 0; left: 100%; margin-left: 6px; zoom: var(--tools-zoom, 1); flex-direction: column; gap: 6px; z-index: 70; }
+  body.single .page-tools { display: flex; }
+  .page-tools button { width: 38px; height: 38px; border-radius: 8px; border: 1px solid #c9c4ba; background: #fff; cursor: pointer; font: 16px system-ui, sans-serif; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,.12); padding: 0; position: relative; }
+  .page-tools button:hover { border-color: #c56a3f; background: #fbf3ee; }
+  .page-tools button.on { background: #fbe9df; border-color: #c56a3f; }
+  .page-tools button .sw { position: absolute; right: 3px; bottom: 3px; width: 10px; height: 10px; border-radius: 2px; border: 1px solid rgba(0,0,0,.3); }
+  .page-tools button[disabled] { opacity: .4; cursor: default; }
+  .pagedjs_page.locked-page .pagedjs_pagebox::after { content: "🔒"; position: absolute; top: 4px; right: 6px; font-size: 14px; opacity: .55; z-index: 80; }
   body.gray .pagedjs_pages { filter: grayscale(1); }
 
   body.guides .guide { display: block; }

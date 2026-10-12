@@ -130,9 +130,19 @@
       el('div', { class: 'tabs' }, [['corpo', 'Ilustrações (corpo)'], ['separadores', 'Separadores de capítulo']].map(([k, l]) => el('button', { class: state.tab === k ? 'on' : '', text: l, onclick: () => { state.tab = k; renderDrawer(); } }))),
       el('p', { class: 'muted small', text: state.tab === 'separadores' ? 'Exclusivos para uso abaixo dos títulos: arraste para o título de um capítulo ou para a lista de capítulos.' : 'Arraste para o texto, para um capítulo da lista ou para uma página da prévia.' }),
       filtersRow(renderDrawer),
+      (() => {
+        // área de envio sempre visível: clique para escolher ou solte arquivos do computador
+        const z = el('div', { class: 'lib-dropzone', tabindex: '0', onclick: async () => afterAdd(await api.libAddDialog(state.tab)) }, [
+          el('strong', { text: '⬆ Enviar imagens do computador' }),
+          el('span', { class: 'small muted', text: `Clique ou solte aqui PNG, JPG, WEBP ou SVG — vão para ${state.tab === 'separadores' ? 'Separadores' : 'Imagens do corpo do texto'}` })
+        ]);
+        z.addEventListener('dragover', e => { if (Array.from(e.dataTransfer.types).includes('Files')) { e.preventDefault(); z.classList.add('over'); } });
+        z.addEventListener('dragleave', () => z.classList.remove('over'));
+        z.addEventListener('drop', async e => { e.preventDefault(); e.stopPropagation(); z.classList.remove('over'); afterAdd(await api.libAddPaths(state.tab, Array.from(e.dataTransfer.files).map(f => api.pathForFile(f)).filter(Boolean))); });
+        return z;
+      })(),
       el('div', { class: 'inline' }, [
-        el('button', { text: '+ Adicionar imagens…', onclick: async () => afterAdd(await api.libAddDialog(state.tab)) }),
-        el('button', { class: 'ghost', text: 'Abrir pasta', onclick: () => api.libOpenFolder() })
+        el('button', { class: 'ghost', text: 'Abrir pasta da biblioteca', onclick: () => api.libOpenFolder() })
       ]),
       el('div', { class: 'muted small', text: `${items.length} imagem(ns) — arraste arquivos do computador para cá para adicionar` }),
       grid

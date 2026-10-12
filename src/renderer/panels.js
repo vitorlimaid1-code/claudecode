@@ -22,7 +22,8 @@
       const sel = App.selection.has(c.id);
       const li = el('li', {
         class: 'chapter-item' + (App.view === 'chapter' && c.id === App.chapterId ? ' active' : '') + (sel ? ' checked' : '') + (c.locked ? ' locked' : ''),
-        draggable: c.locked ? 'false' : 'true', 'data-id': c.id
+        draggable: c.locked ? 'false' : 'true', 'data-id': c.id, tabindex: '0',
+        title: 'Clique para editar · Delete para excluir o capítulo'
       }, [
         App.selectMode ? el('input', { type: 'checkbox', class: 'ch-check', checked: sel, onclick: e => { e.stopPropagation(); toggleSel(c.id, e); } }) : null,
         el('span', { class: 'num', text: c.numbered ? String(n) : '–' }),
@@ -32,12 +33,18 @@
         el('span', { class: 'move' }, [
           el('button', { class: 'mini', title: 'Mover para cima', text: '▲', onclick: e => { e.stopPropagation(); move(i, -1); } }),
           el('button', { class: 'mini', title: 'Mover para baixo', text: '▼', onclick: e => { e.stopPropagation(); move(i, 1); } }),
+          el('button', { class: 'mini danger', title: 'Excluir este capítulo inteiro', text: '🗑', onclick: e => { e.stopPropagation(); App.chapters.remove(App.selection.has(c.id) && App.selection.size > 1 ? [...App.selection] : [c.id]); } }),
           el('button', { class: 'mini', title: 'Nova página/seção com título logo depois deste', text: '＋', onclick: async e => { e.stopPropagation(); const t = await App.prompt('Nova seção', 'Título da nova página (entra depois de “' + (c.title || '') + '”)', 'Nova seção'); if (t == null) return; App.chapters.insertAt(i + 1, t.trim() || 'Nova seção'); } })
         ])
       ]);
       li.addEventListener('click', e => {
         if (App.selectMode || e.ctrlKey || e.metaKey || e.shiftKey) { toggleSel(c.id, e); return; }
         App.setView('chapter', c.id);
+      });
+      li.addEventListener('keydown', e => {
+        if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+        e.preventDefault();
+        App.chapters.remove(App.selection.has(c.id) && App.selection.size > 1 ? [...App.selection] : [c.id]);
       });
       li.addEventListener('dragstart', e => {
         if (c.locked) { e.preventDefault(); return; }
@@ -341,7 +348,7 @@
         el('label', { class: 'chk' }, [bind(f, 'dedication', 'checkbox'), ' Dedicatória']),
         el('label', { class: 'chk' }, [bind(f, 'epigraph', 'checkbox'), ' Epígrafe']),
         el('label', { class: 'chk' }, [bind(f, 'toc', 'checkbox', { onChange: () => App.hooks.viewRender.book() }), ' Sumário'])
-      ], 'Ordem padrão: página de rosto › ficha catalográfica › sumário › (dedicatória, epígrafe) › capítulos › páginas extras. Cada elemento abre em página ímpar; os créditos ficam no verso da página de rosto.'),
+      ], 'Ordem padrão: página de rosto › ficha catalográfica › sumário › (dedicatória, epígrafe) › capítulos › páginas extras. Cada elemento começa na página seguinte, sem páginas em branco; estas páginas não recebem número.'),
       App.toc.card(() => App.hooks.viewRender.book()),
       card('Página de rosto', [
         el('div', { class: 'field' }, [el('span', { class: 'flabel', text: 'Logotipo da editora' }), el('div', { class: 'inline' }, [
@@ -544,7 +551,6 @@
       card('Capítulos', [
         field('Rótulo', bind(s, 'chapterLabel', 'text', { placeholder: 'Capítulo' })),
         field('Numeração', bind(s, 'chapterNumbering', 'select', { options: [{ value: 'arabic', label: '1, 2, 3' }, { value: 'roman', label: 'I, II, III' }, { value: 'words', label: 'Um, Dois, Três' }, { value: 'none', label: 'Sem número' }] })),
-        el('label', { class: 'chk' }, [bind(s, 'chapterStartRight', 'checkbox'), ' Sempre em página ímpar']),
         el('label', { class: 'chk' }, [bind(s, 'dropCap', 'checkbox'), ' Letra capitular']),
         n('dropCapLines', 'Linhas da capitular', 1, 2, 5),
         el('label', { class: 'chk' }, [bind(s, 'smallCapsFirstLine', 'checkbox'), ' 1ª linha em versalete'])
@@ -569,6 +575,25 @@
   };
 
   // ================================================================ notas de rodapé
+  // Remove todas as notas de todos os capítulos desbloqueados (pode ser desfeito)
+  App.removeAllNotes = async function () {
+    App.flush();
+    const chs = App.project.chapters.filter(c => /class="footnote"/.test(c.html || ''));
+    const count = c => (c.html.match(/<span class="footnote"/g) || []).length;
+    const total = chs.reduce((n, c) => n + count(c), 0);
+    if (!total) return App.toast('O livro não tem notas de rodapé.');
+    const ok = chs.filter(c => !c.locked);
+    const locked = chs.filter(c => c.locked);
+    const confirmed = await App.confirmPreview('Remover todas as notas de rodapé', `Serão removidas ${ok.reduce((n, c) => n + count(c), 0)} nota(s)` + (locked.length ? ` (as de ${locked.length} capítulo(s) bloqueado(s) serão mantidas)` : '') + ':', ok.map(c => `${c.title}: ${count(c)} nota(s)`), 'Remover todas');
+    if (!confirmed) return;
+    ok.forEach(c => { const t = document.createElement('template'); t.innerHTML = c.html; t.content.querySelectorAll('span.footnote').forEach(n => n.remove()); c.html = t.innerHTML.replace(/\u200b/g, ''); });
+    App.editorChapterId = null;
+    App.changed('Todas as notas de rodapé removidas');
+    if (App.view === 'chapter') App.setView('chapter', App.chapterId);
+    else if (App.view === 'notes') App.hooks.viewRender.notes();
+    App.toast('Notas removidas. Use Desfazer se mudar de ideia.');
+  };
+
   App.hooks.viewRender.notes = function () {
     App.flush();
     const v = $('#view-notes');
@@ -604,7 +629,7 @@
         el('div', { class: 'inline wrap' }, [
           el('strong', { text: `${all.length} nota(s) no livro` }),
           el('label', { class: 'chk' }, [bind(s, 'footnotesVisible', 'checkbox', { label: 'Mostrar/ocultar notas' }), ' Mostrar notas no livro (desmarque para ocultar todas sem apagar)']),
-          el('button', { class: 'danger', text: 'Remover todas as notas…', disabled: !all.length, onclick: () => removeNotes(all, 'Remover todas as notas') })
+          el('button', { class: 'danger', text: 'Remover todas as notas…', disabled: !all.length, onclick: () => App.removeAllNotes() })
         ]),
         el('p', { class: 'muted small', text: 'Ocultar não apaga: as notas continuam no projeto e voltam ao marcar a opção. Remover pode ser desfeito pelo Histórico.' })
       ]),
