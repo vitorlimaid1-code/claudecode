@@ -1,7 +1,7 @@
 {
   "name": "diagramador-de-livros",
   "productName": "Casa Vertigem Hub",
-  "version": "4.11.0",
+  "version": "4.12.0",
   "description": "Aplicativo desktop para diagramação de livros, 100% local e offline.",
   "main": "src/main.js",
   "author": "Diagramador de Livros",
@@ -11,6 +11,8 @@
     "postinstall": "node scripts/vendor.js",
     "start": "node scripts/vendor.js && electron .",
     "test": "node scripts/vendor.js && node test/smoke.js",
+    "qa": "node scripts/vendor.js && node test/qa/run.js",
+    "perf": "node scripts/vendor.js && node test/perf/run.js",
     "dist:win": "node scripts/vendor.js && node scripts/build.js --win nsis,portable,zip --x64",
     "dist:linux": "node scripts/vendor.js && node scripts/build.js --linux AppImage",
     "dist:portable": "node scripts/vendor.js && node scripts/build.js --win portable,zip --x64"

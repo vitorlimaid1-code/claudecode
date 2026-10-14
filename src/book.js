@@ -720,7 +720,7 @@ function buildHtml(project, ctx) {
       if (notesMode === 'chapter') body += X.chapterEndnotes(r.notes, settings.endnotesTitle);
       if (notesMode === 'book') ctx.endnotes.push({ heading: [label, c.title].filter(Boolean).join(' — '), notes: r.notes });
     }
-    if (hyph) { try { body = hyph(body); } catch (e) { /* sem hifenização */ } }
+    if (hyph) { try { body = hyphCached(hyph, body); } catch (e) { /* sem hifenização */ } }
     // tabelas coladas com a formatação original: sem hifenização automática (como no original)
     if (/tb-orig/.test(body)) body = body.replace(/<table\b[^>]*\btb-orig\b[\s\S]*?<\/table>/g, m => m.replace(/\u00ad/g, ''));
     if (settings.hyphenExceptions) body = X.applyHyphenExceptions(body, settings.hyphenExceptions);
@@ -805,6 +805,19 @@ function buildHtml(project, ctx) {
 }
 
 // ---------------------------------------------------------------- CSS
+// hifenização reaproveitada: a cada edição o livro é remontado, mas só o capítulo alterado muda
+const HYPH_CACHES = new WeakMap(); // um cache por hifenizador (idioma)
+function hyphCached(hyph, html) {
+  let HYPH_CACHE = HYPH_CACHES.get(hyph);
+  if (!HYPH_CACHE) { HYPH_CACHE = new Map(); HYPH_CACHES.set(hyph, HYPH_CACHE); }
+  const hit = HYPH_CACHE.get(html);
+  if (hit !== undefined) { HYPH_CACHE.delete(html); HYPH_CACHE.set(html, hit); return hit; }
+  const out = hyph(html);
+  HYPH_CACHE.set(html, out);
+  if (HYPH_CACHE.size > 600) HYPH_CACHE.delete(HYPH_CACHE.keys().next().value);
+  return out;
+}
+
 function buildCss(project, ctx) {
   const { meta, settings: s, chapters } = project;
   const S = s.styles;
@@ -1038,6 +1051,9 @@ ${pageNames}
 /* contorno mantido: igual ao da tela, também na impressão; removido: só uma guia clarinha na tela */
 .chapter-body .tframe.tf-keep { outline: 0.35mm dashed rgba(124, 58, 237, 0.45); outline-offset: 1.2mm; }
 .chapter-body .tframe[data-guide]:not(.tf-keep) { outline: 0.25mm dotted rgba(124, 58, 237, 0.28); outline-offset: 1.2mm; }
+/* ferramentas e guias da tela não saem na exportação (a prévia e a exportação usam as mesmas páginas) */
+body:not(.stage) .ph-plus, body:not(.stage) .ph-tools { display: none !important; }
+body:not(.stage) .tframe[data-guide]:not(.tf-keep) { outline: none !important; }
 /* estilos de título: caixa preta, caixa branca ou só contorno (à esquerda, ao centro ou à direita) */
 .chapter[class*=" tb-"] .chapter-title { display: inline-block; padding: 1.8mm 4.5mm 2.1mm; line-height: 1.12; }
 .chapter.tb-black .chapter-title { background: #000; color: #fff !important; }

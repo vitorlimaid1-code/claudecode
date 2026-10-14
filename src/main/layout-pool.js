@@ -6,7 +6,10 @@ const os = require('os');
 const LayoutPasses = require('../shared/passes');
 
 function createPool(pageUrl) {
-  const size = Math.max(1, Math.min(4, (os.cpus() || []).length - 1 || 1));
+  // um processo por núcleo livre (até 6), sem passar de ~1 GB de memória por processo
+  const cores = (os.cpus() || []).length || 2;
+  const memCap = Math.max(1, Math.floor(os.totalmem() / (1024 * 1024 * 1024)) - 1);
+  const size = Math.max(1, Math.min(6, cores - 1, memCap));
   const workers = [];
   const queue = [];
   let seq = 0;

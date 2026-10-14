@@ -245,6 +245,13 @@ O layout padrão é o de **livro**. Em **Outros módulos** (barra lateral) ficam
 - Reconhece os pesos e estilos reais (não simula negrito/itálico ausentes), lê a **licença de incorporação** (fsType) e avisa quando a fonte não pode ir para o PDF.
 - Fontes ausentes ao abrir um livro geram aviso e escolha explícita de substituição, registrada no projeto.
 
+## Desempenho com livros grandes
+- A paginação acontece em processos separados, vários capítulos ao mesmo tempo (um por núcleo livre do computador, até 6): a tela nunca espera a paginação.
+- A prévia encaixa os capítulos prontos em lotes; os botões ao lado das páginas e a edição direta (com o corretor ortográfico) só são preparados nas páginas perto da área visível. As páginas fora da tela não são desenhadas.
+- **Cache de páginas**: cada capítulo paginado fica guardado no disco (até 400 MB, os menos usados saem primeiro). Reabrir um livro, desfazer uma edição ou exportar logo depois da prévia não pagina de novo o que já foi paginado.
+- A hifenização é reaproveitada entre edições, e as imagens vão para o processo de paginação uma vez só.
+- Medido num livro de 738 páginas (computador de 4 núcleos): primeira página em ~2 s, livro inteiro em ~19 s sem travar a tela (maior pausa ~0,2 s), edição de volta à prévia em ~2,3 s, reabertura em ~0,7 s, digitação em ~2 ms por tecla; a exportação em PDF reaproveita as páginas da prévia.
+
 ## Limitações conhecidas (honestas)
 
 - **Capa**: PDF/X-1a CMYK de verdade (imagem CMYK única em alta resolução, que é como capas prontas são entregues). **Miolo**: o texto continua vetorial e as cores são convertidas para CMYK/cinza com perfil ICC, mas o arquivo não é declarado PDF/X (pode conter transparência de imagens PNG e anotações de link); se a gráfica exigir certificação PDF/X para o miolo, valide no software dela. A prévia “Cinza” não é prova de cor.
@@ -262,6 +269,8 @@ Requisitos: Node.js 20+.
 npm install          # dependências + copia Paged.js e fontes para src/renderer/vendor
 npm start            # abre o aplicativo
 npm test             # gera um PDF de exemplo pelo mesmo caminho da exportação
+npm run qa           # bateria de qualidade: 30 modelos de PDF + exportações DOCX/ODT/EPUB (requer Python 3 e poppler-utils)
+npm run perf         # desempenho com um livro de ~700 páginas (primeira página, total, travadas, edição, reabertura)
 npm run dist:win     # instalador, versão portátil (.exe) e ZIP em dist/
 npm run dist:portable
 ```
@@ -281,6 +290,9 @@ npm run dist:portable
 | `src/shared/cover.js` | Geometria da capa (lombada, sangria, orelhas, capa dura) |
 | `assets/icc/` | Perfis ICC (FOGRA39, GRACoL 2013, sRGB) e as licenças deles |
 | `src/book.js` | Projeto → HTML/CSS paginado (estilos, figuras, notas, ficha, páginas especiais) |
+| `src/main/layout-pool.js` | Paginação em janelas de trabalho paralelas (um processo por núcleo livre, até 6) |
+| `src/main/layout-cache.js` | Cache em disco das páginas já paginadas (por capítulo; imagens fora do cache) |
+| `test/qa/`, `test/perf/` | Bateria de qualidade e teste de desempenho |
 | `src/shared/defaults.js` | Formatos, estilos, configurações padrão e por gênero, migração de projetos |
 | `src/renderer/` | Interface (editor, painéis, bibliotecas, camadas, capa, exportação, prévia) |
 | `assets/library/` | Biblioteca embutida (ilustrações e separadores em PNG) |

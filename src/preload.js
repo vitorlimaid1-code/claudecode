@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('api', {
   layoutSegment: (buildId, key, options, priority) => inv('layout:segment', buildId, key, options, priority),
   layoutCancel: keys => inv('layout:cancel', keys),
   layoutWorkers: () => inv('layout:workers'),
+  assetsPut: list => inv('assets:put', list),
   inspect: (project, opts) => inv('export:inspect', project, opts || {}),
   exportRun: req => inv('export:run', req),
   coverAnalyze: s => inv('cover:analyze', s),

@@ -76,7 +76,8 @@
     info.missingFonts = seg.book.missingFonts;
     App.lastRender = info;
     if (anchor && P.restoreAnchor) P.restoreAnchor(anchor); else if (se && P._ratio != null) se.scrollTop = P._ratio * se.scrollHeight;
-    App.pageTools.attach(active.contentDocument);
+    // os botões ao lado das páginas nunca podem impedir a prévia de terminar
+    try { App.pageTools.attach(active.contentDocument); } catch (e) { console.error('botões das páginas', e); }
     if (P.fitNext && fin.pages) { P.fitNext = false; setTimeout(P.fit, 30); }
     const book = seg.book;
     $('#pageInfo').textContent = `${info.pages} páginas${info.pending ? ` · paginando ${seg.order.length - info.pending}/${seg.order.length}…` : ''}${book.missingFonts && book.missingFonts.length ? ' · ⚠ fonte ausente' : ''}${book.missingAssets && book.missingAssets.length ? ' · ⚠ imagem ausente' : ''}`;
@@ -115,7 +116,15 @@
       await ensureStage();
       const tb = performance.now();
       const seqAt = App.editSeq;
-      const prep = await App.api.layoutPrepare(App.serialize());
+      // as imagens vão só com uma assinatura; o processo principal guarda as que já recebeu e pede as novas
+      const full = App.serialize();
+      const sigOf = a => (a && a.dataUrl ? a.dataUrl.length + ':' + a.dataUrl.slice(-48) : '');
+      const lite = Object.assign({}, full, { assets: Object.fromEntries(Object.entries(full.assets || {}).map(([id, a]) => [id, a && a.dataUrl ? Object.assign({}, a, { dataUrl: undefined, sig: sigOf(a) }) : a])) });
+      let prep = await App.api.layoutPrepare(lite);
+      if (prep && prep.need) {
+        await App.api.assetsPut(prep.need.map(id => ({ id, sig: sigOf(full.assets[id]), dataUrl: full.assets[id].dataUrl })));
+        prep = await App.api.layoutPrepare(lite);
+      }
       seg.stats = { build: Math.round(performance.now() - tb), apply: 0 };
       if (gen !== seg.gen) return; // já há uma paginação mais nova
       const book = prep.meta;
@@ -144,8 +153,28 @@
       jobs.forEach(j => seg.info.delete(j.s.key));
       applyResult({});
       if (!jobs.length) return;
+      // Os capítulos que ficam prontos em sequência entram na prévia em lotes (no máximo um encaixe a cada
+      // ~0,8 s): o capítulo aberto e o primeiro resultado entram na hora; o resto espera o lote seguinte.
+      // Num livro grande, encaixar cada capítulo separadamente refazia as páginas dezenas de vezes.
+      const batch = { add: {}, timer: null, last: 0, applied: 0 };
+      const flush = () => {
+        clearTimeout(batch.timer); batch.timer = null;
+        if (gen !== seg.gen || !Object.keys(batch.add).length) return;
+        const add = batch.add; batch.add = {};
+        batch.last = performance.now(); batch.applied++;
+        applyResult(add);
+      };
+      const queueApply = (key, res, left) => {
+        batch.add[key] = { pagesHtml: res.pagesHtml, css: res.css };
+        const urgent = !batch.applied || key === cur || !left;
+        if (urgent) return flush();
+        if (!batch.timer) batch.timer = setTimeout(flush, Math.max(120, 800 - (performance.now() - batch.last)));
+      };
+      let left = jobs.length;
       await Promise.all(jobs.map(async j => {
         const res = await App.api.layoutSegment(prep.id, j.s.key, { adjust: j.adjust }, j.priority);
+        left--;
+        if (!left && batch.timer) setTimeout(flush, 0);
         if (!res || res.superseded) return;
         if (res.error) { console.error('paginação', j.s.key, res.error); return; }
         if (seg.want.get(j.s.key) !== j.hash) return; // o trecho mudou enquanto era paginado
@@ -162,8 +191,9 @@
           seg.want.set(j.s.key, nh);
           seg.done.set(j.s.key, nh);
         }
-        applyResult({ [j.s.key]: { pagesHtml: res.pagesHtml, css: res.css } });
+        queueApply(j.s.key, res, left);
       }));
+      flush();
     } catch (err) {
       console.error(err);
       $('#pageInfo').textContent = 'Erro ao paginar';

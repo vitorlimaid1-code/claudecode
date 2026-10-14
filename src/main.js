@@ -509,13 +509,47 @@ const pool = () => layoutPool || (layoutPool = require('./main/layout-pool').cre
 // vai para a prévia; o HTML de cada trecho segue direto daqui para a janela que pagina.
 const builds = new Map();
 let buildSeq = 0;
+// cache em disco das páginas já paginadas (muda de “versão” quando o código da paginação muda)
+let layoutCacheObj = null;
+function layoutCache() {
+  if (layoutCacheObj) return layoutCacheObj;
+  const files = ['src/renderer/preview.js', 'src/renderer/vendor/paged.js', 'src/shared/passes.js', 'src/main/layout-pool.js'];
+  const sig = files.map(f => { try { const st = fs.statSync(path.join(APP_ROOT, f)); return st.size + ':' + Math.round(st.mtimeMs); } catch (e) { return '-'; } }).join('|');
+  layoutCacheObj = require('./main/layout-cache').createLayoutCache(userFile('layout-cache'), app.getVersion() + '|' + sig, 400);
+  return layoutCacheObj;
+}
+// paginação de um trecho: do cache, se já foi paginado igual; senão nas janelas de trabalho (e guarda)
+async function layoutCached(book, options, jobKey, priority, assets) {
+  const c = layoutCache();
+  const k = c.key(book, book.html, options);
+  const hit = await c.get(k, assets || {});
+  if (hit) return hit;
+  const res = await pool().layout(book, options, jobKey, priority);
+  if (res && !res.error && !res.superseded) c.put(k, res, assets || {});
+  return res;
+}
+// imagens do projeto guardadas aqui: a interface não precisa mandar todas de novo a cada atualização
+const assetStore = new Map();
+const assetSig = a => (a && a.dataUrl ? a.dataUrl.length + ':' + a.dataUrl.slice(-48) : '');
 function hashText(str) { let h = 5381, g = 52711; for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); h = ((h << 5) + h + c) | 0; g = ((g << 5) + g ^ c) | 0; } return (h >>> 0).toString(36) + (g >>> 0).toString(36) + ':' + str.length; }
+ipcMain.handle('assets:put', (e, list) => { (list || []).forEach(a => { if (a && a.id && a.dataUrl) assetStore.set(a.id, { sig: a.sig || assetSig(a), dataUrl: a.dataUrl }); }); return true; });
 ipcMain.handle('layout:prepare', async (e, project) => {
+  // imagens enviadas só com a assinatura: completa com as guardadas (ou pede as que faltam)
+  const need = [];
+  if (project && project.assets) {
+    const assets = {};
+    for (const [id, a] of Object.entries(project.assets)) {
+      if (a && !a.dataUrl && a.sig) { const st = assetStore.get(id); if (st && st.sig === a.sig) assets[id] = Object.assign({}, a, { dataUrl: st.dataUrl }); else need.push(id); }
+      else assets[id] = a;
+    }
+    if (need.length) return { need };
+    project = Object.assign({}, project, { assets });
+  }
   const book = await bookPayload(project, { markBlocks: true });
   const id = ++buildSeq;
   const segments = book.segments || [{ key: 'all', html: book.html }];
   const meta = Object.assign({}, book, { html: '', segments: undefined, overlays: [] });
-  builds.set(id, { meta, segments: new Map(segments.map(s => [s.key, s.html])) });
+  builds.set(id, { meta, assets: project.assets || {}, segments: new Map(segments.map(s => [s.key, s.html])) });
   for (const k of builds.keys()) if (k < id - 3) builds.delete(k);
   return { id, meta, segments: segments.map(s => ({ key: s.key, hash: hashText(s.html) })) };
 });
@@ -523,7 +557,7 @@ ipcMain.handle('layout:segment', async (e, buildId, key, options, priority, jobK
   const b = builds.get(buildId);
   if (!b || !b.segments.has(key)) return { superseded: true };
   const book = Object.assign({}, b.meta, { html: b.segments.get(key) });
-  try { return await pool().layout(book, options, jobKey || key, priority); } catch (err) { return { error: String(err && err.message || err) }; }
+  try { return await layoutCached(book, options, jobKey || key, priority, b.assets); } catch (err) { return { error: String(err && err.message || err) }; }
 });
 ipcMain.handle('layout:cancel', async (e, keys) => { if (layoutPool) layoutPool.cancel(keys); return true; });
 ipcMain.handle('layout:workers', async () => pool().size);
@@ -547,7 +581,8 @@ async function withRenderWindow(fn, opts) {
 // mesmas tentativas para notas e o ajuste de última página — e o livro é montado na janela de exportação.
 async function renderBookSegmented(win, project, options) {
   if (process.env.EXPORT_FULL === '1') return null;
-  const book = await bookPayload(project);
+  // mesma montagem da prévia: os capítulos já paginados na prévia vêm do cache, sem paginar de novo
+  const book = await bookPayload(project, { markBlocks: true });
   const segs = book.segments || [];
   if (segs.length < 2) return null;
   const adjustAll = LayoutPasses.savedAdjust(normalizeProject(project));
@@ -560,7 +595,7 @@ async function renderBookSegmented(win, project, options) {
   const results = await Promise.all(segs.map(s => {
     const chId = s.key.startsWith('ch:') ? s.key.slice(3) : null;
     const adjust = chId && adjustAll[chId] ? { [chId]: adjustAll[chId] } : {};
-    return pool().layout(Object.assign({}, meta, { html: s.html }), { adjust }, tag + s.key, 5000).catch(err => ({ error: String(err) }))
+    return layoutCached(Object.assign({}, meta, { html: s.html }), { adjust }, tag + s.key, 5000, project.assets || {}).catch(err => ({ error: String(err) }))
       .then(r => { doneN++; progress(`  ${doneN}/${segs.length} · ${label(s.key)}: ${r && r.pages ? r.pages + ' página(s)' : 'erro'}`); return r; });
   }));
   progress('Juntando as páginas, números de página, sumário e índice…');

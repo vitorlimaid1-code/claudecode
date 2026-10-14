@@ -40,7 +40,7 @@
   function colorDialog(pg, kind) {
     const n = Number(pg.dataset.pageNumber);
     const ch = chapterOfPage(pg);
-    const ps = App.project.pageStyles[n] || {};
+    const ps = (App.project.pageStyles || {})[n] || {};
     const key = kind === 'bg' ? 'bg' : 'color';
     const chKey = kind === 'bg' ? 'pageColor' : 'textColor';
     const current = ps[key] || (ch && ch.style && ch.style[chKey]) || (kind === 'bg' ? (App.project.settings.pageColor || '#ffffff') : '#000000');
@@ -55,7 +55,7 @@
       body: el('div', {}, [cp.box, el('h4', { text: 'Aplicar em:' }), scope,
         kind === 'bg' ? el('p', { class: 'muted small', text: 'Dica: página escura com texto branco — mude também a “Cor do texto”. A cor cobre a sangria.' }) : null]),
       buttons: [
-        { label: 'Remover cor desta página', onClick: () => { if (App.project.pageStyles[n]) { delete App.project.pageStyles[n][key]; if (!Object.keys(App.project.pageStyles[n]).length) delete App.project.pageStyles[n]; } App.changed(`${title} removida (página ${n})`); } },
+        { label: 'Remover cor desta página', onClick: () => { if ((App.project.pageStyles || {})[n]) { delete App.project.pageStyles[n][key]; if (!Object.keys(App.project.pageStyles[n]).length) delete App.project.pageStyles[n]; } App.changed(`${title} removida (página ${n})`); } },
         { label: 'Cancelar' },
         { label: 'Aplicar', primary: true, onClick: () => {
           const where = (document.querySelector('.modal input[name="scope"]:checked') || {}).value || 'page';
@@ -67,6 +67,7 @@
             App.changed(`${title} do capítulo “${ch.title}”`);
           } else {
             if (ch && ch.locked) { App.toast('Página bloqueada: desbloqueie no cadeado para mudar a cor.'); return false; }
+            App.project.pageStyles = App.project.pageStyles || {};
             App.project.pageStyles[n] = Object.assign({}, App.project.pageStyles[n] || {}, { [key]: v });
             App.changed(`${title} da página ${n}`);
           }
@@ -135,12 +136,33 @@
   }
 
   // Cria os botões ao lado de cada página (documento da prévia)
+  // Os botões só são criados nas páginas perto da área visível (e refeitos quando o livro muda):
+  // num livro grande, recriar os botões de centenas de páginas a cada atualização travava a tela.
   function attach(d) {
-    d.querySelectorAll('.page-tools').forEach(t => t.remove());
+    d.__ptVer = (d.__ptVer || 0) + 1;
+    const win = d.defaultView;
+    if (!d.__ptObs && win && win.IntersectionObserver) {
+      d.__ptObs = new win.IntersectionObserver(entries => entries.forEach(e => {
+        e.target.__ptNear = e.isIntersecting;
+        if (e.isIntersecting) { try { build(d, e.target); } catch (err) { console.error('botões da página', err); } }
+      }), { rootMargin: '1500px 0px' });
+    }
     d.querySelectorAll('.pagedjs_page').forEach(pg => {
+      const ch = chapterOfPage(pg);
+      pg.classList.toggle('locked-page', !!(ch && ch.locked));
+      if (!d.__ptObs) { build(d, pg); return; }
+      if (!pg.__ptObserved) { pg.__ptObserved = true; d.__ptObs.observe(pg); }
+      else if (pg.__ptNear) build(d, pg);
+    });
+  }
+  function build(d, pg) {
+    if (pg.__ptVer === d.__ptVer) return;
+    pg.__ptVer = d.__ptVer;
+    pg.querySelectorAll(':scope > .page-tools').forEach(t => t.remove());
+    {
       const n = Number(pg.dataset.pageNumber);
       const ch = chapterOfPage(pg);
-      const ps = App.project.pageStyles[n] || {};
+      const ps = (App.project.pageStyles || {})[n] || {};
       const st = (ch && ch.style) || {};
       pg.classList.toggle('locked-page', !!(ch && ch.locked));
       const btn = (icon, title, fn, swatch, cls) => {
@@ -164,7 +186,7 @@
         btn('✎', 'Abrir este capítulo no editor', () => { if (ch) App.setView('chapter', ch.id); else App.toast('Página gerada pelo livro: edite em “Dados e páginas iniciais” ou “Páginas finais”.'); })
       );
       pg.appendChild(tools);
-    });
+    }
   }
 
   App.pageTools = { attach, colorDialog, insertBleedPage, chapterOfPage, colorPicker };

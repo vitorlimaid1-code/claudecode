@@ -58,7 +58,7 @@ async function exportDocx(doc, assets, page) {
       }
       if (r.br) { out.push(new D.TextRun({ text: '', break: 1 })); return; }
       out.push(new D.TextRun({
-        text: String(r.text || '').replace(/[\r\n\t]+/g, ' ').replace(/ {2,}/g, ' '), bold: !!r.b, italics: !!r.i, underline: r.u ? {} : undefined, strike: !!r.s,
+        text: String(r.text || '').replace(/[\r\n\t]+/g, ' ').replace(/ {2,}/g, ' '), bold: !!r.b, italics: !!r.i, underline: r.u ? {} : undefined, strike: !!r.s, color: /^#[0-9a-f]{6}$/i.test(r.color || '') ? r.color.slice(1) : undefined,
         superScript: !!r.sup, subScript: !!r.sub, smallCaps: !!r.sc
       }));
     });
@@ -113,7 +113,11 @@ async function exportDocx(doc, assets, page) {
       } else if (b.t === 'table') {
         children.push(new D.Table({
           width: { size: 100, type: D.WidthType.PERCENTAGE },
-          rows: b.rows.map(r => new D.TableRow({ children: r.map(c => new D.TableCell({ children: [new D.Paragraph({ children: mkRuns(c.runs).map(x => x) })] })) }))
+          // tabela colada com a formatação original: fundo, alinhamento, cor e negrito de cada célula
+          rows: b.rows.map(r => new D.TableRow({ children: r.map(c => new D.TableCell({
+            shading: c.bg ? { fill: c.bg.slice(1), type: D.ShadingType.CLEAR, color: 'auto' } : undefined,
+            children: [new D.Paragraph({ alignment: align(c.align), indent: { firstLine: 0 }, children: mkRuns(c.runs).map(x => x) })]
+          })) }))
         }));
         if (b.caption) children.push(new D.Paragraph({ style: 'Caption', children: mkRuns(b.caption) }));
       }

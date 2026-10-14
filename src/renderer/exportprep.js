@@ -32,12 +32,24 @@
     return out;
   }
 
+  // estilo de uma célula de tabela colada com a formatação original (fundo, cor, negrito, alinhamento)
+  function cellLook(c) {
+    const st = c.style || {};
+    const hex = v => { const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/.exec(v || ''); if (!m || (m[4] !== undefined && Number(m[4]) < 0.1)) return /^#[0-9a-f]{6}$/i.test(v || '') ? v : ''; return '#' + [m[1], m[2], m[3]].map(x => Number(x).toString(16).padStart(2, '0')).join(''); };
+    return { bg: hex(st.backgroundColor), color: hex(st.color), b: Number(st.fontWeight) >= 600 || st.fontWeight === 'bold', i: st.fontStyle === 'italic', align: /^(left|right|center|justify)$/.test(st.textAlign) ? st.textAlign : '' };
+  }
   function blocksOf(html) {
     const tpl = document.createElement('template');
     tpl.innerHTML = String(html || '').replace(/\ssrc="blob:[^"]*"/g, '');
     const blocks = [];
-    Array.from(tpl.content.children).forEach(n => {
+    const each = n => {
       const t = n.tagName;
+      // trecho em colunas: os parágrafos entram normalmente (o Word/LibreOffice não têm colunas num trecho)
+      if (t === 'DIV' && n.classList.contains('cols')) { Array.from(n.children).forEach(each); return; }
+      // caixa de texto à parte: vira um bloco recuado, como citação
+      if (t === 'DIV' && n.classList.contains('tframe')) { blocks.push({ t: 'box', paras: Array.from(n.querySelectorAll('p')).map(p => runs(p)).concat(n.querySelector('p') ? [] : [runs(n)]) }); return; }
+      // bloco de imagem ainda sem imagem (cinza): não vai para o arquivo
+      if (t === 'DIV' && n.classList.contains('ph-block')) return;
       if (t === 'P') blocks.push({ t: 'p', cls: n.classList.contains('no-indent') ? 'noindent' : (n.className || 'body'), align: n.style.textAlign || '', runs: runs(n) });
       else if (/^H[1-6]$/.test(t)) blocks.push({ t: 'h', level: Math.max(2, Math.min(4, Number(t[1]))), runs: runs(n) });
       else if (t === 'BLOCKQUOTE') blocks.push({ t: 'quote', paras: Array.from(n.querySelectorAll('p')).map(p => runs(p)).concat(n.querySelector('p') ? [] : [runs(n)]) });
@@ -50,11 +62,19 @@
       else if (t === 'FIGURE') {
         const cap = n.querySelector('figcaption');
         blocks.push({ t: 'image', asset: n.dataset.asset, align: ['left', 'right'].includes(n.dataset.align) ? n.dataset.align : '', widthPct: n.dataset.align === 'full' ? 100 : Number(n.dataset.width) || 60, caption: cap ? runs(cap) : [] });
+        // caixas/legendas que ficam sobre a imagem no livro: aqui, logo abaixo dela, em itálico
+        n.querySelectorAll(':scope > .fig-ov').forEach(o => { const tx = (o.innerText || o.textContent || '').trim(); if (tx) blocks.push({ t: 'p', cls: 'noindent', align: 'center', runs: [{ text: tx, i: true }] }); });
       } else if (t === 'TABLE') {
         const cap = n.querySelector('caption');
-        blocks.push({ t: 'table', rows: Array.from(n.querySelectorAll('tr')).map(tr => Array.from(tr.children).map(c => ({ th: c.tagName === 'TH', runs: runs(c) }))), caption: cap ? runs(cap) : null });
+        const orig = n.classList.contains('tb-orig');
+        blocks.push({ t: 'table', orig, rows: Array.from(n.querySelectorAll('tr')).map(tr => Array.from(tr.children).map(c => {
+          if (!orig) return { th: c.tagName === 'TH', runs: runs(c) };
+          const lk = cellLook(c);
+          return { th: c.tagName === 'TH', runs: runs(c, { b: lk.b || undefined, i: lk.i || undefined, color: lk.color || undefined }), bg: lk.bg, align: lk.align };
+        })), caption: cap ? runs(cap) : null });
       }
-    });
+    };
+    Array.from(tpl.content.children).forEach(each);
     return blocks;
   }
 
@@ -67,7 +87,11 @@
       if (c.numbered && s.chapterNumbering !== 'none') { n++; label = `${s.chapterLabel || ''} ${n}`.trim(); }
       let html = c.html;
       if (!s.footnotesVisible) html = html.replace(/<span class="footnote">[\s\S]*?<\/span>/g, '');
-      return { title: c.title, label, blocks: blocksOf(html) };
+      const blocks = blocksOf(html);
+      // páginas de imagem sangrada antes/depois do capítulo: a imagem em página inteira, com o texto do box abaixo
+      const bl = c.bleed || {};
+      const bleedBlocks = side => { const b = bl[side]; if (!b || !b.asset || !project.assets[b.asset]) return []; const box = b.box || {}; const cap = [box.title, box.text].filter(x => x && String(x).trim()).join(' — '); return [{ t: 'image', asset: b.asset, widthPct: 100, caption: cap ? [{ text: cap, i: true }] : [] }]; };
+      return { title: c.title, label, blocks: bleedBlocks('before').concat(blocks, bleedBlocks('after')) };
     });
     if (project.back.bio.enabled) chapters.push({ title: project.back.bio.title, label: '', blocks: blocksOf(project.back.bio.html) });
     if (project.back.extra.enabled) chapters.push({ title: project.back.extra.title, label: '', blocks: blocksOf(project.back.extra.html) });
@@ -83,7 +107,21 @@
     if (c.id) sec.id = c.id;
     // imersão: a imagem da abertura do capítulo vem antes do título
     if (c.immersion) { const fig = doc.createElement('div'); fig.className = 'immersion'; const im = doc.createElement('img'); im.setAttribute('data-asset', c.immersion); im.setAttribute('alt', ''); fig.appendChild(im); sec.appendChild(fig); }
+    // página de imagem sangrada antes do capítulo (com o texto do box como legenda)
+    const bleedFig = side => {
+      const b = (c.bleed || {})[side];
+      if (!b || !b.asset || !App.project.assets[b.asset]) return null;
+      const fig = doc.createElement('figure'); fig.className = 'full bleed-page';
+      const im = doc.createElement('img'); im.setAttribute('data-asset', b.asset); im.setAttribute('alt', ''); fig.appendChild(im);
+      const box = b.box || {}; const cap = [box.title, box.text].filter(x => x && String(x).trim());
+      if (cap.length) { const fc = doc.createElement('figcaption'); if (box.title) { const bb = doc.createElement('b'); bb.textContent = box.title; fc.appendChild(bb); if (box.text) fc.appendChild(doc.createElement('br')); } if (box.text) fc.appendChild(doc.createTextNode(box.text)); fig.appendChild(fc); }
+      return fig;
+    };
+    const pre = bleedFig('before');
+    if (pre) sec.appendChild(pre);
     const h = doc.createElement('h1');
+    const tb = Object.assign({}, settings.titleBox || {}, c.titleBox && c.titleBox.style ? c.titleBox : {});
+    if (tb.style && tb.style !== 'none') h.className = `tb tb-${tb.style}${tb.align ? ' tb-al-' + tb.align : ''}`;
     if (label) { const l = doc.createElement('span'); l.className = 'label'; l.textContent = label; h.appendChild(l); h.appendChild(doc.createElement('br')); }
     h.appendChild(doc.createTextNode(c.title));
     sec.appendChild(h);
@@ -107,14 +145,36 @@
       notes.push({ id, html: fn.innerHTML });
       fn.replaceWith(sup);
     });
+    body.querySelectorAll('div.ph-block').forEach(x => x.remove()); // bloco cinza à espera da imagem
     body.querySelectorAll('figure.img').forEach(f => {
       const fig = doc.createElement('figure');
       fig.className = 'img';
       const img = doc.createElement('img');
       img.setAttribute('data-asset', f.dataset.asset);
       img.setAttribute('alt', (f.querySelector('figcaption') || {}).textContent || '');
-      img.setAttribute('style', `width:${f.dataset.align === 'full' ? 100 : Number(f.dataset.width) || 60}%`);
-      fig.appendChild(img);
+      const wPct = f.dataset.align === 'full' ? 100 : Number(f.dataset.width) || 60;
+      // caixas/legendas sobre a imagem: a imagem vai num quadro com as caixas por cima (leitores que não
+      // posicionam elementos mostram o texto logo abaixo da imagem)
+      const ovs = Array.from(f.querySelectorAll(':scope > .fig-ov')).filter(o => window.Overlays && Overlays.byKey(o.dataset.ov) && (o.textContent || '').trim());
+      if (ovs.length) {
+        const wrap = doc.createElement('div');
+        wrap.className = 'ov-wrap';
+        wrap.setAttribute('style', `width:${wPct}%`); wrap.setAttribute('data-ks', '1');
+        img.setAttribute('style', 'width:100%'); img.setAttribute('data-ks', '1');
+        wrap.appendChild(img);
+        ovs.forEach(o => {
+          const pr = Overlays.byKey(o.dataset.ov);
+          const d = doc.createElement('div');
+          d.className = `fig-ov ov-${pr.key}`;
+          d.setAttribute('style', Overlays.placeStyle(pr, o.dataset.y, o.dataset.rot)); d.setAttribute('data-ks', '1');
+          String(o.innerText || o.textContent).split('\n').forEach((ln, i) => { if (i) d.appendChild(doc.createElement('br')); d.appendChild(doc.createTextNode(ln)); });
+          wrap.appendChild(d);
+        });
+        fig.appendChild(wrap);
+      } else {
+        img.setAttribute('style', `width:${wPct}%`);
+        fig.appendChild(img);
+      }
       const cap = f.querySelector('figcaption');
       if (cap && cap.textContent.trim()) {
         const fc = doc.createElement('figcaption'); fc.innerHTML = cap.innerHTML;
@@ -150,9 +210,15 @@
     });
     body.querySelectorAll('div.page-break').forEach(p => p.remove());
     body.querySelectorAll('hr.scene-break').forEach(hr => { const p = doc.createElement('p'); p.className = 'scene'; p.textContent = settings.sceneBreak || '* * *'; hr.replaceWith(p); });
-    body.querySelectorAll('[style]').forEach(e => { if (!e.matches('img')) { const ta = e.style.textAlign; e.removeAttribute('style'); if (ta) e.setAttribute('style', `text-align:${ta}`); } });
+    // tabelas coladas com a formatação original: as células mantêm o visual
+    body.querySelectorAll('table.tb-orig td[style], table.tb-orig th[style]').forEach(c => c.setAttribute('data-ks', '1'));
+    body.querySelectorAll('table.tb-orig').forEach(t => { t.removeAttribute('data-tw'); t.removeAttribute('data-minw'); t.removeAttribute('data-fs'); t.removeAttribute('data-cols'); });
+    body.querySelectorAll('[style]').forEach(e => { if (e.hasAttribute('data-ks')) { e.removeAttribute('data-ks'); return; } if (!e.matches('img')) { const ta = e.style.textAlign; e.removeAttribute('style'); if (ta) e.setAttribute('style', `text-align:${ta}`); } });
+    body.querySelectorAll('[data-ks]').forEach(e => e.removeAttribute('data-ks'));
     body.querySelectorAll('[contenteditable], [draggable], [data-fid]').forEach(e => { e.removeAttribute('contenteditable'); e.removeAttribute('draggable'); e.removeAttribute('data-fid'); });
     Array.from(body.childNodes).forEach(n => sec.appendChild(n));
+    const post = bleedFig('after');
+    if (post) sec.appendChild(post);
     if (notes.length) {
       const asideWrap = doc.createElement('section');
       asideWrap.setAttribute('epub:type', 'footnotes');
@@ -213,7 +279,24 @@ aside p { text-indent: 0; }
 .tp-title { font-size: 2em; page-break-before: avoid; }
 .copyright p { text-indent: 0; font-size: 0.85em; text-align: left; }
 .cover { text-align: center; } .cover img { max-width: 100%; max-height: 100%; }
-.immersion { margin: 0 0 1em; } .immersion img { display: block; width: 100%; height: auto; }`;
+.immersion { margin: 0 0 1em; } .immersion img { display: block; width: 100%; height: auto; }
+figure.bleed-page { page-break-before: always; page-break-after: always; }
+/* caixas e legendas sobre as imagens (tamanhos em relação ao texto do leitor) */
+.ov-wrap { position: relative; display: inline-block; max-width: 100%; overflow: hidden; }
+.ov-wrap img { display: block; }
+${window.Overlays ? Overlays.css('').replace(/container-type:[^;]*;/g, '').replace(/(-?[\d.]+)cqw/g, (m, v) => (Number(v) * 0.24).toFixed(2) + 'em') : ''}
+/* caixa de texto à parte e trecho em colunas */
+div.tframe { margin: 1.2em 8%; text-align: center; font-size: 1.15em; font-style: italic; }
+div.tframe p { text-indent: 0; text-align: center; }
+div.tframe[data-border="keep"] { border: 1px dashed #8b7bb8; padding: 0.6em 0.9em; }
+div.cols p:first-child { text-indent: 0; }
+@media (min-width: 38em) { div.cols { column-count: 2; column-gap: 1.6em; column-rule: 1px solid #bbb; } div.cols[data-n="3"] { column-count: 3; } div.cols[data-rule="0"] { column-rule: none; } }
+/* tabelas coladas: o visual vem de cada célula */
+table.tb-orig td, table.tb-orig th { border: none; }
+/* títulos em caixa */
+h1.tb { display: block; width: fit-content; padding: 0.3em 0.8em; margin-left: auto; margin-right: auto; }
+h1.tb-al-left { margin-left: 0; } h1.tb-al-right { margin-right: 0; }
+h1.tb-black { background: #000; color: #fff; } h1.tb-white { border: 1px solid #000; } h1.tb-outline { border: 1px solid #000; }`;
   }
 
   async function buildEpub(project, opts) {

@@ -416,12 +416,40 @@
   }
 
   // ---------------------------------------------------------------- páginas editáveis
-  function attachHosts() {
+  // incremental: só as páginas novas (ou que mudaram de estado) são preparadas; num livro grande,
+  // refazer todas as páginas a cada capítulo que chegava travava a interface por vários segundos
+  // A edição (e o corretor ortográfico) só é ligada nas páginas perto da área visível; as outras são
+  // preparadas quando chegam perto (rolagem). Ligar centenas de páginas de uma vez travava a tela.
+  let nearObs = null, nearDoc = null;
+  function nearObserver() {
+    if (nearObs && nearDoc === stageDoc) return nearObs;
+    const win = stageDoc && stageDoc.defaultView;
+    if (!win || !win.IntersectionObserver) return null;
+    nearDoc = stageDoc;
+    nearObs = new win.IntersectionObserver(entries => entries.forEach(e => {
+      e.target.__liveNear = e.isIntersecting;
+      if (e.isIntersecting) e.target.querySelectorAll('section[data-chapter]').forEach(sec => prepHost(sec, false));
+    }), { rootMargin: '2000px 0px' });
+    return nearObs;
+  }
+  function attachHosts(force) {
+    if (!stageDoc) return;
+    const obs = nearObserver();
+    stageDoc.querySelectorAll('.pagedjs_page').forEach(pg => {
+      if (obs && !pg.__liveObserved) { pg.__liveObserved = true; obs.observe(pg); return; }
+      if (obs && !pg.__liveNear) return;
+      pg.querySelectorAll('section[data-chapter]').forEach(sec => prepHost(sec, force));
+    });
+  }
+  function prepHost(sec, force) {
     if (!stageDoc) return;
     const can = L.enabled && App.view !== 'layers';
-    stageDoc.querySelectorAll('.pagedjs_page section[data-chapter]').forEach(sec => {
+    {
       const c = App.project.chapters[Number(sec.dataset.chapter)];
       const ok = can && c && !c.locked;
+      const want = ok ? 'e' : 'n';
+      if (force !== true && sec.__liveState === want) return;
+      sec.__liveState = want;
       const body = sec.querySelector(':scope > .chapter-body');
       if (body) {
         if (ok) { body.setAttribute('contenteditable', 'true'); body.spellcheck = true; body.lang = App.project.meta.language || 'pt-BR'; }
@@ -430,7 +458,7 @@
       }
       const title = sec.querySelector(':scope > .chapter-head .chapter-title');
       if (title) { if (ok) title.setAttribute('contenteditable', 'plaintext-only'); else title.removeAttribute('contenteditable'); }
-    });
+    }
   }
 
   // capítulo da posição do cursor nas páginas
@@ -563,6 +591,8 @@
       L.runOnModel(() => App.editor.paste({ html, text, files }), 'Colar');
     });
     d.addEventListener('mousedown', () => { lock = null; });
+    // clique numa página que ainda não foi preparada (rolagem muito rápida): prepara na hora
+    d.addEventListener('mousedown', e => { const sec = e.target.closest && e.target.closest('section[data-chapter]'); if (sec) prepHost(sec, false); }, true);
     d.addEventListener('keydown', e => {
       const host = e.target.closest && e.target.closest('.chapter-body');
       if (!host) return;
@@ -764,7 +794,7 @@
   L.selectionPos = () => stageSelection();
   L.state = () => state;
   L.invalidate = () => { state = null; };
-  L.refresh = attachHosts;
+  L.refresh = () => attachHosts(true);
   // sem coluna de texto à parte: a edição é sempre direto nas páginas
   try { localStorage.removeItem('classicEditor'); } catch (e) { /* ok */ }
   document.body && document.body.classList.remove('classic-editor');

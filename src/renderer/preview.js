@@ -321,8 +321,19 @@
 
   // O Paged.js 0.5 troca id por data-id quando divide um elemento entre páginas: procura os dois
   // (o primeiro na ordem do documento é a página onde o elemento começa)
+  // índice id → primeiro elemento (montado uma vez por numeração; em livros grandes, procurar cada id
+  // no documento inteiro, para cada entrada do sumário e referência, custava muito)
+  let idIndex = null;
+  function buildIdIndex() {
+    idIndex = new Map();
+    const pages = document.querySelector('.pagedjs_pages') || document;
+    pages.querySelectorAll('[id], [data-id]').forEach(el => {
+      [el.id, el.dataset.id].forEach(k => { if (k && !idIndex.has(k)) idIndex.set(k, el); });
+    });
+  }
   function byId(id) {
     if (!id) return null;
+    if (idIndex) { const el = idIndex.get(id); if (el && el.isConnected) return el; }
     const pages = document.querySelector('.pagedjs_pages') || document;
     return pages.querySelector(`[id="${CSS.escape(id)}"], [data-id="${CSS.escape(id)}"]`);
   }
@@ -403,6 +414,7 @@
   const romanLower = n => { const map = [[1000, 'm'], [900, 'cm'], [500, 'd'], [400, 'cd'], [100, 'c'], [90, 'xc'], [50, 'l'], [40, 'xl'], [10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i']]; let out = ''; for (const [v, r] of map) while (n >= v) { out += r; n -= v; } return out; };
   function fixPageNumbers(typo) {
     restoreIds();
+    buildIdIndex();
     typo = typo || {};
     const book = document.querySelector('.book');
     const first = document.querySelector('.chapter.first-chapter');
@@ -476,6 +488,7 @@
     const total = document.querySelectorAll('.pagedjs_page').length;
     const catTotal = roman && firstN > 1 ? `${romanLower(firstN - 1)}, ${total - offset}` : String(total);
     document.querySelectorAll('.cat-pages').forEach(s => { s.textContent = catTotal; });
+    idIndex = null;
     return offset;
   }
 
