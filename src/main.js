@@ -411,8 +411,8 @@ ipcMain.handle('fonts:remove', (e, family) => { fonts.removeFamily(family); retu
 ipcMain.handle('fonts:css', (e, families) => { if (!fonts.system) fonts.scanSystem(); return fonts.fontFaceCss(families); });
 
 // ---------------------------------------------------------------- livro / renderização
-async function bookPayload(project) {
-  const book = await buildBook(project);
+async function bookPayload(project, opts) {
+  const book = await buildBook(project, opts);
   if (!fonts.system) fonts.scanSystem();
   const extra = book.fonts.filter(f => !book.bundledFonts.includes(f));
   const ff = fonts.fontFaceCss(extra);
@@ -432,7 +432,7 @@ const builds = new Map();
 let buildSeq = 0;
 function hashText(str) { let h = 5381, g = 52711; for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); h = ((h << 5) + h + c) | 0; g = ((g << 5) + g ^ c) | 0; } return (h >>> 0).toString(36) + (g >>> 0).toString(36) + ':' + str.length; }
 ipcMain.handle('layout:prepare', async (e, project) => {
-  const book = await bookPayload(project);
+  const book = await bookPayload(project, { markBlocks: true });
   const id = ++buildSeq;
   const segments = book.segments || [{ key: 'all', html: book.html }];
   const meta = Object.assign({}, book, { html: '', segments: undefined, overlays: [] });

@@ -7,13 +7,14 @@
 <link rel="stylesheet" href="vendor/fonts.css">
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="ui.css">
 <script src="theme.js"></script>
 </head>
 <body>
 <header class="topbar">
   <div class="brand">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5a2.5 2.5 0 0 0-2.5 2.5v-17Z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 21.5A2.5 2.5 0 0 1 6.5 19H20v3H6.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 7h7M9 10h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-    <span>Diagramador de Livros</span>
+    <svg class="brand-mark" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="116" fill="#0d0d0f"/><g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="22"><path d="M106 262 L256 136 L406 262"/><path d="M160 222 V372 H352 V222"/><path d="M232 372 V318 A24 24 0 0 1 280 318 V372"/><path d="M318 186 V150 H342 V206"/></g></svg>
+    <span class="brand-name">CASA VERTIGEM <b>HUB</b></span>
   </div>
   <div class="actions">
     <button data-cmd="new" title="Novo livro, revista ou jornal (Ctrl+N)">Novo</button>
@@ -101,68 +102,11 @@
     <section id="view-appearance" class="view"></section>
     <section id="view-bulk" class="view"></section>
     <section id="view-chapter" class="view chapter-view">
-      <div class="chapter-meta">
-        <input id="chapterTitle" class="chapter-title-input" placeholder="Título do capítulo">
-        <label class="chk"><input type="checkbox" id="chapterNumbered"> Numerado</label>
-        <button id="chapterLock" class="ghost" title="Bloquear contra edição e exclusão acidental">🔓 Bloquear</button>
-        <button id="chapterLook" class="ghost" title="Cor da página, fontes, cores, separador e imagem de abertura deste capítulo">🎨 Aparência</button>
-        <button id="chapterDelete" class="ghost danger" title="Excluir capítulo">Excluir</button>
-      </div>
-      <div id="chapterLookPanel" class="look-panel"></div>
-      <div id="lockBanner" class="lock-banner">🔒 Capítulo bloqueado — desbloqueie para editar, mover ou excluir.</div>
-      <div class="toolbar" id="editorToolbar">
-        <select id="blockFormat" title="Estilo do parágrafo">
-          <option value="p">Texto principal</option>
-          <option value="h2">T1 — Título de seção</option>
-          <option value="h3">T2 — Subtítulo</option>
-          <option value="h4">T3 — Intertítulo</option>
-          <option value="blockquote">Citação longa</option>
-          <option value="phrase">Frase em destaque</option>
-          <option value="poem">Poesia</option>
-          <option value="epigraph-inline">Epígrafe</option>
-          <option value="reference">Referência</option>
-          <option value="box">Caixa de destaque</option>
-        </select>
-        <span class="tsep"></span>
-        <button data-exec="bold" title="Negrito (Ctrl+B)"><b>N</b></button>
-        <button data-exec="italic" title="Itálico (Ctrl+I)"><i>I</i></button>
-        <button data-exec="underline" title="Sublinhado (Ctrl+U)"><u>S</u></button>
-        <button data-action="smallcaps" title="Versalete"><span style="font-variant:small-caps">Vs</span></button>
-        <button data-exec="superscript" title="Sobrescrito">x²</button>
-        <span class="tsep"></span>
-        <button data-exec="justifyLeft" title="Alinhar à esquerda">⯇</button>
-        <button data-exec="justifyCenter" title="Centralizar">≡</button>
-        <button data-exec="justifyRight" title="Alinhar à direita">⯈</button>
-        <button data-exec="justifyFull" title="Justificar (padrão)">☰</button>
-        <button data-action="noindent" title="Parágrafo sem recuo">⇤</button>
-        <span class="tsep"></span>
-        <button data-exec="insertUnorderedList" title="Lista">•</button>
-        <button data-exec="insertOrderedList" title="Lista numerada">1.</button>
-        <span class="tsep"></span>
-        <button data-action="footnote" title="Inserir nota de rodapé no cursor (clique na nota para editar ou remover)">¹ Nota</button>
-        <button data-action="removenotes" title="Remover todas as notas de rodapé do livro (pode ser desfeito)">¹✕ Notas</button>
-        <button data-action="link" title="Ligação para outro capítulo/título (com nº de página) ou para um site (Ctrl+K)">🔗 Ligação</button>
-        <button data-action="scene" title="Quebra de cena">✱</button>
-        <button data-action="pagebreak" title="Quebra de página (Ctrl+Enter)">⤓ Pág.</button>
-        <button data-action="image" title="Inserir imagem do computador">🖼 Imagem</button>
-        <button data-action="fullbleed" title="Inserir imagem de página inteira (sangrada)">▣ Pág. inteira</button>
-        <button data-action="table" title="Inserir tabela">▦ Tabela</button>
-        <button data-action="chart" title="Inserir gráfico">📊 Gráfico</button>
-        <span class="tsep"></span>
-        <button data-action="newsection" title="Criar uma nova página/seção com título logo depois deste capítulo">＋ Seção</button>
-        <button data-action="split" title="Dividir o capítulo no cursor: o texto a partir daqui vira um novo capítulo">✂ Dividir</button>
-        <span class="tsep"></span>
-        <button data-exec="removeFormat" title="Limpar formatação">⌫</button>
-        <button data-action="invisibles" title="Mostrar caracteres invisíveis">¶</button>
-        <button data-exec="undo" title="Desfazer digitação (Ctrl+Z)">↶</button>
-        <button data-exec="redo" title="Refazer (Ctrl+Y)">↷</button>
-      </div>
       <div class="editor-wrap">
         <div class="editor-scroll" id="editorScroll">
           <article id="editor" class="editor" contenteditable="true" spellcheck="true" lang="pt-BR"></article>
           <div id="dropIndicator" class="drop-indicator"></div>
         </div>
-        <aside id="figPanel" class="fig-panel"></aside>
       </div>
     </section>
   </main>
@@ -170,8 +114,67 @@
   <div class="splitter" id="splitter" title="Arraste para redimensionar"></div>
 
   <section class="preview">
+    <div class="stage-head" id="stageHead">
+        <div class="chapter-meta">
+          <input id="chapterTitle" class="chapter-title-input" placeholder="Título do capítulo">
+          <label class="chk"><input type="checkbox" id="chapterNumbered"> Numerado</label>
+          <button id="chapterLock" class="ghost" title="Bloquear contra edição e exclusão acidental">🔓 Bloquear</button>
+          <button id="chapterLook" class="ghost" title="Cor da página, fontes, cores, separador e imagem de abertura deste capítulo">🎨 Aparência</button>
+          <button id="chapterDelete" class="ghost danger" title="Excluir capítulo">Excluir</button>
+          <button id="classicToggle" class="ghost stage-toggle" title="Mostrar também o texto do capítulo numa coluna à parte (modo clássico)">Texto em coluna</button>
+        </div>
+        <div id="chapterLookPanel" class="look-panel"></div>
+        <div id="lockBanner" class="lock-banner">🔒 Capítulo bloqueado — desbloqueie para editar, mover ou excluir.</div>
+        <div class="toolbar" id="editorToolbar">
+          <select id="blockFormat" title="Estilo do parágrafo">
+            <option value="p">Texto principal</option>
+            <option value="h2">T1 — Título de seção</option>
+            <option value="h3">T2 — Subtítulo</option>
+            <option value="h4">T3 — Intertítulo</option>
+            <option value="blockquote">Citação longa</option>
+            <option value="phrase">Frase em destaque</option>
+            <option value="poem">Poesia</option>
+            <option value="epigraph-inline">Epígrafe</option>
+            <option value="reference">Referência</option>
+            <option value="box">Caixa de destaque</option>
+          </select>
+          <span class="tsep"></span>
+          <button data-exec="bold" title="Negrito (Ctrl+B)"><b>N</b></button>
+          <button data-exec="italic" title="Itálico (Ctrl+I)"><i>I</i></button>
+          <button data-exec="underline" title="Sublinhado (Ctrl+U)"><u>S</u></button>
+          <button data-action="smallcaps" title="Versalete"><span style="font-variant:small-caps">Vs</span></button>
+          <button data-exec="superscript" title="Sobrescrito">x²</button>
+          <span class="tsep"></span>
+          <button data-exec="justifyLeft" title="Alinhar à esquerda">⯇</button>
+          <button data-exec="justifyCenter" title="Centralizar">≡</button>
+          <button data-exec="justifyRight" title="Alinhar à direita">⯈</button>
+          <button data-exec="justifyFull" title="Justificar (padrão)">☰</button>
+          <button data-action="noindent" title="Parágrafo sem recuo">⇤</button>
+          <span class="tsep"></span>
+          <button data-exec="insertUnorderedList" title="Lista">•</button>
+          <button data-exec="insertOrderedList" title="Lista numerada">1.</button>
+          <span class="tsep"></span>
+          <button data-action="footnote" title="Inserir nota de rodapé no cursor (clique na nota para editar ou remover)">¹ Nota</button>
+          <button data-action="removenotes" title="Remover todas as notas de rodapé do livro (pode ser desfeito)">¹✕ Notas</button>
+          <button data-action="link" title="Ligação para outro capítulo/título (com nº de página) ou para um site (Ctrl+K)">🔗 Ligação</button>
+          <button data-action="scene" title="Quebra de cena">✱</button>
+          <button data-action="pagebreak" title="Quebra de página (Ctrl+Enter)">⤓ Pág.</button>
+          <button data-action="image" title="Inserir imagem do computador">🖼 Imagem</button>
+          <button data-action="fullbleed" title="Inserir imagem de página inteira (sangrada)">▣ Pág. inteira</button>
+          <button data-action="table" title="Inserir tabela">▦ Tabela</button>
+          <button data-action="chart" title="Inserir gráfico">📊 Gráfico</button>
+          <span class="tsep"></span>
+          <button data-action="newsection" title="Criar uma nova página/seção com título logo depois deste capítulo">＋ Seção</button>
+          <button data-action="split" title="Dividir o capítulo no cursor: o texto a partir daqui vira um novo capítulo">✂ Dividir</button>
+          <span class="tsep"></span>
+          <button data-exec="removeFormat" title="Limpar formatação">⌫</button>
+          <button data-action="invisibles" title="Mostrar caracteres invisíveis">¶</button>
+          <button data-exec="undo" title="Desfazer digitação (Ctrl+Z)">↶</button>
+          <button data-exec="redo" title="Refazer (Ctrl+Y)">↷</button>
+        </div>
+    </div>
     <div class="preview-bar">
-      <strong>Prévia</strong>
+      <strong class="stage-label">Páginas</strong>
       <span id="pageInfo" class="muted">—</span>
       <span class="grow"></span>
       <button id="zoomOut" class="icon-btn" title="Diminuir zoom">−</button>
@@ -194,6 +197,7 @@
     </div>
     <div class="preview-frames" id="previewFrames">
       <div class="preview-busy" id="previewBusy">Paginando…</div>
+      <aside id="figPanel" class="fig-panel"></aside>
     </div>
   </section>
 </div>
@@ -235,6 +239,7 @@
 <script src="exportprep.js"></script>
 <script src="export-ui.js"></script>
 <script src="page-tools.js"></script>
+<script src="live-edit.js"></script>
 <script src="preview-ui.js"></script>
 <script src="app.js"></script>
 <script src="cover3d.js"></script>

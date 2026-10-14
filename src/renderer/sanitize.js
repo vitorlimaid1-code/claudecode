@@ -294,6 +294,93 @@
     return { title, numbered: false };
   }
 
+  // ---- marcadores de capítulo: "CAPÍTULO 3", "Capítulo IV — A fuga", "Cap. 2", ou só "3" / "IV" num bloco
+  const ROMAN_RE = /^(?=[IVXLCDM]+$)M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$/i;
+  const NUM_WORDS = ['zero', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove', 'dez', 'onze', 'doze', 'treze', 'catorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove', 'vinte'];
+  const ORD_WORDS = ['', 'primeiro', 'segundo', 'terceiro', 'quarto', 'quinto', 'sexto', 'sétimo', 'oitavo', 'nono', 'décimo'];
+  const SPECIAL_RE = /^(pref[áa]cio|apresenta[çc][ãa]o|introdu[çc][ãa]o|pr[óo]logo|ep[íi]logo|posf[áa]cio|conclus[ãa]o|considera[çc][õo]es finais|agradecimentos?|nota (do|da) (autor|autora|editor|editora|tradutor|tradutora)|nota pr[ée]via|ap[êe]ndices?|anexos?|refer[êe]ncias( bibliogr[áa]ficas)?|bibliografia|gloss[áa]rio|notas|sobre (o|a) autor[a]?)\b/i;
+  function romanValue(r) {
+    const v = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 };
+    let n = 0; r = r.toUpperCase();
+    for (let i = 0; i < r.length; i++) { const a = v[r[i]], b = v[r[i + 1]] || 0; n += a < b ? -a : a; }
+    return n;
+  }
+  function numValue(tok) {
+    if (/^\d+$/.test(tok)) return { n: Number(tok), style: 'arabic' };
+    if (ROMAN_RE.test(tok)) return { n: romanValue(tok), style: 'roman' };
+    const w = tok.toLowerCase();
+    if (NUM_WORDS.includes(w)) return { n: NUM_WORDS.indexOf(w), style: 'words' };
+    if (ORD_WORDS.includes(w) && w) return { n: ORD_WORDS.indexOf(w), style: 'words' };
+    return null;
+  }
+  // texto do bloco -> { n, style, labeled, title } ou null
+  function chapterMark(text, tag) {
+    const t = String(text || '').replace(/[­​]/g, '').replace(/\s+/g, ' ').trim();
+    if (!t || t.length > 140) return null;
+    let m = /^(cap[ií]tulo|cap\.|chapter)\s+([0-9]+|[ivxlcdm]+|[a-zà-ú]+)(?![\p{L}\p{N}])\s*(?:[-–—:.]\s*)?(.*)$/iu.exec(t);
+    if (m) {
+      const v = numValue(m[2]);
+      if (!v) return null;
+      return { n: v.n, style: v.style, labeled: true, title: m[3].trim(), label: (m[1] + ' ' + m[2]).trim() };
+    }
+    // número sozinho: "3", "IV", "3.", "— IV —"
+    m = /^[-–—\s]*([0-9]{1,3}|[IVXLCDM]{1,7})[.)]?[-–—\s]*$/.exec(t);
+    if (m) { const v = numValue(m[1]); if (v && v.n > 0) return { n: v.n, style: v.style, labeled: false, title: '', label: m[1] }; }
+    // "3. Título" / "IV — Título": só em títulos (h1–h3), nunca em parágrafos de texto
+    if (/^H[1-3]$/.test(tag || '')) {
+      m = /^([0-9]{1,3}|[IVXLCDM]{1,7})\s*[.)\-–—:]\s+(.{2,100})$/.exec(t);
+      if (m && !/^\d+\.\d/.test(t)) { const v = numValue(m[1]); if (v && v.n > 0) return { n: v.n, style: v.style, labeled: false, title: m[2].trim(), label: m[1] }; }
+    }
+    return null;
+  }
+  // bloco curto que parece título (para usar como nome do capítulo depois de "CAPÍTULO 3")
+  function isTitleLike(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (/^H[1-6]$/.test(el.tagName)) return true;
+    if (el.tagName !== 'P') return false;
+    const t = el.textContent.replace(/\s+/g, ' ').trim();
+    if (!t || t.length > 110 || el.querySelector('.footnote, img, table')) return false;
+    const words = t.split(' ').length;
+    if (words > 16) return false;
+    const strong = el.querySelector('b, strong') && el.querySelector('b, strong').textContent.trim() === t;
+    const centered = /text-align:\s*center/.test(el.getAttribute('style') || '');
+    const upper = t === t.toUpperCase() && /[A-ZÀ-Ú]/.test(t);
+    return strong || centered || upper || (!/[.;,:]$/.test(t) && words <= 10);
+  }
+  // escolhe os marcadores que formam a sequência de capítulos do livro
+  function chapterMarkers(flat) {
+    const cands = [];
+    flat.forEach((n, i) => {
+      if (n.nodeType !== 1 || !/^(H[1-6]|P)$/.test(n.tagName)) return;
+      const mk = chapterMark(n.textContent, n.tagName);
+      if (mk) cands.push(Object.assign({ i }, mk));
+    });
+    const labeled = cands.filter(c => c.labeled);
+    const groups = { arabic: [], roman: [] };
+    cands.filter(c => !c.labeled).forEach(c => { if (groups[c.style]) groups[c.style].push(c); });
+    // números soltos só contam se formam uma sequência (1, 2, 3… ou I, II, III…)
+    const seqOk = g => {
+      if (g.length < 2) return false;
+      let inc = 0;
+      for (let k = 1; k < g.length; k++) if (g[k].n === g[k - 1].n + 1) inc++;
+      return inc >= Math.max(1, (g.length - 1) * 0.6) && g[0].n <= 2;
+    };
+    let chosen = labeled.length >= 2 ? labeled.slice() : [];
+    ['arabic', 'roman'].forEach(k => {
+      const g = groups[k];
+      if (!seqOk(g)) return;
+      // se já há "CAPÍTULO N", números soltos só valem quando são a maioria (livro misto)
+      if (chosen.length && g.length < chosen.length) return;
+      chosen = chosen.concat(g);
+    });
+    if (chosen.length < 2) return null;
+    chosen.sort((a, b) => a.i - b.i);
+    const styles = {};
+    chosen.forEach(c => { styles[c.style] = (styles[c.style] || 0) + 1; });
+    const style = Object.entries(styles).sort((a, b) => b[1] - a[1])[0][0];
+    return { at: new Map(chosen.map(c => [c.i, c])), style, labeled: labeled.length >= chosen.length / 2 };
+  }
+
   function htmlToChapters(html, fallbackTitle, opts) {
     opts = opts || {};
     const doc = new DOMParser().parseFromString('<body>' + String(html || '') + '</body>', 'text/html');
@@ -304,26 +391,67 @@
     if (!headTag && doc.body.querySelectorAll('h2').length >= 2) headTag = 'H2';
     const chapters = [];
     let current = null;
-    const start = title => { current = { title: title || fallbackTitle || 'Sem título', parts: [] }; chapters.push(current); };
+    const start = (title, extra) => { current = Object.assign({ title: title || fallbackTitle || 'Sem título', parts: [] }, extra || {}); chapters.push(current); };
     // achata seções que só agrupam conteúdo
     const flat = [];
     const pushFlat = node => {
-      if (node.nodeType === 1 && /^(SECTION|ARTICLE|MAIN|DIV)$/.test(node.tagName) && !DIV_CLASSES.some(c => node.classList.contains(c)) && node.querySelector('h1,h2')) node.childNodes.forEach(pushFlat);
+      if (node.nodeType === 1 && /^(SECTION|ARTICLE|MAIN|DIV)$/.test(node.tagName) && !DIV_CLASSES.some(c => node.classList.contains(c)) && node.querySelector('h1,h2,p')) node.childNodes.forEach(pushFlat);
       else flat.push(node);
     };
     doc.body.childNodes.forEach(pushFlat);
-    flat.forEach(n => {
-      if (headTag && n.nodeType === 1 && n.tagName === headTag) { start(n.textContent.trim().replace(/\s+/g, ' ')); return; }
-      if (!current) {
-        if (n.nodeType === 3 && !n.nodeValue.trim()) return;
-        start(fallbackTitle);
-      }
-      current.parts.push(n.nodeType === 1 ? n.outerHTML : escapeHtml(n.nodeValue || ''));
-    });
+    const clean = t => String(t || '').replace(/[­​]/g, '').trim().replace(/\s+/g, ' ');
+    const markers = opts.noMarkers ? null : chapterMarkers(flat);
+    let detected = null;
+    if (markers) {
+      // capítulos pelos marcadores "CAPÍTULO N" / números; títulos especiais (Prefácio, Introdução…) também abrem seção
+      const skip = new Set();
+      let seenMarker = false;
+      flat.forEach((n, i) => {
+        if (skip.has(i)) return;
+        const mk = markers.at.get(i);
+        if (mk) {
+          seenMarker = true;
+          let title = mk.title;
+          if (!title) {
+            let j = i + 1;
+            while (j < flat.length && (flat[j].nodeType !== 1 && !String(flat[j].nodeValue || '').trim())) j++;
+            const nx = flat[j];
+            if (nx && !markers.at.has(j) && isTitleLike(nx) && !chapterMark(nx.textContent, nx.tagName)) { title = clean(nx.textContent); skip.add(j); }
+          }
+          // sem nome: o título fica como no manuscrito (“CAPÍTULO 3”), sem o rótulo automático repetido
+          start(title || clean(n.textContent), { numbered: !!title, sourceLabel: clean(n.textContent), mark: mk });
+          return;
+        }
+        if (n.nodeType === 1 && /^H[1-3]$/.test(n.tagName)) {
+          const t = clean(n.textContent);
+          if (SPECIAL_RE.test(t) && t.length < 80) { start(t, { numbered: false }); return; }
+          if (!seenMarker && n.tagName === headTag) { start(t, { numbered: false }); return; }
+        }
+        if (!current) {
+          if (n.nodeType === 3 && !n.nodeValue.trim()) return;
+          start(fallbackTitle, { numbered: false });
+        }
+        current.parts.push(n.nodeType === 1 ? n.outerHTML : escapeHtml(n.nodeValue || ''));
+      });
+      detected = { style: markers.style, labeled: markers.labeled, count: markers.at.size };
+    } else {
+      flat.forEach(n => {
+        if (headTag && n.nodeType === 1 && n.tagName === headTag) { start(clean(n.textContent)); return; }
+        if (!current) {
+          if (n.nodeType === 3 && !n.nodeValue.trim()) return;
+          start(fallbackTitle);
+        }
+        current.parts.push(n.nodeType === 1 ? n.outerHTML : escapeHtml(n.nodeValue || ''));
+      });
+    }
     const out = chapters
-      .map(c => Object.assign(splitChapterTitle(c.title), { html: sanitizeHtml(c.parts.join('')) }))
-      .filter(c => c.html.replace(/<[^>]+>/g, '').trim() || /<img|<table/.test(c.html));
+      .map(c => {
+        const base = c.numbered === undefined ? splitChapterTitle(c.title) : { title: c.title, numbered: c.numbered };
+        return Object.assign(base, { html: sanitizeHtml(c.parts.join('')) }, c.sourceLabel ? { sourceLabel: c.sourceLabel } : {});
+      })
+      .filter(c => c.html.replace(/<[^>]+>/g, '').trim() || /<img|<table/.test(c.html) || c.sourceLabel);
     out.notes = notes;
+    out.detected = detected;
     return out;
   }
 
@@ -416,6 +544,10 @@
       if (/titlepage|cover/.test(body.innerHTML.slice(0, 400)) && text.length < 300) return;
       const h = body.querySelector('h1, h2');
       let title = h ? h.textContent.trim().replace(/\s+/g, ' ') : '';
+      // "CAPÍTULO 3" no título e o nome logo abaixo
+      const mk = h && chapterMark(title, h.tagName);
+      let next = h && h.nextElementSibling;
+      if (mk && !mk.title && next && isTitleLike(next) && !chapterMark(next.textContent, next.tagName)) { title = (mk.label || title) + ' — ' + next.textContent.trim().replace(/\s+/g, ' '); next.remove(); }
       if (h) h.remove();
       const html = sanitizeHtml(body.innerHTML);
       if (!html.replace(/<[^>]+>/g, '').trim() && !/<img/.test(html)) return;
@@ -649,5 +781,5 @@
     return tpl.innerHTML;
   }
 
-  window.BookText = { sanitizeHtml, normalizeStyles, htmlToChapters, textToChapters, markdownToChapters, convertImport, countWords, escapeHtml, splitChapterTitle };
+  window.BookText = { chapterMark, isTitleLike, chapterMarkers, SPECIAL_RE, sanitizeHtml, normalizeStyles, htmlToChapters, textToChapters, markdownToChapters, convertImport, countWords, escapeHtml, splitChapterTitle };
 })();

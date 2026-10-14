@@ -339,6 +339,25 @@ function processBody(html, ctx) {
   return html;
 }
 
+// Marca cada bloco do primeiro nível do capítulo com a sua posição (data-src="n"): a edição direta nas
+// páginas usa essa posição para achar o mesmo parágrafo no texto do capítulo.
+const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+function markBlocks(html) {
+  let depth = 0;
+  let k = 0;
+  return String(html || '').replace(/<!--[\s\S]*?-->|<(\/?)([a-zA-Z][\w-]*)\b([^>]*?)(\/?)>/g, (m, close, tag, attrs, selfClose) => {
+    if (!tag) return m;
+    const t = tag.toLowerCase();
+    if (close) { depth = Math.max(0, depth - 1); return m; }
+    const top = depth === 0;
+    if (!VOID_TAGS.has(t) && !selfClose) depth++;
+    if (!top) return m;
+    const n = k++;
+    if (/\sdata-src=/.test(attrs)) return m;
+    return `<${tag} data-src="${n}"${attrs}${selfClose}>`;
+  });
+}
+
 // Divide o corpo do capítulo nas páginas de imagem sangrada
 function splitFullBleed(html) {
   const parts = [];
@@ -544,7 +563,7 @@ function buildHtml(project, ctx) {
     const hasOpening = !!(c.openingImage && c.openingImage.asset && ctx.assets[c.openingImage.asset]);
     if (hasOpening) push(fullBleedHtml(c.openingImage.asset, c.openingImage.fit, ctx));
     const heads = [];
-    let body = markShortTables(numberTables(processBody(anchorHeadings(c.html, c.id, heads), ctx), ctx));
+    let body = markShortTables(numberTables(processBody(anchorHeadings(ctx.markBlocks ? markBlocks(c.html) : c.html, c.id, heads), ctx), ctx));
     heads.forEach(h => tocItems.push({ id: h.id, label: '', title: h.title, level: h.level }));
     // notas no fim do capítulo, no fim do livro ou na margem externa (em vez do rodapé)
     if (notesMode !== 'footnote' && settings.footnotesVisible !== false) {
@@ -997,7 +1016,7 @@ ${chapterOverrides}
 }
 
 // ---------------------------------------------------------------- entrada
-async function buildBook(rawProject) {
+async function buildBook(rawProject, opts) {
   const project = normalizeProject(rawProject);
   const s = project.settings;
   const contentH = num(s.pageHeight, 210) - num(s.marginTop, 20) - num(s.marginBottom, 22);
@@ -1005,7 +1024,7 @@ async function buildBook(rawProject) {
   const bleed = effectiveBleed(s);
   const ctx = { assets: project.assets || {}, settings: s, contentH, colW, bleed, missing: [], figures: [], qrImages: [],
     numbering: s.captionNumbering !== false, counters: { fig: 0, graf: 0, tab: 0, quad: 0 }, lists: { fig: [], graf: [], tab: [], quad: [] },
-    refs: {}, index: new Map(), indexCache: project.indexCache || {}, frontNum: s.frontNumbering === 'roman' && project.kind !== 'magazine' && project.kind !== 'newspaper' };
+    refs: {}, index: new Map(), indexCache: project.indexCache || {}, markBlocks: !!(opts && opts.markBlocks), frontNum: s.frontNumbering === 'roman' && project.kind !== 'magazine' && project.kind !== 'newspaper' };
 
   // QR codes da ficha catalográfica (gerados localmente)
   const qrs = (project.catalog.qrcodes || []).filter(q => q && q.text);

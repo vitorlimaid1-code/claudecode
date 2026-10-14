@@ -35,7 +35,7 @@
     selectFigure(null);
     renderLookPanel(false);
     $('#editorScroll').scrollTop = 0;
-    App.preview.scrollTo(c.id);
+    if (!App._liveNoScroll) App.preview.scrollTo(c.id);
   }
 
   function flush() {
@@ -66,6 +66,7 @@
     const c = App.project.chapters.find(x => x.id === App.editorChapterId);
     if (!c || c.locked) return;
     c.html = serialize();
+    App.editSeq = (App.editSeq || 0) + 1;
     App.changed(null);
     clearTimeout(commitTimer);
     commitTimer = setTimeout(() => App.commit('Edição de texto'), 2500);
@@ -1021,9 +1022,34 @@
     ed.addEventListener('paste', e => {
       const html = e.clipboardData.getData('text/html');
       const text = e.clipboardData.getData('text/plain');
-      const files = Array.from(e.clipboardData.files || []).filter(f => /^image\//.test(f.type));
+      const files = Array.from(e.clipboardData.files || []);
+      if (!html && !text && !files.length) return;
+      e.preventDefault();
+      paste({ html, text, files });
+    });
+    ed.addEventListener('focusin', () => { if (App.live) App.live.noteEditorFocus(); });
+    $('#editorToolbar').addEventListener('mousedown', e => { if (e.target.closest('button')) e.preventDefault(); });
+    // a barra de ferramentas age no texto do capítulo; se o cursor está nas páginas, a ação vai para o mesmo ponto
+    const viaStage = () => App.live && App.live.focusedOnStage() && App.view === 'chapter';
+    $$('#editorToolbar [data-exec]').forEach(b => b.addEventListener('click', () => {
+      const c = App.chapter();
+      if (c && c.locked) return;
+      if (viaStage() && App.live.exec(b.dataset.exec)) { syncToolbar(); return; }
+      const run = () => { editor().focus(); document.execCommand(b.dataset.exec, false, null); onInput(); syncToolbar(); };
+      if (viaStage()) App.live.runOnModel(run); else run();
+    }));
+    $('#blockFormat').addEventListener('change', e => { const v = e.target.value; if (viaStage()) App.live.runOnModel(() => applyBlockStyle(v)); else applyBlockStyle(v); });
+    $$('#editorToolbar [data-action]').forEach(b => b.addEventListener('click', () => { const a = b.dataset.action; if (viaStage()) App.live.runOnModel(() => toolbarAction(a)); else toolbarAction(a); }));
+    setupMeta();
+  }
+
+  function paste(data) {
+    const ed = editor();
+    {
+      const html = data.html || '';
+      const text = data.text || '';
+      const files = Array.from(data.files || []).filter(f => /^image\//.test(f.type));
       if (files.length && !html) {
-        e.preventDefault();
         (async () => {
           const ids = [];
           for (const f of files) ids.push(await App.addAsset({ dataUrl: await App.fileToDataUrl(f), name: f.name || 'imagem colada' }));
@@ -1032,7 +1058,6 @@
         return;
       }
       if (!html && !text) return;
-      e.preventDefault();
       let clean;
       if (html) clean = BookText.sanitizeHtml(html);
       else {
@@ -1059,18 +1084,10 @@
       document.execCommand('insertHTML', false, clean);
       decorate(ed);
       onInput();
-    });
-    $('#editorToolbar').addEventListener('mousedown', e => { if (e.target.closest('button')) e.preventDefault(); });
-    $$('#editorToolbar [data-exec]').forEach(b => b.addEventListener('click', () => {
-      const c = App.chapter();
-      if (c && c.locked) return;
-      editor().focus();
-      document.execCommand(b.dataset.exec, false, null);
-      onInput();
-      syncToolbar();
-    }));
-    $('#blockFormat').addEventListener('change', e => applyBlockStyle(e.target.value));
-    $$('#editorToolbar [data-action]').forEach(b => b.addEventListener('click', () => toolbarAction(b.dataset.action)));
+    }
+  }
+
+  function setupMeta() {
 
     $('#chapterTitle').addEventListener('input', e => {
       const c = App.chapter();
@@ -1119,7 +1136,7 @@
     return true;
   }
 
-  App.editor = { setup, insertIntoChapter, zoneAt, load, flush, decorate, figureHtml, insertBlocks, assetsFromDrop, chartDialog, styleFigure, renderLookPanel, selectFigure, applyBlockStyle, ensureHeadingId };
+  App.editor = { setup, paste, action: a => toolbarAction(a), insertIntoChapter, zoneAt, load, flush, decorate, figureHtml, insertBlocks, assetsFromDrop, chartDialog, styleFigure, renderLookPanel, selectFigure, applyBlockStyle, ensureHeadingId };
   App.hooks.viewRender.chapter = () => {
     const c = App.chapter();
     if (!c) { if (App.project.chapters.length) { App.chapterId = App.project.chapters[0].id; } else return App.setView('book'); }

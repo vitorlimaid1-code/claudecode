@@ -403,6 +403,7 @@ window.App = (function () {
     if (fn) fn();
     if (App.renderChapterList) App.renderChapterList();
     if (App.preview) App.preview.setLayerEditing(view === 'layers');
+    if (App.live) App.live.refresh();
   };
 
   return App;

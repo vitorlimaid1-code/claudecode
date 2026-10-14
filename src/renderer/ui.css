@@ -1,0 +1,138 @@
+/* Casa Vertigem Hub — aparência limpa, clara e contemporânea.
+   Carregado depois de styles.css e theme.css: redefine a paleta, a estrutura e os componentes. */
+
+:root {
+  --bg: #f5f5f3;
+  --panel: #ffffff;
+  --side: #fafaf9;
+  --line: #e6e5e2;
+  --line-2: #d6d4cf;
+  --text: #17171a;
+  --muted: #74737a;
+  --hover: #f1f1ef;
+  --input: #ffffff;
+  --stage: #ebeae6;
+  --good: #1f7a45;
+  --warn: #a15c00;
+  --bad: #c0261e;
+  --radius: 10px;
+  --shadow-sm: 0 1px 2px rgba(16, 16, 20, .06);
+  --shadow-md: 0 6px 24px rgba(16, 16, 20, .08), 0 1px 3px rgba(16, 16, 20, .06);
+  --panel-w: 440px;
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  font-size: 13.5px;
+  letter-spacing: .005em;
+}
+/* cor padrão: preto (carvão); as outras paletas continuam disponíveis em Aparência */
+:root[data-accent="carvao"], :root:not([data-accent]) { --accent: #111113; --accent-2: #2a2a2e; --accent-soft: #eeeeec; --accent-line: #cfcfcb; }
+:root[data-theme="dark"][data-accent="carvao"] { --accent: #f2f2f0; --accent-2: #ffffff; --accent-soft: rgba(255,255,255,.10); --accent-line: rgba(255,255,255,.28); }
+:root[data-theme="dark"] { --stage: #0f1012; --side: #17181b; --panel: #1c1d21; --line: #2c2e33; --line-2: #3a3c42; --hover: #25272c; }
+
+html, body { background: var(--bg); color: var(--text); }
+::selection { background: #d9e2f2; }
+
+/* ---------- botões e campos ---------- */
+button { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 6px 12px; transition: background .12s, border-color .12s, box-shadow .12s; }
+button:hover:not(:disabled) { background: var(--hover); border-color: var(--line-2); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+:root[data-theme="dark"] button.primary { color: #111113; }
+button.primary:hover:not(:disabled) { background: var(--accent-2); border-color: var(--accent-2); }
+button.on { background: var(--accent-soft); border-color: var(--accent-line); }
+button.ghost { background: transparent; border-color: transparent; }
+button.ghost:hover:not(:disabled) { background: var(--hover); border-color: transparent; }
+input[type=text], input[type=number], input[type=search], input:not([type]), select, textarea { border: 1px solid var(--line); border-radius: 8px; background: var(--input); }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 1px; }
+.chip { background: var(--panel); border-color: var(--line); }
+.card { border-radius: 12px; border-color: var(--line); box-shadow: var(--shadow-sm); }
+.card h3 { color: var(--text); font-size: 11.5px; letter-spacing: .1em; font-weight: 700; }
+.form-wrap { max-width: 860px; padding: 22px 26px 64px; }
+.form-wrap h2 { font-family: inherit; font-weight: 650; font-size: 20px; letter-spacing: -.01em; }
+.modal { border-radius: 16px; box-shadow: 0 24px 80px rgba(0,0,0,.22); }
+.modal-back { background: rgba(15, 15, 18, .38); backdrop-filter: blur(2px); }
+.modal-head h2 { font-family: inherit; font-weight: 650; font-size: 17px; letter-spacing: -.01em; }
+.modal-foot { border-top-color: var(--line); }
+.toast { border-radius: 10px; }
+
+/* ---------- topo ---------- */
+.topbar { height: 54px; background: var(--panel); color: var(--text); border-bottom: 1px solid var(--line); padding: 0 14px 0 16px; }
+:root[data-theme="dark"] .topbar { background: var(--panel); border-bottom-color: var(--line); }
+.brand { gap: 11px; }
+.brand-mark { width: 28px; height: 28px; flex: none; border-radius: 7px; box-shadow: 0 1px 2px rgba(0,0,0,.18); }
+:root[data-theme="dark"] .brand-mark rect { fill: #000; }
+:root[data-theme="dark"] .brand-mark { box-shadow: 0 0 0 1px #34363c; }
+.brand-name { font-size: 12.5px; font-weight: 500; letter-spacing: .2em; white-space: nowrap; }
+.brand-name b { font-weight: 750; }
+.topbar .actions { gap: 4px; }
+.topbar button { background: transparent; border-color: transparent; color: var(--text); padding: 6px 10px; }
+.topbar button:hover:not(:disabled) { background: var(--hover); border-color: transparent; }
+.topbar button.on { background: var(--accent-soft); }
+.topbar button.primary, :root[data-accent] .topbar button.primary, :root[data-accent="terracota"]:not([data-theme="dark"]) .topbar button.primary { background: var(--accent); border-color: var(--accent); color: #fff; padding: 6px 16px; }
+:root[data-theme="dark"] .topbar button.primary { color: #111113; }
+.sep { background: var(--line); height: 20px; }
+
+/* ---------- estrutura: navegação | painel de ajustes | páginas ---------- */
+.layout { grid-template-columns: 252px var(--panel-w) 6px minmax(360px, 1fr); height: calc(100% - 54px); }
+body[data-view="chapter"] .layout { grid-template-columns: 252px 0 0 minmax(360px, 1fr); }
+body.classic-editor[data-view="chapter"] .layout { grid-template-columns: 252px minmax(420px, 1fr) 6px var(--preview-w); }
+body[data-view="cover"] .layout { grid-template-columns: 252px 1fr 0 0; }
+.workspace { background: var(--bg); border-right: 1px solid var(--line); }
+body[data-view="chapter"]:not(.classic-editor) .workspace { border-right: 0; overflow: visible; }
+/* o editor de texto continua existindo (é o modelo do capítulo), fora da tela; a edição é feita nas páginas */
+body[data-view="chapter"]:not(.classic-editor) #view-chapter { position: fixed; left: -20000px; top: 60px; width: 720px; height: 600px; }
+.splitter { background: transparent; position: relative; }
+.splitter::after { content: ""; position: absolute; inset: 0 2px; background: var(--line); }
+.splitter:hover::after { background: var(--line-2); }
+
+/* navegação lateral */
+.sidebar { background: var(--side); border-right: 1px solid var(--line); }
+.nav { padding: 8px 10px 4px; gap: 1px; }
+.nav-group { font-size: 10.5px; letter-spacing: .12em; color: var(--muted); font-weight: 650; padding: 12px 10px 4px; }
+.nav-item { padding: 6px 10px; border-radius: 8px; color: var(--text); font-size: 13px; }
+.nav-item .ic { color: var(--muted); opacity: .9; }
+.nav-item:hover, :root[data-theme="dark"] .nav-item:hover { background: var(--hover); }
+.nav-item.active { background: var(--panel); box-shadow: var(--shadow-sm), inset 0 0 0 1px var(--line); font-weight: 600; }
+.nav-item.active .ic { color: var(--text); }
+.chapters-head { border-top: 1px solid var(--line); color: var(--muted); letter-spacing: .12em; font-weight: 650; font-size: 10.5px; padding: 12px 10px 6px 20px; }
+.chapter-item { border-radius: 8px; padding: 6px 8px; }
+.chapter-item:hover, :root[data-theme="dark"] .chapter-item:hover { background: var(--hover); }
+.chapter-item.active { background: var(--panel); box-shadow: var(--shadow-sm), inset 0 0 0 1px var(--line); }
+.chapter-item.checked { background: var(--accent-soft); }
+.chapter-item .num { background: transparent; border: 1px solid var(--line-2); color: var(--muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.chapter-item.active .num { background: var(--accent); border-color: var(--accent); color: #fff; }
+:root[data-theme="dark"] .chapter-item.active .num { color: #111; }
+.sidebar-foot { border-top-color: var(--line); }
+.offline { color: var(--muted); }
+.offline::first-letter { color: var(--good); }
+
+/* ---------- área das páginas ---------- */
+.preview { background: var(--stage); }
+.preview-frames, .preview-frame { background: var(--stage); }
+.preview-bar { background: var(--panel); border-bottom: 1px solid var(--line); padding: 6px 12px; gap: 6px; min-height: 42px; }
+.preview-bar .stage-label { font-weight: 650; font-size: 12.5px; letter-spacing: .02em; }
+.preview-bar select { border-radius: 8px; padding: 3px 6px; background: var(--input); }
+.preview-bar button { padding: 4px 9px; }
+.preview-busy { background: rgba(17, 17, 19, .82); border-radius: 999px; top: 12px; right: 16px; padding: 5px 12px; }
+
+/* barra de edição do capítulo (acima das páginas) */
+.stage-head { display: none; background: var(--panel); border-bottom: 1px solid var(--line); }
+body[data-view="chapter"] .stage-head { display: block; }
+.stage-head .chapter-meta { padding: 10px 16px 6px; gap: 8px; border-bottom: 0; background: transparent; }
+.stage-head .chapter-title-input { font-family: inherit; font-size: 17px; font-weight: 650; letter-spacing: -.01em; padding: 5px 8px; }
+.stage-head .chapter-meta button { padding: 4px 9px; font-size: 12.5px; }
+.stage-head .look-panel { background: var(--side); border-top: 1px solid var(--line); border-bottom: 0; }
+.toolbar, :root[data-theme="dark"] .toolbar { background: transparent; border-bottom: 0; padding: 2px 12px 8px; gap: 2px; }
+.toolbar button { border-radius: 7px; padding: 4px 7px; font-size: 12.5px; color: var(--text); }
+.toolbar button:hover, :root[data-theme="dark"] .toolbar button:hover { background: var(--hover); border-color: transparent; }
+.toolbar button.on { background: var(--accent-soft); border-color: transparent; box-shadow: inset 0 0 0 1px var(--accent-line); }
+.toolbar select { border-radius: 8px; padding: 4px 6px; background: var(--input); }
+.tsep { background: var(--line); height: 18px; margin: 0 5px; }
+
+/* painel de imagem/nota/tabela: flutua sobre as páginas */
+.preview-frames .fig-panel { position: absolute; top: 12px; right: 12px; bottom: 12px; width: 300px; z-index: 6; border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-md); background: var(--panel); }
+
+/* editor clássico (opcional): papel branco limpo */
+.editor { border-radius: 6px; box-shadow: var(--shadow-md); }
+
+/* ---------- edição direta nas páginas ---------- */
+.stage-toggle { font-size: 12px; }
+.topbar select#genreSelect { background: var(--input); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; max-width: 180px; }

@@ -206,10 +206,15 @@
     });
     // trechos que saíram do livro
     Array.from(stage.segs.keys()).forEach(k => { if (!order.includes(k)) { stage.segs.get(k).pages.forEach(pg => pg.remove()); stage.segs.delete(k); } });
-    // páginas na ordem do livro (mover nós existentes é barato)
-    const frag = document.createDocumentFragment();
-    order.forEach(k => { const sg = stage.segs.get(k); if (sg) sg.pages.forEach(pg => frag.appendChild(pg)); });
-    box.appendChild(frag);
+    // páginas na ordem do livro: só move o que está fora do lugar (mover a página com o cursor tiraria o foco)
+    const want = [];
+    order.forEach(k => { const sg = stage.segs.get(k); if (sg) sg.pages.forEach(pg => want.push(pg)); });
+    let cur = box.firstElementChild;
+    while (cur && !cur.classList.contains('pagedjs_page')) cur = cur.nextElementSibling;
+    want.forEach(pg => {
+      if (cur === pg) { cur = cur.nextElementSibling; return; }
+      box.insertBefore(pg, cur);
+    });
     // folhas de estilo: só as usadas pelos trechos atuais
     const used = new Set();
     stage.segs.forEach(sg => sg.cssKeys.forEach(h => used.add(h)));

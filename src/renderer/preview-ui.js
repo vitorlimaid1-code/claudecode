@@ -38,6 +38,7 @@
     if (active && active !== frame) active.remove();
     active = frame;
     wire(frame);
+    if (App.live) App.live.attach(frame.contentDocument);
     applyZoom(frame);
     try { frame.contentDocument.documentElement.dataset.theme = document.documentElement.dataset.theme; } catch (e) { /* ok */ }
     return frame;
@@ -64,7 +65,10 @@
     const se = active.contentDocument.scrollingElement;
     const anchor = P.scrollAnchor ? P.scrollAnchor() : null;
     const ta = performance.now();
+    const keys = Object.keys(add);
+    const saved = App.live ? App.live.beforeApply(keys) : null;
     const fin = w.stageApply(seg.order, add, seg.book, opts());
+    if (App.live) { App.live.attach(active.contentDocument); App.live.afterApply(keys, saved); }
     if (seg.stats) seg.stats.apply += Math.round(performance.now() - ta);
     const info = aggregate(fin);
     if (info.indexPages && Object.keys(info.indexPages).length) App.project.indexCache = info.indexPages;
@@ -108,6 +112,7 @@
     try {
       await ensureStage();
       const tb = performance.now();
+      const seqAt = App.editSeq;
       const prep = await App.api.layoutPrepare(App.serialize());
       seg.stats = { build: Math.round(performance.now() - tb), apply: 0 };
       if (gen !== seg.gen) return; // já há uma paginação mais nova
@@ -142,6 +147,8 @@
         if (!res || res.superseded) return;
         if (res.error) { console.error('paginação', j.s.key, res.error); return; }
         if (seg.want.get(j.s.key) !== j.hash) return; // o trecho mudou enquanto era paginado
+        // o capítulo foi editado nas páginas enquanto era paginado: espera a próxima paginação
+        if (App.live && !App.live.fresh(j.s.key, seqAt)) return;
         seg.done.set(j.s.key, j.hash);
         seg.info.set(j.s.key, res);
         if (res.adjust && window.LayoutPasses && j.s.key.startsWith('ch:')) {
@@ -169,6 +176,7 @@
   }
 
   const doc = () => (active && active.contentDocument) || null;
+  P.doc = doc;
   const win = () => (active && active.contentWindow) || null;
 
   P.scrollTo = id => { try { win() && win().scrollToId(id); } catch (e) { /* ok */ } };
@@ -193,7 +201,7 @@
     const n = mode === 'single' ? 1 : mode === 'spread' ? 2 : Number(mode.replace('cols', '')) || 1;
     const avail = $('#previewFrames').clientWidth - 40 - (mode === 'single' ? 120 : 0);
     const w = pg.offsetWidth * n + 22 * (n - 1) + 40;
-    zoom = Math.max(0.15, Math.min(2.5, +(avail / w).toFixed(2)));
+    zoom = Math.max(0.15, Math.min(mode === 'single' ? 1.3 : 2.5, +(avail / w).toFixed(2)));
     applyZoom();
   };
   P.setLayerEditing = on => { const d = doc(); if (d) d.body.classList.toggle('edit-layers', !!on); };
@@ -306,6 +314,7 @@
     // duplo clique numa página abre o capítulo correspondente no editor
     d.addEventListener('dblclick', e => {
       if (App.view === 'layers') return;
+      if (e.target.closest && e.target.closest('[contenteditable]')) return; // edição direta: duplo clique seleciona a palavra
       const ch = e.target.closest && e.target.closest('[data-chapter]');
       if (!ch) return;
       const c = App.project.chapters[Number(ch.dataset.chapter)];
@@ -382,8 +391,17 @@
   }
 
   P.setup = function () {
-    $('#zoomIn').addEventListener('click', () => { zoom = Math.min(2.5, +(zoom + 0.1).toFixed(2)); applyZoom(); });
-    $('#zoomOut').addEventListener('click', () => { zoom = Math.max(0.15, +(zoom - 0.1).toFixed(2)); applyZoom(); });
+    $('#zoomIn').addEventListener('click', () => { P.autoFit = false; zoom = Math.min(2.5, +(zoom + 0.1).toFixed(2)); applyZoom(); });
+    $('#zoomOut').addEventListener('click', () => { P.autoFit = false; zoom = Math.max(0.15, +(zoom - 0.1).toFixed(2)); applyZoom(); });
+    // a página acompanha a largura da área (painel de ajustes aberto/fechado, janela redimensionada)
+    P.autoFit = true;
+    let lastW = 0;
+    new ResizeObserver(() => {
+      const w = $('#previewFrames').clientWidth;
+      if (!w || Math.abs(w - lastW) < 8) return;
+      lastW = w;
+      if (P.autoFit) { clearTimeout(P._fitT); P._fitT = setTimeout(P.fit, 60); }
+    }).observe($('#previewFrames'));
     $('#refresh').addEventListener('click', () => P.schedule(true));
     $('#autoRefresh').addEventListener('change', e => { if (e.target.checked) P.schedule(true); });
     const setOpts = () => { try { win() && win().setPreviewOptions(opts()); } catch (e) { /* ok */ } };
@@ -392,7 +410,7 @@
     $('#previewMode').value = 'single';
     P.fitNext = true;
     $('#previewMode').addEventListener('change', () => setTimeout(P.fit, 60));
-    $('#zoomFit').addEventListener('click', () => P.fit());
+    $('#zoomFit').addEventListener('click', () => { P.autoFit = true; P.fit(); });
     $('#insertBleedPage').addEventListener('click', () => App.pageTools.insertBleedPage(null));
     const splitter = $('#splitter');
     splitter.addEventListener('mousedown', e => {
@@ -401,19 +419,25 @@
       $$('.preview-frame').forEach(f => { f.style.pointerEvents = 'none'; });
       const move = ev => {
         const r = layout.getBoundingClientRect();
-        const w = Math.min(Math.max(r.right - ev.clientX, 320), r.width - 700);
-        document.documentElement.style.setProperty('--preview-w', w + 'px');
+        if (App.view === 'chapter') {
+          const w = Math.min(Math.max(r.right - ev.clientX, 320), r.width - 700);
+          document.documentElement.style.setProperty('--preview-w', w + 'px');
+        } else {
+          // painel de ajustes ao lado das páginas
+          const w = Math.min(Math.max(ev.clientX - r.left - 252, 340), r.width - 252 - 360);
+          document.documentElement.style.setProperty('--panel-w', w + 'px');
+        }
       };
       const up = () => {
         window.removeEventListener('mousemove', move);
         window.removeEventListener('mouseup', up);
         $$('.preview-frame').forEach(f => { f.style.pointerEvents = ''; });
-        try { localStorage.setItem('previewWidth', getComputedStyle(document.documentElement).getPropertyValue('--preview-w')); } catch (err) { /* ok */ }
+        try { localStorage.setItem('previewWidth', getComputedStyle(document.documentElement).getPropertyValue('--preview-w')); localStorage.setItem('panelWidth', getComputedStyle(document.documentElement).getPropertyValue('--panel-w')); } catch (err) { /* ok */ }
       };
       window.addEventListener('mousemove', move);
       window.addEventListener('mouseup', up);
     });
-    try { const w = localStorage.getItem('previewWidth'); if (w) document.documentElement.style.setProperty('--preview-w', w); } catch (e) { /* ok */ }
+    try { const w = localStorage.getItem('previewWidth'); if (w) document.documentElement.style.setProperty('--preview-w', w); const pw = localStorage.getItem('panelWidth'); if (pw) document.documentElement.style.setProperty('--panel-w', pw); } catch (e) { /* ok */ }
     window.addEventListener('beforeunload', () => { try { localStorage.setItem('zoom', String(zoom)); } catch (e) { /* ok */ } });
     $('#zoomLabel').textContent = Math.round(zoom * 100) + '%';
   };

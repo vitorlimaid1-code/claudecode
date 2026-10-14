@@ -61,6 +61,7 @@
     try { chapters = BookText.convertImport(res); } catch (e) { console.error(e); $('#toast').classList.remove('show'); return api.confirm('Não foi possível ler o arquivo.', String(e.message || e), ['OK']); }
     const notes = chapters.notes || 0;
     const meta = chapters.meta;
+    const det = chapters.detected;
     chapters = chapters.filter(c => c.html.replace(/<[^>]+>/g, '').trim() || /<img|<table/.test(c.html));
     const images = await convertImages(chapters);
     const charts = await convertCharts(chapters, res.charts);
@@ -85,7 +86,10 @@
     chapters.forEach(c => { const t = document.createElement('template'); t.innerHTML = c.html; t.content.querySelectorAll('h2').forEach(h => subTitles.push(h.textContent.trim().toLowerCase())); });
     const tocHasSections = subTitles.some(t => t.length > 3 && tocText.includes(t));
     const genreSel = el('select', {}, [el('option', { value: '', text: App.project.genre ? 'Manter o atual (' + (D.GENRE_PRESETS[App.project.genre] || {}).label + ')' : 'Manter a configuração atual' })].concat(Object.entries(D.GENRE_PRESETS).map(([k, p]) => el('option', { value: k, text: p.label }))));
-    const list = el('ol', { class: 'import-list' }, chapters.slice(0, 80).map(c => el('li', { text: `${c.title}${c.numbered === false ? ' (sem número)' : ''} — ${BookText.countWords(c.html).toLocaleString('pt-BR')} palavras` })));
+    const list = el('ol', { class: 'import-list' }, chapters.slice(0, 80).map(c => el('li', { text: `${c.sourceLabel && c.sourceLabel !== c.title ? c.sourceLabel + ' · ' : ''}${c.title}${c.numbered === false ? ' (sem número)' : ''} — ${BookText.countWords(c.html).toLocaleString('pt-BR')} palavras` })));
+    // capítulos achados pelos marcadores do manuscrito (CAPÍTULO 1, II, 3…): numeração no mesmo estilo
+    const STYLE_NAMES = { roman: 'romanos (I, II, III)', arabic: 'arábicos (1, 2, 3)', words: 'por extenso (Um, Dois)' };
+    const useNumbering = el('input', { type: 'checkbox', checked: !!det });
     App.modal({
       title: `Importar “${res.name}${res.ext || ''}”`, wide: true,
       body: el('div', {}, [
@@ -93,6 +97,7 @@
         warn.length ? el('div', { class: 'warn-box' }, warn.map(w => el('p', { text: '⚠ ' + w }))) : null,
         el('div', { class: 'grid' }, [App.field('Como importar', mode), App.field('Notas de rodapé', notesSel), App.field('Gênero do livro (estilos, títulos e alinhamento)', genreSel, 'Texto justificado; poesia alinhada à esquerda'),
           tocChapters.length ? el('label', { class: 'chk' }, [dropToc, ` Remover o sumário do manuscrito (“${tocChapters[0].title}”) e gerar o sumário automático com as páginas certas`]) : null,
+          det ? el('label', { class: 'chk' }, [useNumbering, ` ${det.count} capítulos identificados pelos marcadores do texto — numerar com ${det.labeled ? '“Capítulo” + ' : ''}números ${STYLE_NAMES[det.style] || ''}`]) : null,
           meta && meta.title ? el('label', { class: 'chk' }, [useMeta, ` Usar título/autor do arquivo (“${meta.title}”${meta.author ? ', ' + meta.author : ''})`]) : null]),
         el('h4', { text: 'Capítulos encontrados' }),
         list,
@@ -115,9 +120,10 @@
         if (dropToc.checked || chs.length > 1) { f.toc = true; if (dropToc.checked) { f.tocMode = 'auto'; f.tocLevels = Math.max(Number(f.tocLevels) || 1, tocHasSections ? 2 : 1); } }
         App.editorChapterId = null;
         if (genreSel.value) await App.genre.apply(genreSel.value, false);
+        if (det && useNumbering.checked) { App.project.settings.chapterNumbering = det.style; App.project.settings.chapterLabel = det.labeled ? 'Capítulo' : ''; }
         App.changed(`Importação de “${res.name}” (${chs.length} capítulos)`);
         App.setView('chapter', chs[0].id);
-        App.toast(`${chs.length} capítulo(s) importado(s). A paginação é aplicada automaticamente.`, 4000);
+        App.toast(`${chs.length} capítulo(s) importado(s). Confira os títulos em Livro › Revisar títulos.`, 5000);
       } }]
     });
   }
