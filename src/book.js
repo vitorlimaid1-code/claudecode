@@ -370,6 +370,22 @@ function markBlocks(html) {
   });
 }
 
+// Imersão: imagem acima do título do capítulo, até além do corte. Uma imagem para todos, ou uma por
+// capítulo (distribuição aleatória guardada em assign; capítulo novo sem sorteio usa a sequência)
+function immersionFor(project, c, i, ctx) {
+  const im = project.immersion;
+  if (!im || !im.mode || im.mode === 'off') return null;
+  if (im.numberedOnly && !c.numbered) return null;
+  let id = null;
+  if (im.mode === 'single') id = im.single;
+  else {
+    const pool = (im.pool || []).filter(x => ctx.assets[x]);
+    id = (im.assign || {})[c.id];
+    if (!id || !ctx.assets[id]) id = pool.length ? pool[i % pool.length] : null;
+  }
+  return id && ctx.assets[id] ? id : null;
+}
+
 // Divide o corpo do capítulo nas páginas de imagem sangrada
 function splitFullBleed(html) {
   const parts = [];
@@ -595,9 +611,10 @@ function buildHtml(project, ctx) {
       if (seg.type === 'image') { push(fullBleedHtml(seg.asset, seg.fit, ctx)); return; }
       const cols = periodical ? (Number(c.columns) || Number(settings.columns) || 1) : (Number(c.columns) || 1);
       if (k === 0) {
-        const cls = `chapter${i === 0 ? ' first-chapter' : ''}${hasOpening ? ' after-opening' : ''}${periodical ? ' article' + (c.newPage === false ? ' flow' : '') : ''}`;
+        const imId = periodical ? null : immersionFor(project, c, i, ctx);
+        const cls = `chapter${i === 0 ? ' first-chapter' : ''}${hasOpening ? ' after-opening' : ''}${imId ? ' has-immersion' : ''}${periodical ? ' article' + (c.newPage === false ? ' flow' : '') : ''}`;
         push(`<section class="${cls}" id="${esc(c.id)}" data-chapter="${i}" data-cols="${cols}">
-          ${masthead}
+          ${masthead}${imId ? `<div class="immersion${project.immersion.fade !== false ? ' fade' : ''}" data-asset="${esc(imId)}"><div class="im-img" style="background-image:url('${ctx.assets[imId].dataUrl}')"></div></div>` : ''}
           <header class="chapter-head">
             ${c.kicker ? `<div class="kicker">${esc(c.kicker)}</div>` : ''}
             ${label ? `<div class="chapter-label">${esc(label)}</div>` : ''}
@@ -822,6 +839,13 @@ ${pageNames}
 .chapter { break-before: page; }
 .chapter.after-opening, .chapter.chapter-cont { break-before: page; }
 .chapter-head { text-align: ${S.chapterTitle.align}; margin: ${mm(S.chapterTitle.spaceBefore)} 0 ${mm(S.chapterTitle.spaceAfter)} 0; break-after: avoid; }
+/* imersão: a imagem ocupa o alto da página de abertura, além das margens e do corte (sangria) */
+.immersion { position: relative; height: ${(num(s.pageHeight, 210) * Math.min(60, Math.max(15, num((project.immersion || {}).height, 36))) / 100).toFixed(2)}mm; margin: -${mm(num(s.marginTop, 20) + ctx.bleed)} -${mm(num(s.marginOuter, 16) + ctx.bleed)} 6mm -${mm(num(s.marginInner, 22))}; break-after: avoid; break-inside: avoid; }
+.pagedjs_left_page .immersion { margin-left: -${mm(num(s.marginOuter, 16) + ctx.bleed)}; margin-right: -${mm(num(s.marginInner, 22))}; }
+.pagedjs_right_page .immersion { margin-left: -${mm(num(s.marginInner, 22))}; margin-right: -${mm(num(s.marginOuter, 16) + ctx.bleed)}; }
+.immersion .im-img { position: absolute; inset: 0; background-size: cover; background-position: center; }
+.immersion.fade .im-img { -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent); mask-image: linear-gradient(to bottom, #000 70%, transparent); }
+.chapter.has-immersion .chapter-head { margin-top: 2mm; }
 .chapter-label { ${styleDecl(S.chapterLabel, body, { noIndent: true })} margin-top: 0; }
 .chapter-title { ${styleDecl(S.chapterTitle, body, { noSpace: true })} line-height: 1.15; margin: 0; hyphens: manual; string-set: chaptitle content(text); }
 .chapter-sep { margin-top: 4mm; text-align: ${S.chapterTitle.align}; line-height: 0; }

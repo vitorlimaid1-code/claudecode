@@ -74,6 +74,8 @@
     sec.setAttribute('epub:type', 'chapter');
     sec.setAttribute('role', 'doc-chapter');
     if (c.id) sec.id = c.id;
+    // imersão: a imagem da abertura do capítulo vem antes do título
+    if (c.immersion) { const fig = doc.createElement('div'); fig.className = 'immersion'; const im = doc.createElement('img'); im.setAttribute('data-asset', c.immersion); im.setAttribute('alt', ''); fig.appendChild(im); sec.appendChild(fig); }
     const h = doc.createElement('h1');
     if (label) { const l = doc.createElement('span'); l.className = 'label'; l.textContent = label; h.appendChild(l); h.appendChild(doc.createElement('br')); }
     h.appendChild(doc.createTextNode(c.title));
@@ -201,7 +203,8 @@ aside p { text-indent: 0; }
 .titlepage { text-align: center; margin-top: 20%; }
 .tp-title { font-size: 2em; page-break-before: avoid; }
 .copyright p { text-indent: 0; font-size: 0.85em; text-align: left; }
-.cover { text-align: center; } .cover img { max-width: 100%; max-height: 100%; }`;
+.cover { text-align: center; } .cover img { max-width: 100%; max-height: 100%; }
+.immersion { margin: 0 0 1em; } .immersion img { display: block; width: 100%; height: auto; }`;
   }
 
   async function buildEpub(project, opts) {
@@ -209,10 +212,18 @@ aside p { text-indent: 0; }
     let n = 0;
     const ctr = { fig: 0, graf: 0, tab: 0, quad: 0, refs: {} };
     const escX = App.escape;
-    const docs = project.chapters.map(c => {
+    const im = project.immersion || {};
+    const imFor = (c, i) => {
+      if (!im.mode || im.mode === 'off' || (im.numberedOnly && !c.numbered)) return null;
+      let id = im.mode === 'single' ? im.single : (im.assign || {})[c.id];
+      const pool = (im.pool || []).filter(x => project.assets[x]);
+      if (im.mode === 'random' && (!id || !project.assets[id])) id = pool.length ? pool[i % pool.length] : null;
+      return id && project.assets[id] ? id : null;
+    };
+    const docs = project.chapters.map((c, i) => {
       let label = '';
       if (c.numbered && s.chapterNumbering !== 'none') { n++; label = `${s.chapterLabel || ''} ${n}`.trim(); }
-      return { title: c.title, tocLabel: label ? `${label} — ${c.title}` : c.title, xhtml: xhtmlOf(c, label, s, ctr) };
+      return { title: c.title, tocLabel: label ? `${label} — ${c.title}` : c.title, xhtml: xhtmlOf(Object.assign({}, c, { immersion: imFor(c, i) }), label, s, ctr) };
     });
     if (project.back.bio.enabled) docs.push({ title: project.back.bio.title, xhtml: xhtmlOf({ id: 'bio', title: project.back.bio.title, html: project.back.bio.html }, '', s) });
     if (project.back.extra.enabled) docs.push({ title: project.back.extra.title, xhtml: xhtmlOf({ id: 'extra', title: project.back.extra.title, html: project.back.extra.html }, '', s) });

@@ -1,0 +1,162 @@
+[
+ {
+  "id": "geo-circulos",
+  "name": "Círculos concêntricos",
+  "group": "geometrica",
+  "file": "immersion/geo-circulos.jpg",
+  "width": 2400,
+  "height": 1500
+ },
+ {
+  "id": "geo-triangulos",
+  "name": "Mosaico de triângulos",
+  "group": "geometrica",
+  "file": "immersion/geo-triangulos.jpg",
+  "width": 2400,
+  "height": 1500
+ },
+ {
+  "id": "geo-bauhaus",
+  "name": "Formas Bauhaus",
+  "group": "geometrica",
+  "file": "immersion/geo-bauhaus.jpg",
+  "width": 2400,
+  "height": 1500
+ },
+ {
+  "id": "geo-isometrico",
+  "name": "Cubos isométricos",
+  "group": "geometrica",
+  "file": "immersion/geo-isometrico.jpg",
+  "width": 2400,
+  "height": 1500
+ },
+ {
+  "id": "geo-ondas",
+  "name": "Ondas paralelas",
+  "group": "geometrica",
+  "file": "immersion/geo-ondas.jpg",
+  "width": 2400,
+  "height": 1500
+ },
+ {
+  "id": "rom-rosas",
+  "name": "Rosas",
+  "group": "romance",
+  "file": "immersion/rom-rosas.jpg",
+  "width": 2400,
+  "height": 1500
+ },
+ {
+  "id": "rom-campo",
+  "name": "Campo de flores ao entardecer",
+  "group": "romance",
+  "file": "immersion/rom-campo.jpg",
+  "width": 2400,
+  "height": 1500
+ },
+ {
+  "id": "rom-galho",
+  "name": "Galho florido e pássaros",
+  "group": "romance",
+  "file": "immersion/rom-galho.jpg",
+  "width": 2400,
+  "height": 1500
+ },
+ {
+  "id": "rom-lua",
+  "name": "Lua e andorinhas",
+  "group": "romance",
+  "file": "immersion/rom-lua.jpg",
+  "width": 2400,
+  "height": 1500
+ },
+ {
+  "id": "rom-casal",
+  "name": "Silhueta do casal",
+  "group": "romance",
+  "file": "immersion/rom-casal.jpg",
+  "width": 2400,
+  "height": 1500
+ },
+ {
+  "id": "ter-arvore",
+  "name": "Árvore morta e lua de sangue",
+  "group": "terror",
+  "file": "immersion/ter-arvore.jpg",
+  "width": 2400,
+  "height": 1500
+ },
+ {
+  "id": "ter-castelo",
+  "name": "Castelo e morcegos",
+  "group": "terror",
+  "file": "immersion/ter-castelo.jpg",
+  "width": 2400,
+  "height": 1500
+ },
+ {
+  "id": "ter-floresta",
+  "name": "Floresta na névoa",
+  "group": "terror",
+  "file": "immersion/ter-floresta.jpg",
+  "width": 2400,
+  "height": 1500
+ },
+ {
+  "id": "ter-corvos",
+  "name": "Corvos no galho",
+  "group": "terror",
+  "file": "immersion/ter-corvos.jpg",
+  "width": 2400,
+  "height": 1500
+ },
+ {
+  "id": "ter-sangue",
+  "name": "Escorrido",
+  "group": "terror",
+  "file": "immersion/ter-sangue.jpg",
+  "width": 2400,
+  "height": 1500
+ },
+ {
+  "id": "sus-cidade",
+  "name": "Cidade à noite",
+  "group": "suspense",
+  "file": "immersion/sus-cidade.jpg",
+  "width": 2400,
+  "height": 1500
+ },
+ {
+  "id": "sus-escada",
+  "name": "Escada em espiral",
+  "group": "suspense",
+  "file": "immersion/sus-escada.jpg",
+  "width": 2400,
+  "height": 1500
+ },
+ {
+  "id": "sus-chuva",
+  "name": "Chuva e poste",
+  "group": "suspense",
+  "file": "immersion/sus-chuva.jpg",
+  "width": 2400,
+  "height": 1500
+ },
+ {
+  "id": "sus-digital",
+  "name": "Impressão digital",
+  "group": "suspense",
+  "file": "immersion/sus-digital.jpg",
+  "width": 2400,
+  "height": 1500
+ },
+ {
+  "id": "sus-persianas",
+  "name": "Luz pela persiana",
+  "group": "suspense",
+  "file": "immersion/sus-persianas.jpg",
+  "width": 2400,
+  "height": 1500
+ }
+]

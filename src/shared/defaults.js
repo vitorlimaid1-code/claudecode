@@ -678,6 +678,8 @@
       pageStyles: p.pageStyles && typeof p.pageStyles === 'object' ? p.pageStyles : {},
       // títulos marcados pelo usuário como “não é título” (podem ser revertidos)
       notTitles: Array.isArray(p.notTitles) ? p.notTitles : [],
+      // imersão: imagem acima do título dos capítulos (uma para todos ou uma por capítulo, sorteada)
+      immersion: Object.assign({ mode: 'off', single: null, pool: [], assign: {}, height: 36, fade: true, numberedOnly: false }, p.immersion || {}),
       cover: p.cover || null,
       // livro digital (EPUB/MOBI): imagem da capa escolhida para as lojas e aplicativos de leitura
       ebook: Object.assign({ coverAsset: null, coverInBook: true, preImages: [] }, p.ebook || {}),

@@ -34,10 +34,11 @@
     undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
     redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/>',
     moon: '<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4 6.5 6.5 0 0 0 20 14.5Z"/>',
+    mountain: '<path d="m3 19 6-9 4 6 3-4 5 7Z"/><circle cx="16.5" cy="6.5" r="2"/>',
     book: '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2Z"/><path d="M4 19a2 2 0 0 1 2-2h13"/>'
   };
   const svg = name => `<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name] || P.book}</svg>`;
-  const NAV = { frontimages: 'cover', book: 'info', catalog: 'credits', back: 'pen', layout: 'layout', typo: 'sparkles', stylelib: 'palette', styles: 'pilcrow', fonts: 'font', assets: 'images', layers: 'layers', notes: 'note', tools: 'check', cover: 'book', export: 'export', poetry: 'feather', periodical: 'news', kdp: 'kdp', appearance: 'contrast', reset: 'reset' };
+  const NAV = { frontimages: 'cover', immersion: 'mountain', book: 'info', catalog: 'credits', back: 'pen', layout: 'layout', typo: 'sparkles', stylelib: 'palette', styles: 'pilcrow', fonts: 'font', assets: 'images', layers: 'layers', notes: 'note', tools: 'check', cover: 'book', export: 'export', poetry: 'feather', periodical: 'news', kdp: 'kdp', appearance: 'contrast', reset: 'reset' };
   const CMD = { new: 'file', open: 'folder', save: 'save', import: 'upload', projectUndo: 'undo', projectRedo: 'redo', history: 'clock', library: 'library', export: 'export' };
   function apply() {
     document.querySelectorAll('.nav-item').forEach(b => {
