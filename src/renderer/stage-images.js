@@ -58,7 +58,74 @@
     // num parágrafo que continua da página anterior, “antes” seria lá atrás: aqui conta como “depois”
     let before = y < best.r.top + best.r.height / 2;
     if (before && best.blk.hasAttribute('data-split-from')) before = false;
-    return { ch, idx: Number(best.blk.dataset.src), before, zone, blk: best.blk, page: pg };
+    const t = { ch, idx: Number(best.blk.dataset.src), before, zone, blk: best.blk, page: pg };
+    // no meio de um parágrafo (no centro): a imagem entra exatamente ali, dividindo o parágrafo
+    if (zone === 'center' && best.blk.tagName === 'P' && !bestD) t.split = splitPoint(d, best.blk, x, y);
+    return t;
+  }
+  // ponto do texto sob o cursor: trecho antes dele (para achar no modelo) e a linha onde fica
+  function splitPoint(d, blk, x, y) {
+    // fim da linha sob o cursor: a linha continua cheia e a imagem entra logo abaixo dela
+    const br = blk.getBoundingClientRect();
+    const cr = d.caretRangeFromPoint ? (d.caretRangeFromPoint(br.right - 1, y) || d.caretRangeFromPoint(x, y)) : null;
+    if (!cr || !blk.contains(cr.startContainer)) return null;
+    const pre = d.createRange();
+    pre.setStart(blk, 0);
+    pre.setEnd(cr.startContainer, cr.startOffset);
+    const norm = t => t.replace(/[\u00ad\u200b\u2060]/g, '').replace(/\s+/g, ' '); // sem hifens invisíveis da hifenização
+    const before = norm(pre.toString());
+    const after = norm(blk.textContent).slice(before.length);
+    // linha do cursor (a imagem entra depois desta linha, na próxima palavra inteira)
+    const lr = cr.getClientRects()[0] || cr.getBoundingClientRect();
+    // trechos anteriores do mesmo parágrafo (quando ele vem da página anterior)
+    let prior = 0;
+    const ref = blk.getAttribute('data-ref');
+    if (ref) for (const f of d.querySelectorAll(`[data-ref="${ref}"]`)) { if (f === blk) break; prior += norm(f.textContent).length; }
+    if (before.trim().length < 12 || after.trim().length < 12) return null; // perto do início/fim: antes/depois do parágrafo
+    return { before, prior, lineBottom: lr.bottom, lineTop: lr.top };
+  }
+  // divide o parágrafo do modelo no ponto equivalente (procura o trecho antes do cursor no texto do modelo)
+  function splitModelParagraph(p, sp) {
+    const nodes = [];
+    const tw = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, { acceptNode: n => n.parentElement.closest('.footnote, .fn, .endnote, [data-fn]') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+    let n, txt = '';
+    const map = [];
+    while ((n = tw.nextNode())) {
+      for (let i = 0; i < n.nodeValue.length; i++) {
+        if (/[\u00ad\u200b\u2060]/.test(n.nodeValue[i])) continue;
+        const c = /\s/.test(n.nodeValue[i]) ? ' ' : n.nodeValue[i];
+        if (c === ' ' && txt.endsWith(' ')) continue;
+        txt += c; map.push([n, i]);
+      }
+      nodes.push(n);
+    }
+    const est = sp.prior + sp.before.length;
+    let pos = -1;
+    for (const len of [40, 24, 14]) {
+      const needle = sp.before.slice(-len);
+      if (needle.trim().length < 6) continue;
+      let k = txt.indexOf(needle), best = -1;
+      while (k >= 0) { const e = k + needle.length; if (best < 0 || Math.abs(e - est) < Math.abs(best - est)) best = e; k = txt.indexOf(needle, k + 1); }
+      if (best >= 0) { pos = best; break; }
+    }
+    if (pos < 0) return null;
+    // termina a palavra (nunca corta no meio)
+    while (pos < txt.length && txt[pos] !== ' ') pos++;
+    if (pos >= txt.length - 8 || pos < 8) return null;
+    const [node, off] = map[pos];
+    const r = document.createRange();
+    r.setStart(node, off);
+    r.setEnd(p, p.childNodes.length);
+    const frag = r.extractContents();
+    const q = p.cloneNode(false);
+    q.removeAttribute('id');
+    q.classList.add('no-indent'); // continuação do mesmo parágrafo
+    q.appendChild(frag);
+    // espaços que sobraram nas pontas
+    const trim = (el2, end) => { const w = document.createTreeWalker(el2, NodeFilter.SHOW_TEXT); let t2, last = null, first = null; while ((t2 = w.nextNode())) { if (!first) first = t2; last = t2; } const t3 = end ? last : first; if (t3) t3.nodeValue = end ? t3.nodeValue.replace(/\s+$/, '') : t3.nodeValue.replace(/^\s+/, ''); };
+    trim(p, true); trim(q, false);
+    p.after(q);
+    return q;
   }
   function showIndicator(d, t) {
     hideIndicator(d);
@@ -70,13 +137,13 @@
     const body = t.blk.closest('.chapter-body').getBoundingClientRect();
     const line = d.createElement('div');
     line.className = 'drop-line';
-    const top = ((t.before ? r.top : r.bottom) - bx.top) / k;
+    const top = ((t.split ? t.split.lineBottom + 1 : t.before ? r.top : r.bottom) - bx.top) / k;
     const left = (body.left - bx.left) / k, w = body.width / k;
     const part = t.zone === 'center' ? [left, w] : t.zone === 'left' ? [left, w * 0.42] : [left + w * 0.58, w * 0.42];
     Object.assign(line.style, { position: 'absolute', left: part[0] + 'px', width: part[1] + 'px', top: (top - 2) + 'px', height: '4px', borderRadius: '3px', background: 'linear-gradient(90deg,#6d28d9,#c026d3,#f43f5e)', boxShadow: '0 0 0 3px rgba(192,38,211,.18)', zIndex: 60, pointerEvents: 'none' });
     const tag = d.createElement('div');
     tag.className = 'drop-line';
-    tag.textContent = t.zone === 'center' ? 'imagem aqui · texto acima e abaixo' : t.zone === 'left' ? 'imagem à esquerda · texto ao lado' : 'imagem à direita · texto ao lado';
+    tag.textContent = t.split ? 'imagem aqui, no meio do parágrafo · texto acima e abaixo' : t.zone === 'center' ? 'imagem aqui · texto acima e abaixo' : t.zone === 'left' ? 'imagem à esquerda · texto ao lado' : 'imagem à direita · texto ao lado';
     Object.assign(tag.style, { position: 'absolute', left: part[0] + 'px', top: (top + 6) + 'px', font: '600 11px system-ui, sans-serif', color: '#fff', background: '#6d28d9', padding: '2px 8px', borderRadius: '8px', zIndex: 61, pointerEvents: 'none', whiteSpace: 'nowrap' });
     box.appendChild(line);
     box.appendChild(tag);
@@ -84,13 +151,15 @@
   function hideIndicator(d) { d.querySelectorAll('.drop-line').forEach(x => x.remove()); }
 
   // insere o HTML junto do bloco (posição no texto do capítulo)
-  function insertAt(ch, idx, before, html) {
+  function insertAt(ch, idx, before, html, split) {
     if (!ch || ch.locked) { App.toast('Capítulo bloqueado: desbloqueie no cadeado.'); return false; }
     return withChapterDom(ch, root => {
       const ref = root.children[idx];
       const t = document.createElement('template');
       t.innerHTML = html;
-      if (!ref) root.appendChild(t.content);
+      const tail = split && ref && ref.tagName === 'P' ? splitModelParagraph(ref, split) : null;
+      if (tail) tail.before(t.content);
+      else if (!ref) root.appendChild(t.content);
       else if (before) ref.before(t.content);
       else ref.after(t.content);
       return true;
@@ -118,7 +187,7 @@
     if (opts.width && Number(html.dataset.width) > 50) html.setAttribute('data-width', String(opts.width));
     let idx = to.idx;
     if (from.ch === to.ch && from.idx < to.idx) idx -= 1;
-    return insertAt(to.ch, idx, to.before, html.outerHTML);
+    return insertAt(to.ch, idx, to.before, html.outerHTML, to.split);
   }
 
   // ---------------------------------------------------------------- eventos nas páginas
@@ -128,6 +197,7 @@
     const st = d.createElement('style');
     st.textContent = `
       .chapter-body figure.fig { cursor: grab; }
+      .chapter-body figure.fig, .chapter-body figure.fig img { -webkit-user-drag: none; user-select: none; }
       .chapter-body figure.fig.img-sel { outline: 2px solid #c026d3; outline-offset: 3px; }
       .img-handle { position: absolute; width: 12px; height: 12px; background: #fff; border: 2px solid #c026d3; border-radius: 50%; z-index: 62; cursor: ew-resize; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
       .img-size { position: absolute; z-index: 62; font: 600 11px system-ui, sans-serif; color: #fff; background: #c026d3; padding: 2px 7px; border-radius: 8px; pointer-events: none; }`;
@@ -157,7 +227,7 @@
       d.defaultView.requestAnimationFrame(() => {
         pending = false;
         const t = dropTarget(d, lastXY[0], lastXY[1]);
-        if (lastT && t && lastT.blk === t.blk && lastT.before === t.before && lastT.zone === t.zone) return;
+        if (lastT && t && lastT.blk === t.blk && lastT.before === t.before && lastT.zone === t.zone && !t.split && !lastT.split) return;
         lastT = t;
         d.querySelectorAll('.drop-ghost').forEach(g => g.remove());
         if (t) showIndicator(d, t); else hideIndicator(d);
@@ -201,30 +271,91 @@
         parts.push(App.editor.figureHtml(id, o));
       }
       const html = parts.join('');
-      if (insertAt(t.ch, t.idx, t.before, html)) {
+      if (insertAt(t.ch, t.idx, t.before, html, t.split)) {
         App.changed(`Imagem inserida em “${t.ch.title}”`);
         App.toast(t.zone === 'center' ? 'Imagem inserida: o texto continua acima e abaixo.' : `Imagem inserida à ${t.zone === 'left' ? 'esquerda' : 'direita'}: ${/data-wrap="contour"/.test(html) ? 'o texto contorna a forma do desenho' : 'o texto corre ao lado'}.`, 3500);
       }
     }, true);
 
-    // clique numa imagem: seleção com alças de tamanho
+    // clique numa imagem: seleção com alças de tamanho; segurar e arrastar com o mouse: move a imagem
     d.addEventListener('mousedown', e => {
       const h = e.target.closest && e.target.closest('.img-handle');
       if (h) { startResize(d, e, h); return; }
       const fig = e.target.closest && e.target.closest('.chapter-body > figure.fig[data-src]');
       clearSelection(d);
-      if (fig && App.view !== 'layers') select(d, fig);
+      if (fig && App.view !== 'layers') { select(d, fig); if (e.button === 0) mouseDrag(d, e, fig); }
     });
     d.addEventListener('scroll', () => { const f = d.querySelector('figure.img-sel'); if (f) placeHandles(d, f); }, true);
   }
 
+  // arrastar com o mouse (sem o arrastar nativo): fantasma da imagem segue o cursor, a linha mostra o destino
+  function mouseDrag(d, e0, fig) {
+    e0.preventDefault();
+    const sec = fig.closest('section[data-chapter]');
+    const from = { ch: App.project.chapters[Number(sec.dataset.chapter)], idx: Number(fig.dataset.src) };
+    const win = d.defaultView;
+    let ghost = null, t = null, raf = false, xy = null, scrollT = null;
+    const begin = () => {
+      const im = fig.querySelector('img');
+      const r = fig.getBoundingClientRect();
+      ghost = d.createElement('div');
+      const w = Math.min(160, r.width);
+      Object.assign(ghost.style, { position: 'fixed', zIndex: 9999, pointerEvents: 'none', width: w + 'px', height: (r.height * w / (r.width || 1)) + 'px', opacity: '.7', borderRadius: '6px', boxShadow: '0 10px 30px rgba(109,40,217,.35)', outline: '2px solid #c026d3', background: `center / contain no-repeat url("${im ? im.currentSrc || im.src : ''}")` });
+      d.body.appendChild(ghost);
+      fig.style.opacity = '.35';
+      d.documentElement.style.cursor = 'grabbing';
+      d.querySelectorAll('.img-handle, .img-size').forEach(x => x.remove());
+    };
+    const autoscroll = () => {
+      clearInterval(scrollT);
+      if (!xy) return;
+      const h = win.innerHeight, edge = 48;
+      const dy = xy[1] < edge ? -18 : xy[1] > h - edge ? 18 : 0;
+      if (dy) scrollT = setInterval(() => { (d.scrollingElement || d.documentElement).scrollTop += dy; update(); }, 30);
+    };
+    const update = () => {
+      if (raf || !xy) return;
+      raf = true;
+      win.requestAnimationFrame(() => {
+        raf = false;
+        if (!ghost) return;
+        ghost.style.left = (xy[0] + 12) + 'px'; ghost.style.top = (xy[1] + 12) + 'px';
+        t = dropTarget(d, xy[0], xy[1]);
+        if (t) showIndicator(d, t); else hideIndicator(d);
+      });
+    };
+    const move = ev => {
+      if (!(ev.buttons & 1)) return up(ev);
+      xy = [ev.clientX, ev.clientY];
+      if (!ghost) { if (Math.hypot(ev.clientX - e0.clientX, ev.clientY - e0.clientY) < 6) return; begin(); }
+      update();
+      autoscroll();
+    };
+    const up = ev => {
+      d.removeEventListener('mousemove', move, true);
+      d.removeEventListener('mouseup', up, true);
+      clearInterval(scrollT);
+      if (!ghost) return; // foi só um clique: fica a seleção
+      ghost.remove();
+      fig.style.opacity = '';
+      d.documentElement.style.cursor = '';
+      hideIndicator(d);
+      const to = dropTarget(d, ev.clientX, ev.clientY) || t;
+      if (!to || !from.ch) return;
+      if (from.ch === to.ch && from.idx === to.idx && !to.split) {
+        withChapterDom(from.ch, root => { const f = root.children[from.idx]; if (f) { const o = zoneOpts(to.zone); f.setAttribute('data-align', o.align); f.setAttribute('data-wrap', to.zone !== 'center' && f.dataset.wrap === 'contour' ? 'contour' : o.wrap); } });
+      } else if (!moveFigure(from, to)) return;
+      App.changed('Imagem movida');
+    };
+    d.addEventListener('mousemove', move, true);
+    d.addEventListener('mouseup', up, true);
+  }
   function clearSelection(d) {
     d.querySelectorAll('figure.img-sel').forEach(f => f.classList.remove('img-sel'));
     d.querySelectorAll('.img-handle, .img-size').forEach(x => x.remove());
   }
   function select(d, fig) {
     fig.classList.add('img-sel');
-    fig.setAttribute('draggable', 'true');
     placeHandles(d, fig);
   }
   function placeHandles(d, fig) {

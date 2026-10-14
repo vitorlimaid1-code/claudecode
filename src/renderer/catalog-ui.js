@@ -2,7 +2,7 @@
 // Galeria de modelos de ficha catalográfica (prontos + salvos pelo usuário) e a "ficha fixa",
 // que é aplicada automaticamente a todo livro novo.
 (function () {
-  const { el, api } = App;
+  const { el, api, D } = App;
 
   // Modelos prontos: assuntos e classificação usuais por gênero + apresentação da ficha.
   // A ficha oficial deve ser conferida por bibliotecário(a); os modelos agilizam o preenchimento.
@@ -149,5 +149,119 @@
     return holder;
   }
 
-  App.catalogUi = { gallery, STYLES, BUILTIN };
+  // ---------------------------------------------------------------- editoras e logotipos (salvos para todos os livros)
+  let pubs = null;
+  async function loadPubs() {
+    if (!pubs) { try { pubs = (await api.publishersGet()) || {}; } catch (e) { pubs = {}; } }
+    pubs.publishers = pubs.publishers || []; pubs.logos = pubs.logos || [];
+    return pubs;
+  }
+  const savePubs = () => api.publishersSet(pubs);
+  const IMPRINT = 'Impresso no Brasil\nSorriso, MT';
+  const showFront = sel => { try { const f = App.preview && App.preview.findPage; if (f) f(sel); } catch (e) { /* ok */ } };
+
+  // escolhe a editora: atualiza a ficha catalográfica (e o rosto) na hora
+  function choosePublisher(pb, rerender) {
+    const m = App.project.meta;
+    m.publisher = pb ? pb.name : '';
+    if (pb && pb.city) m.city = pb.city;
+    App.changed(pb ? `Editora: ${pb.name}` : 'Editora removida');
+    showFront('#ficha');
+    rerender();
+  }
+  // escolhe o logotipo: vai para a página de rosto, abaixo do título, com “Impresso no Brasil / Sorriso, MT”
+  async function chooseLogo(lg, rerender) {
+    const tp = App.project.titlePage;
+    if (!lg) { tp.logo = null; App.changed('Logotipo removido da página de rosto'); rerender(); return; }
+    tp.logo = await App.addAsset({ dataUrl: lg.dataUrl, name: lg.name || 'Logotipo', kind: 'logo' });
+    tp.logoLib = lg.id;
+    tp.logoPlacement = 'below-title';
+    if (!tp.imprint) tp.imprint = IMPRINT;
+    App.project.front.titlePage = true;
+    App.changed(`Logotipo “${lg.name || 'da editora'}” na página de rosto`);
+    showFront('.title-page');
+    rerender();
+  }
+  async function uploadLogos(rerender) {
+    const l = await api.pickImages({ title: 'Logotipos da editora (PNG com fundo transparente, de preferência)', multiple: true });
+    if (!l || !l.length) return;
+    await loadPubs();
+    l.forEach(a => pubs.logos.push({ id: D.uid('logo'), name: (a.name || 'Logotipo').replace(/\.[a-z0-9]+$/i, ''), dataUrl: a.dataUrl, width: a.width, height: a.height }));
+    await savePubs();
+    App.toast(`${l.length} logotipo(s) salvo(s). Clique num deles para usá-lo na página de rosto.`);
+    if (l.length === 1) await chooseLogo(pubs.logos[pubs.logos.length - 1], rerender); else rerender();
+  }
+  // janela com as editoras: adicionar, editar, excluir e salvar (ficam guardadas para os próximos livros)
+  async function managePublishers(rerender) {
+    await loadPubs();
+    const list = pubs.publishers.map(x => Object.assign({}, x));
+    const box = el('div', { class: 'pub-list' });
+    const draw = () => {
+      box.innerHTML = '';
+      if (!list.length) box.appendChild(el('p', { class: 'muted small', text: 'Nenhuma editora cadastrada ainda.' }));
+      list.forEach((x, i) => {
+        const name = el('input', { type: 'text', value: x.name || '', placeholder: 'Nome da editora' });
+        const city = el('input', { type: 'text', value: x.city || '', placeholder: 'Cidade (opcional)' });
+        name.addEventListener('input', () => { x.name = name.value; });
+        city.addEventListener('input', () => { x.city = city.value; });
+        box.appendChild(el('div', { class: 'pub-row' }, [name, city, el('button', { class: 'ghost', text: '✕', title: 'Excluir', onclick: () => { list.splice(i, 1); draw(); } })]));
+      });
+    };
+    draw();
+    const add = el('input', { type: 'text', placeholder: 'Nova editora (ex.: Casa Vertigem)' });
+    const addIt = () => { const v = add.value.trim(); if (!v) return; list.push({ id: D.uid('pub'), name: v, city: '' }); add.value = ''; draw(); add.focus(); };
+    add.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addIt(); } });
+    App.modal({
+      title: 'Editoras',
+      body: el('div', {}, [
+        el('p', { class: 'muted small', text: 'Cadastre os nomes das editoras uma vez; depois é só escolher na ficha catalográfica — a ficha e a página de rosto se atualizam na hora.' }),
+        el('div', { class: 'pub-add' }, [add, el('button', { class: 'primary', text: '+ Adicionar', onclick: addIt })]),
+        box
+      ]),
+      buttons: [{ label: 'Cancelar' }, { label: 'Salvar', primary: true, onClick: async () => {
+        if (add.value.trim()) addIt();
+        pubs.publishers = list.filter(x => (x.name || '').trim()).map(x => ({ id: x.id || D.uid('pub'), name: x.name.trim(), city: (x.city || '').trim() }));
+        await savePubs();
+        App.toast('Editoras salvas.');
+        rerender();
+      } }]
+    });
+    setTimeout(() => add.focus(), 40);
+  }
+  function publisherCard(rerender) {
+    const holder = el('div', { class: 'card span-all' }, [el('h3', { text: 'Editora e logotipo' }), el('p', { class: 'muted small', text: 'Carregando…' })]);
+    loadPubs().then(() => {
+      const m = App.project.meta, tp = App.project.titlePage;
+      const sel = el('select', { class: 'pub-select', onchange: e => choosePublisher(pubs.publishers.find(x => x.id === e.target.value) || null, rerender) }, [
+        el('option', { value: '', text: m.publisher && !pubs.publishers.some(x => x.name === m.publisher) ? `${m.publisher} (deste livro)` : '— escolha a editora —', selected: true })
+      ].concat(pubs.publishers.map(x => el('option', { value: x.id, text: x.name + (x.city ? ' · ' + x.city : ''), selected: x.name === m.publisher }))));
+      const cur = tp.logo && App.project.assets[tp.logo];
+      const imprint = el('textarea', { rows: 2 });
+      imprint.value = tp.imprint || IMPRINT;
+      imprint.addEventListener('input', () => { tp.imprint = imprint.value; App.changed(null); clearTimeout(imprint._t); imprint._t = setTimeout(() => App.commit('Texto abaixo do logotipo'), 900); });
+      holder.innerHTML = '';
+      holder.append(
+        el('h3', { text: 'Editora e logotipo' }),
+        el('div', { class: 'pub-top' }, [
+          el('label', { class: 'field' }, [el('span', { class: 'flabel', text: 'Editora' }), sel]),
+          el('button', { text: 'Editoras…', title: 'Cadastrar, editar ou excluir editoras', onclick: () => managePublishers(rerender) })
+        ]),
+        el('div', { class: 'flabel', text: 'Logotipos da editora — clique para usar na página de rosto (abaixo do título)' }),
+        el('div', { class: 'pub-logos' }, pubs.logos.map(lg => el('div', { class: 'pub-logo' + (cur && tp.logoLib === lg.id ? ' on' : ''), title: lg.name, onclick: () => chooseLogo(lg, rerender) }, [
+          el('img', { src: lg.dataUrl, alt: lg.name }),
+          el('span', { text: lg.name }),
+          el('button', { class: 'ghost pub-del', text: '✕', title: 'Excluir este logotipo da lista', onclick: async e => { e.stopPropagation(); pubs.logos = pubs.logos.filter(x => x.id !== lg.id); await savePubs(); rerender(); } })
+        ])).concat([el('button', { class: 'pub-logo pub-up', onclick: () => uploadLogos(rerender) }, [el('b', { text: '＋' }), el('span', { text: 'Enviar logotipo' })])])),
+        cur ? el('div', { class: 'pub-cur' }, [
+          el('label', { class: 'field' }, [el('span', { class: 'flabel', text: 'Texto abaixo do logotipo' }), imprint]),
+          el('label', { class: 'field' }, [el('span', { class: 'flabel', text: 'Largura do logotipo (mm)' }), (() => { const n = el('input', { type: 'number', min: 5, max: 80, value: tp.logoWidth || 25 }); n.addEventListener('change', () => { tp.logoWidth = Number(n.value) || 25; App.changed('Largura do logotipo'); }); return n; })()]),
+          el('label', { class: 'field' }, [el('span', { class: 'flabel', text: 'Posição' }), (() => { const s2 = el('select', {}, [['below-title', 'Abaixo do título'], ['foot', 'No pé da página']].map(([v, t]) => el('option', { value: v, text: t, selected: (tp.logoPlacement || 'foot') === v }))); s2.addEventListener('change', () => { tp.logoPlacement = s2.value; App.changed('Posição do logotipo'); }); return s2; })()]),
+          el('button', { class: 'ghost', text: 'Tirar o logotipo', onclick: () => chooseLogo(null, rerender) })
+        ]) : null
+      );
+    });
+    return holder;
+  }
+
+  App.catalogUi = { gallery, STYLES, BUILTIN, publisherCard, managePublishers };
 })();

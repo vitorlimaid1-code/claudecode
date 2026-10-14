@@ -71,8 +71,10 @@ async function exportDocx(doc, assets, page) {
   doc.chapters.forEach((ch, ci) => {
     if (S) {
       // rótulo (“Capítulo 1”) e título no estilo do livro; o título entra no sumário do Word
-      if (ch.label) children.push(new D.Paragraph({ style: 'ChapterLabel', pageBreakBefore: true, children: [new D.TextRun({ text: ch.label })] }));
-      children.push(new D.Paragraph({ heading: D.HeadingLevel.HEADING_1, pageBreakBefore: !ch.label, children: [new D.TextRun({ text: ch.title })] }));
+      // quebra de página dentro do primeiro parágrafo do capítulo (uma só, nunca página em branco),
+      // reconhecida pelo Word, LibreOffice e Google Docs
+      if (ch.label) children.push(new D.Paragraph({ style: 'ChapterLabel', children: [new D.PageBreak(), new D.TextRun({ text: ch.label })] }));
+      children.push(new D.Paragraph({ heading: D.HeadingLevel.HEADING_1, children: (ch.label ? [] : [new D.PageBreak()]).concat([new D.TextRun({ text: ch.title })]) }));
     } else children.push(new D.Paragraph({ heading: D.HeadingLevel.HEADING_1, pageBreakBefore: ci > 0, children: [new D.TextRun({ text: ch.label ? `${ch.label} — ${ch.title}` : ch.title })] }));
     let firstP = true;
     ch.blocks.forEach(b => {
@@ -89,18 +91,25 @@ async function exportDocx(doc, assets, page) {
       else if (b.t === 'poem') b.stanzas.forEach(st => children.push(new D.Paragraph({ children: st.flatMap((l, i) => (i ? [new D.TextRun({ text: '', break: 1 })] : []).concat(mkRuns(l))), indent: { left: 720 }, spacing: { after: 240 } })));
       else if (b.t === 'list') b.items.forEach((it, i) => children.push(new D.Paragraph({ children: [new D.TextRun(b.ordered ? `${i + 1}. ` : '• ')].concat(mkRuns(it)), indent: { left: 360 } })));
       else if (b.t === 'scene') children.push(new D.Paragraph({ alignment: D.AlignmentType.CENTER, children: [new D.TextRun('*  *  *')] }));
-      else if (b.t === 'pagebreak') children.push(new D.Paragraph({ children: [new D.PageBreak()] }));
+      else if (b.t === 'pagebreak') {
+        // nunca duas quebras seguidas nem quebra no início/fim do capítulo (geraria página em branco)
+        const k = ch.blocks.indexOf(b);
+        if (k > 0 && k < ch.blocks.length - 1 && ch.blocks[k - 1].t !== 'pagebreak') children.push(new D.Paragraph({ children: [new D.PageBreak()] }));
+      }
       else if (b.t === 'image') {
         const a = assets[b.asset];
         const bin = a && dataUrlToBuffer(a.dataUrl);
         const type = bin && EXT[bin.mime];
         if (bin && ['png', 'jpg', 'gif', 'bmp'].includes(type)) {
           const colPx = ((page.width - page.marginInner - page.marginOuter) / 25.4) * 96;
-          const w = Math.round(colPx * (b.widthPct || 60) / 100);
-          const h = Math.round(w * (a.height || 1) / (a.width || 1));
-          children.push(new D.Paragraph({ alignment: D.AlignmentType.CENTER, children: [new D.ImageRun({ data: bin.buf, type, transformation: { width: w, height: h } })] }));
+          // proporção real; nunca mais alta que ~70% da mancha (uma figura alta não empurra a página)
+          const maxH = ((page.height - page.marginTop - page.marginBottom) / 25.4) * 96 * 0.7;
+          let w = Math.round(colPx * (b.widthPct || 60) / 100);
+          let h = Math.round(w * (a.height || 1) / (a.width || 1));
+          if (h > maxH) { w = Math.round(w * maxH / h); h = Math.round(maxH); }
+          children.push(new D.Paragraph({ alignment: align(b.align) || D.AlignmentType.CENTER, keepNext: !!(b.caption && b.caption.length), indent: { firstLine: 0 }, spacing: { before: 120, after: 120 }, children: [new D.ImageRun({ data: bin.buf, type, transformation: { width: w, height: h } })] }));
         }
-        if (b.caption && b.caption.length) children.push(new D.Paragraph({ alignment: D.AlignmentType.CENTER, style: 'Caption', children: mkRuns(b.caption) }));
+        if (b.caption && b.caption.length) children.push(new D.Paragraph({ alignment: align(b.align) || D.AlignmentType.CENTER, style: 'Caption', children: mkRuns(b.caption) }));
       } else if (b.t === 'table') {
         children.push(new D.Table({
           width: { size: 100, type: D.WidthType.PERCENTAGE },
@@ -113,10 +122,11 @@ async function exportDocx(doc, assets, page) {
 
   // estilos do livro (fonte, tamanho, entrelinha, alinhamento, recuo, títulos) como estilos do Word
   const mmTw = mm => Math.round((Number(mm) || 0) / 25.4 * 1440);
-  const runOf = (st, base) => ({ font: (st && st.font) || base.font, size: Math.round(((st && st.size) || base.size) * 2), bold: !!(st && st.bold), italics: !!(st && st.italic), allCaps: !!(st && st.uppercase), smallCaps: !!(st && st.smallcaps), color: st && st.color ? String(st.color).replace('#', '') : undefined, characterSpacing: st && st.letterSpacing ? Math.round(st.letterSpacing * ((st.size || base.size) * 20)) : undefined });
-  const styles = { default: { document: { run: { font: doc.font || 'Georgia', size: Math.round((doc.fontSize || 11) * 2) } } } };
+  const FO = doc.fontOverride || '';
+  const runOf = (st, base) => ({ font: FO || (st && st.font) || base.font, size: Math.round(((st && st.size) || base.size) * 2), bold: !!(st && st.bold), italics: !!(st && st.italic), allCaps: !!(st && st.uppercase), smallCaps: !!(st && st.smallcaps), color: st && st.color ? String(st.color).replace('#', '') : undefined, characterSpacing: st && st.letterSpacing ? Math.round(st.letterSpacing * ((st.size || base.size) * 20)) : undefined });
+  const styles = { default: { document: { run: { font: FO || doc.font || 'Georgia', size: Math.round((doc.fontSize || 11) * 2) } } } };
   if (S) {
-    const base = { font: S.body.font || 'Georgia', size: Number(S.body.size) || 11 };
+    const base = { font: FO || S.body.font || 'Georgia', size: Number(S.body.size) || 11 };
     const lh = st => Math.round(240 * (Number((st && st.lineHeight) || S.body.lineHeight) || 1.4));
     styles.default.document.run = { font: base.font, size: Math.round(base.size * 2) };
     styles.paragraphStyles = [
@@ -145,9 +155,8 @@ async function exportDocx(doc, assets, page) {
       properties: { page: { size: { width: mmToTwip(page.width), height: mmToTwip(page.height) }, margin: { top: mmToTwip(page.marginTop), bottom: mmToTwip(page.marginBottom), left: mmToTwip(page.marginInner), right: mmToTwip(page.marginOuter), mirror: true } } },
       children: [
         new D.Paragraph({ alignment: D.AlignmentType.CENTER, indent: { firstLine: 0 }, spacing: { before: 2400 }, children: [new D.TextRun({ text: doc.meta.title, size: 48 })] }),
-        new D.Paragraph({ alignment: D.AlignmentType.CENTER, indent: { firstLine: 0 }, children: [new D.TextRun({ text: doc.meta.author, size: 28 })] }),
-        new D.Paragraph({ children: [new D.PageBreak()] })
-      ].concat(front, children)
+        new D.Paragraph({ alignment: D.AlignmentType.CENTER, indent: { firstLine: 0 }, children: [new D.TextRun({ text: doc.meta.author, size: 28 })] })
+      ].concat(front.length ? [new D.Paragraph({ style: 'TocTitle', children: [new D.PageBreak(), new D.TextRun({ text: doc.tocTitle || 'Sumário' })] }), front[1]] : (S ? [] : [new D.Paragraph({ children: [new D.PageBreak()] })]), children)
     }]
   });
   return D.Packer.toBuffer(document);

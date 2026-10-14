@@ -182,6 +182,11 @@
   const win = () => (active && active.contentWindow) || null;
 
   P.scrollTo = id => { try { win() && win().scrollToId(id); } catch (e) { /* ok */ } };
+  // leva a prévia até a página que contém o elemento (ex.: '#ficha', '.title-page'), agora e após a repaginação
+  P.findPage = sel => {
+    const go = () => { const d = doc(); const e = d && d.querySelector(sel); const pg = e && e.closest('.pagedjs_page'); if (pg) { const n = Number(pg.dataset.pageNumber); if (n) P.goToPage(n); else pg.scrollIntoView({ block: 'start' }); } };
+    go(); setTimeout(go, 1500);
+  };
   P.goToPage = n => { P.currentPage = n; markCurrent(); try { win() && win().scrollToPage(n); } catch (e) { /* ok */ } };
   P.updateOverlays = list => { try { win() && win().updateOverlays(list); P.highlightLayers([...App.layers.sel]); } catch (e) { /* ok */ } };
   // volta ao modo padrão (ao abrir/criar/importar um livro)

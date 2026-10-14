@@ -50,6 +50,14 @@
       if (h.tagName === 'P' && h.textContent.length > 160) return;
       h.querySelectorAll('br').forEach(b => b.replaceWith(document.createTextNode(' ')));
     });
+    // layout do original: alinhamentos e posição das figuras vindos das classes do Gutenberg
+    root.querySelectorAll('p, div, h1, h2, h3, h4, h5, h6').forEach(x => {
+      if (x.style.textAlign) return;
+      const c = ' ' + (x.className || '').toLowerCase() + ' ';
+      if (/ (center|centered|c|tac|caption|figcenter|centerpar|centertext) /.test(c)) x.style.textAlign = 'center';
+      else if (/ (right|r|tar|signature|sig|rightalign|textright) /.test(c)) x.style.textAlign = 'right';
+      else if (/ (noindent|no-indent|nind|ni|first) /.test(c) && x.tagName === 'P') x.classList.add('no-indent');
+    });
     // parágrafos com classe de título (ph2/ph3) viram títulos de verdade
     root.querySelectorAll('p.ph1, p.ph2, p.ph3, p[class*="title"]').forEach(p => { const h = document.createElement(p.classList.contains('ph1') ? 'h1' : 'h2'); h.innerHTML = p.innerHTML; p.replaceWith(h); });
 
@@ -144,6 +152,23 @@
     return c;
   }
 
+  // tamanho real da ilustração (proporção certa no DOCX)
+  function imageSize(src) {
+    return new Promise(res => { const im = new Image(); im.onload = () => res({ w: im.naturalWidth || 1000, h: im.naturalHeight || 1000 }); im.onerror = () => res({ w: 1000, h: 1000 }); im.src = src; });
+  }
+  // largura e posição como no original: % declarado no img/bloco, largura em px (coluna de ~600 px) ou natural
+  function figureLayout(img, dim) {
+    const holder = img.closest('figure, div') || img;
+    const pct = el2 => { const m = /width\s*:\s*([\d.]+)%/.exec((el2 && el2.getAttribute('style')) || ''); return m ? Number(m[1]) : 0; };
+    const px = el2 => { if (!el2) return 0; const m = /width\s*:\s*([\d.]+)(px|em)/.exec(el2.getAttribute('style') || ''); if (m) return Number(m[1]) * (m[2] === 'em' ? 16 : 1); return Number(el2.getAttribute('width')) || 0; };
+    let w = pct(img) || pct(holder);
+    if (!w) { const p = px(img) || px(holder) || dim.w; w = p / 600 * 100; }
+    const cls = ((holder.className || '') + ' ' + (img.className || '')).toLowerCase();
+    const side = /figleft|floatleft|left/.test(cls) ? 'left' : /figright|floatright|right/.test(cls) ? 'right' : 'center';
+    w = Math.round(Math.max(20, Math.min(side === 'center' ? 100 : 50, w)));
+    return { width: w, align: side, wrap: side === 'center' ? 'none' : 'square' };
+  }
+
   // ---------------------------------------------------------------- um livro
   async function processOne(item) {
     const log = (m, k) => addLog(`${item.name} — ${m}`, k);
@@ -167,26 +192,30 @@
     if (det) { proj.settings.chapterNumbering = det.style === 'words' ? 'arabic' : det.style; proj.settings.chapterLabel = det.labeled ? 'Capítulo' : ''; }
     proj.front.toc = true;
     let imgs = 0;
-    proj.chapters = chapters.map(c => {
+    proj.chapters = [];
+    for (const c of chapters) proj.chapters.push(await (async () => {
       const tpl = document.createElement('template');
       tpl.innerHTML = c.html;
-      tpl.content.querySelectorAll('img[src^="data:"]').forEach(img => {
-        if (!$('#enhImages').checked) { (img.closest('figure') || img).remove(); return; }
+      for (const img of tpl.content.querySelectorAll('img[src^="data:"]')) {
+        if (!$('#enhImages').checked) { (img.closest('figure') || img).remove(); continue; }
         const id = 'img' + (++imgs);
-        proj.assets[id] = { id, name: 'Ilustração ' + imgs, dataUrl: img.getAttribute('src'), width: img.naturalWidth || 1000, height: img.naturalHeight || 1000, info: {} };
+        const dim = await imageSize(img.getAttribute('src'));
+        proj.assets[id] = { id, name: 'Ilustração ' + imgs, dataUrl: img.getAttribute('src'), width: dim.w, height: dim.h, info: {} };
         const holder = img.closest('figure') || img;
         const cap = holder.tagName === 'FIGURE' ? holder.querySelector('figcaption') : null;
         const t = document.createElement('template');
-        t.innerHTML = App.editor.figureHtml(id, { width: 60, caption: cap ? cap.textContent : '' });
+        t.innerHTML = App.editor.figureHtml(id, Object.assign(figureLayout(img, dim), { caption: cap ? cap.textContent : '' }));
         if (holder.tagName === 'FIGURE' || !holder.closest('p')) holder.replaceWith(t.content.firstChild); else { const p = holder.closest('p'); holder.remove(); p.after(t.content.firstChild); }
-      });
+      }
       return { id: D.uid(), title: c.title, numbered: c.numbered !== false, html: tpl.innerHTML, locked: false, style: {}, separator: 'default', openingImage: null };
-    });
+    })());
     if (imgs) log(`${imgs} ilustração(ões) mantida(s) nos capítulos`);
     const words = proj.chapters.reduce((s, c) => s + BookText.countWords(c.html), 0);
     log(`${words.toLocaleString('pt-BR')} palavras · gerando o DOCX no padrão do sistema (títulos, alinhamento, tamanho do texto, parágrafos e sumário)…`);
     const target = await api.enhTarget(proj.meta.title, 'docx');
-    const r = await api.exportRun({ kind: 'docx', project: proj, doc: App.exportPrep.buildDoc(proj), opts: { target } });
+    const doc = App.exportPrep.buildDoc(proj);
+    doc.fontOverride = 'Garamond'; // texto e títulos em Garamond, com tamanhos, alinhamentos e espaços do sistema
+    const r = await api.exportRun({ kind: 'docx', project: proj, doc, opts: { target } });
     if (!r || !r.files) throw new Error('falha ao gravar o DOCX');
     item.out = r.files[0];
     item.status = 'ok';

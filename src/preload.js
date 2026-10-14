@@ -55,6 +55,8 @@ contextBridge.exposeInMainWorld('api', {
   catalogFixedSet: d => inv('catalog:fixedSet', d),
   catalogTemplatesGet: () => inv('catalog:templatesGet'),
   catalogTemplatesSet: d => inv('catalog:templatesSet', d),
+  publishersGet: () => inv('publishers:get'),
+  publishersSet: d => inv('publishers:set', d),
 
   showItem: p => inv('shell:showItem', p),
   openPath: p => inv('shell:openPath', p),

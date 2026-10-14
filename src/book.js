@@ -387,20 +387,38 @@ function immersionFor(project, c, i, ctx) {
   return id && ctx.assets[id] ? id : null;
 }
 
-// Molduras: desenho na margem, em volta da mancha (com folga), nas páginas dos capítulos marcados
+// Molduras: modelos (desenho na margem, em volta da mancha, com folga) ou imagens enviadas (fundo da página
+// inteira, com o texto por cima e afastado das bordas desenhadas)
+const frameOk = (id, ctx) => !!id && (!!PageFrames.FRAMES[id] || (/^up:/.test(id) && !!ctx.assets[id.slice(3)]));
+// margens mínimas (mm) para o texto não tocar a moldura enviada: faixa desenhada (medida na imagem) + folga
+function frameMargins(id, s, ctx) {
+  if (!/^up:/.test(id || '')) return null;
+  const a = ctx.assets[id.slice(3)];
+  if (!a) return null;
+  const ins = a.frameInset || { top: 0.08, right: 0.08, bottom: 0.08, left: 0.08 };
+  const W = num(s.pageWidth, 140), H = num(s.pageHeight, 210), gap = 4;
+  return { top: ins.top * H + gap, bottom: ins.bottom * H + gap, left: ins.left * W + gap, right: ins.right * W + gap };
+}
 function frameCss(project, ctx) {
   const s = project.settings;
-  const used = [...new Set(project.chapters.map(c => c.frame).filter(id => id && PageFrames.FRAMES[id]))];
+  const all = (project.frames || {}).all;
+  const used = [...new Set(project.chapters.map(c => c.frame).concat([all]).filter(id => frameOk(id, ctx)))];
   if (!used.length) return '';
   const mt = num(s.marginTop, 20), mb = num(s.marginBottom, 22), mi = num(s.marginInner, 22), mo = num(s.marginOuter, 16);
-  const g = 3.5;
-  let t = Math.min(9, Math.max(2.5, Math.min(mt, mb, mi, mo) * 0.45));
-  t = Math.min(t, Math.min(mt, mb, mi, mo) - g - 1.5);
-  if (t < 1.2) return '';
-  const w = ctx.colW + 2 * (g + t), h = ctx.contentH + 2 * (g + t);
-  const out = ['.pagedjs_page[data-frame] .pagedjs_pagebox { position: relative; }'];
-  used.forEach(id => {
-    const svg = PageFrames.svg(id, w, h, t);
+  const g = 3.5, minM = Math.min(mt, mb, mi, mo);
+  let t0 = Math.min(9, Math.max(2.5, minM * 0.45));
+  t0 = Math.min(t0, minM - g - 1.5);
+  const out = ['.pagedjs_page[data-frame] .pagedjs_pagebox { position: relative; z-index: 0; }'];
+  used.filter(id => /^up:/.test(id)).forEach(id => {
+    // imagem enviada: ao fundo da página (atrás do texto), na medida da página
+    out.push(`.pagedjs_page[data-frame="${id}"] .pagedjs_pagebox::before { content: ""; position: absolute; left: 0; top: 0; right: 0; bottom: 0; z-index: -1; pointer-events: none; background: url("${ctx.assets[id.slice(3)].dataUrl}") center / 100% 100% no-repeat; }`);
+  });
+  if (t0 < 1.2) return out.join('\n');
+  used.filter(id => PageFrames.FRAMES[id]).forEach(id => {
+    // modelos “imersivos” ocupam quase toda a margem
+    const t = PageFrames.FRAMES[id].wide ? Math.max(t0, Math.min(14, minM - g - 1)) : t0;
+    const w = ctx.colW + 2 * (g + t), h = ctx.contentH + 2 * (g + t);
+    const svg = PageFrames.svg(id, w, h, t, g);
     const sel = `.pagedjs_page[data-frame="${id}"] .pagedjs_pagebox::before`;
     out.push(`${sel} { content: ""; position: absolute; z-index: 0; pointer-events: none; width: ${w.toFixed(2)}mm; height: ${h.toFixed(2)}mm; top: ${(mt - g - t).toFixed(2)}mm; left: ${(mi - g - t).toFixed(2)}mm; background: url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}") no-repeat; background-size: 100% 100%; }`);
     out.push(`.pagedjs_page.pagedjs_left_page[data-frame="${id}"] .pagedjs_pagebox::before { left: ${(mo - g - t).toFixed(2)}mm; }`);
@@ -585,8 +603,9 @@ function buildHtml(project, ctx) {
       <div class="tp-author">${esc(meta.author)}</div>
       <div class="tp-title">${esc(meta.title)}</div>
       ${meta.subtitle ? `<div class="tp-subtitle">${esc(meta.subtitle)}</div>` : ''}
+      ${logo && titlePage.logoPlacement === 'below-title' ? `<div class="tp-brand"><img class="tp-logo" src="${logo.dataUrl}" style="width:${num(titlePage.logoWidth, 25)}mm">${titlePage.imprint && titlePage.imprint.trim() ? `<div class="tp-imprint">${multiline(titlePage.imprint)}</div>` : ''}</div>` : ''}
       <div class="tp-foot">
-        ${logo ? `<img class="tp-logo" src="${logo.dataUrl}" style="width:${num(titlePage.logoWidth, 25)}mm">` : ''}
+        ${logo && titlePage.logoPlacement !== 'below-title' ? `<img class="tp-logo" src="${logo.dataUrl}" style="width:${num(titlePage.logoWidth, 25)}mm">` : ''}
         ${titlePage.showPublisher && meta.publisher ? `<div class="tp-publisher">${esc(meta.publisher)}</div>` : ''}
         ${titlePage.showYear && (meta.city || meta.year) ? `<div class="tp-place">${esc([meta.city, meta.year].filter(Boolean).join(' · '))}</div>` : ''}
       </div>
@@ -635,7 +654,7 @@ function buildHtml(project, ctx) {
       if (k === 0) {
         const imId = periodical ? null : immersionFor(project, c, i, ctx);
         const cls = `chapter${i === 0 ? ' first-chapter' : ''}${hasOpening ? ' after-opening' : ''}${imId ? ' has-immersion' : ''}${periodical ? ' article' + (c.newPage === false ? ' flow' : '') : ''}`;
-        const frameAttr = !periodical && c.frame && PageFrames.FRAMES[c.frame] ? ` data-frame="${esc(c.frame)}"` : '';
+        const frameAttr = !periodical && frameOk(c.frame, ctx) ? ` data-frame="${esc(c.frame)}"` : '';
         push(`<section class="${cls}" id="${esc(c.id)}" data-chapter="${i}" data-cols="${cols}"${frameAttr}>
           ${masthead}${imId ? `<div class="immersion${project.immersion.fade !== false ? ' fade' : ''}" data-asset="${esc(imId)}"><div class="im-img" style="background-image:url('${ctx.assets[imId].dataUrl}')"></div></div>` : ''}
           <header class="chapter-head">
@@ -650,7 +669,7 @@ function buildHtml(project, ctx) {
         </section>`);
         masthead = '';
       } else if (seg.html.replace(/<[^>]+>/g, '').trim() || /<img|<figure|<table/.test(seg.html)) {
-        push(`<section class="chapter chapter-cont" data-chapter="${i}" data-cols="${cols}"${!periodical && c.frame && PageFrames.FRAMES[c.frame] ? ` data-frame="${esc(c.frame)}"` : ''}><div class="chapter-body">${seg.html}</div></section>`);
+        push(`<section class="chapter chapter-cont" data-chapter="${i}" data-cols="${cols}"${!periodical && frameOk(c.frame, ctx) ? ` data-frame="${esc(c.frame)}"` : ''}><div class="chapter-body">${seg.html}</div></section>`);
       }
     });
   });
@@ -749,6 +768,34 @@ function buildCss(project, ctx) {
   }
 
   const pageNames = chapters.map((c, i) => `.chapter[data-chapter="${i}"] { page: ch${i}; }`).join('\n');
+  // moldura enviada: o texto se afasta da faixa desenhada (margens maiores nessas páginas);
+  // a abertura com imagem de imersão fica sem moldura e com as margens normais
+  const fAll = periodical ? '' : (project.frames || {}).all;
+  const mAll = frameOk(fAll, ctx) ? frameMargins(fAll, s, ctx) : null;
+  const pm = (req, side) => {
+    const L = side === 'left', mtop = Math.max(num(s.marginTop, 20), req ? req.top : 0), mbot = Math.max(num(s.marginBottom, 22), req ? req.bottom : 0);
+    const ml = Math.max(num(L ? s.marginOuter : s.marginInner, 16), req ? req.left : 0), mr = Math.max(num(L ? s.marginInner : s.marginOuter, 16), req ? req.right : 0);
+    return `margin-top: ${mm(mtop)}; margin-bottom: ${mm(mbot)}; margin-left: ${mm(ml)}; margin-right: ${mm(mr)};`;
+  };
+  const frameMarginRules = periodical ? '' : chapters.map((c, i) => {
+    const own = frameOk(c.frame, ctx) ? frameMargins(c.frame, s, ctx) : null;
+    const req = c.frame && frameOk(c.frame, ctx) ? own : mAll;
+    const imm = !!immersionFor(project, c, i, ctx);
+    let r = req ? `@page ch${i}:left { ${pm(req, 'left')} }\n@page ch${i}:right { ${pm(req, 'right')} }` : '';
+    const er = req || mAll;
+    if (er && imm) {
+      // a imagem de imersão continua indo até o corte com as margens maiores dessas páginas
+      const top = Math.max(num(s.marginTop, 20), er.top), bl = ctx.bleed;
+      const L = { l: Math.max(num(s.marginOuter, 16), er.left), r: Math.max(num(s.marginInner, 22), er.right) };
+      const Rr = { l: Math.max(num(s.marginInner, 22), er.left), r: Math.max(num(s.marginOuter, 16), er.right) };
+      const H = num(s.pageHeight, 210) * Math.min(60, Math.max(15, num((project.immersion || {}).height, 36))) / 100;
+      r += `\n.chapter[data-chapter="${i}"] .immersion { height: ${Math.max(0, H - top - bl).toFixed(2)}mm; }`;
+      r += `\n.chapter[data-chapter="${i}"] .immersion .im-img { top: -${mm(top + bl)}; }`;
+      r += `\n.pagedjs_left_page .chapter[data-chapter="${i}"] .immersion .im-img { left: -${mm(L.l + bl)}; right: -${mm(L.r)}; }`;
+      r += `\n.pagedjs_right_page .chapter[data-chapter="${i}"] .immersion .im-img { left: -${mm(Rr.l)}; right: -${mm(Rr.r + bl)}; }`;
+    }
+    return r;
+  }).filter(Boolean).join('\n');
   const chapterPages = chapters.map((c, i) => {
     const st = c.style || {};
     return marginRules(`ch${i}`, st.pageColor ? `background: ${color(st.pageColor, '#fff')};` : '', st.textColor ? color(st.textColor, '#000') : '');
@@ -787,8 +834,8 @@ function buildCss(project, ctx) {
   ${marks}
   background: ${pageColor};
 }
-@page :left { margin-left: ${mm(s.marginOuter)}; margin-right: ${mm(s.marginInner)}; }
-@page :right { margin-left: ${mm(s.marginInner)}; margin-right: ${mm(s.marginOuter)}; }
+@page :left { ${mAll ? pm(mAll, 'left') : `margin-left: ${mm(s.marginOuter)}; margin-right: ${mm(s.marginInner)};`} }
+@page :right { ${mAll ? pm(mAll, 'right') : `margin-left: ${mm(s.marginInner)}; margin-right: ${mm(s.marginOuter)};`} }
 @page :blank { ${none6} }
 @page front { ${none6} }
 @page fullbleed { margin: 0; ${none6} }
@@ -796,6 +843,7 @@ function buildCss(project, ctx) {
 ${marginRules('frontnum', '', '', true)}
 ${marginRules('backnum', '', '')}
 ${chapterPages}
+${frameMarginRules}
 ${pageNames}
 
 .book {
@@ -816,6 +864,8 @@ ${pageNames}
 .title-page .tp-foot { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 2mm; }
 .title-page .tp-logo { display: block; max-height: 30mm; object-fit: contain; }
 .title-page .tp-publisher { font-size: 0.95em; letter-spacing: 0.08em; }
+.title-page .tp-brand { margin-top: 12mm; display: flex; flex-direction: column; align-items: center; gap: 3mm; }
+.title-page .tp-imprint { font-size: 0.8em; letter-spacing: 0.06em; line-height: 1.5; }
 .title-page .tp-place { font-size: 0.85em; }
 .copyright-page { font-size: 7.5pt; line-height: 1.4; text-align: left; height: ${(contentH - 2).toFixed(1)}mm; display: flex; flex-direction: column; justify-content: flex-end; gap: 3mm; hyphens: manual; }
 .copyright-page .cat-role { font-weight: 700; }
@@ -863,10 +913,12 @@ ${pageNames}
 .chapter.after-opening, .chapter.chapter-cont { break-before: page; }
 .chapter-head { text-align: ${S.chapterTitle.align}; margin: ${mm(S.chapterTitle.spaceBefore)} 0 ${mm(S.chapterTitle.spaceAfter)} 0; break-after: avoid; }
 /* imersão: a imagem ocupa o alto da página de abertura, além das margens e do corte (sangria) */
-.immersion { position: relative; height: ${(num(s.pageHeight, 210) * Math.min(60, Math.max(15, num((project.immersion || {}).height, 36))) / 100).toFixed(2)}mm; margin: -${mm(num(s.marginTop, 20) + ctx.bleed)} -${mm(num(s.marginOuter, 16) + ctx.bleed)} 6mm -${mm(num(s.marginInner, 22))}; break-after: avoid; break-inside: avoid; }
-.pagedjs_left_page .immersion { margin-left: -${mm(num(s.marginOuter, 16) + ctx.bleed)}; margin-right: -${mm(num(s.marginInner, 22))}; }
-.pagedjs_right_page .immersion { margin-left: -${mm(num(s.marginInner, 22))}; margin-right: -${mm(num(s.marginOuter, 16) + ctx.bleed)}; }
-.immersion .im-img { position: absolute; inset: 0; background-size: cover; background-position: center; }
+/* no fluxo fica só a parte dentro da mancha (sem margens negativas, que confundem a paginação);
+   a imagem sai da mancha até o corte por posição absoluta */
+.immersion { position: relative; height: ${Math.max(0, num(s.pageHeight, 210) * Math.min(60, Math.max(15, num((project.immersion || {}).height, 36))) / 100 - num(s.marginTop, 20) - ctx.bleed).toFixed(2)}mm; margin: 0 0 6mm; break-after: avoid; break-inside: avoid; }
+.immersion .im-img { position: absolute; top: -${mm(num(s.marginTop, 20) + ctx.bleed)}; bottom: 0; left: -${mm(num(s.marginInner, 22))}; right: -${mm(num(s.marginOuter, 16) + ctx.bleed)}; background-size: cover; background-position: center; }
+.pagedjs_left_page .immersion .im-img { left: -${mm(num(s.marginOuter, 16) + ctx.bleed)}; right: -${mm(num(s.marginInner, 22))}; }
+.pagedjs_right_page .immersion .im-img { left: -${mm(num(s.marginInner, 22))}; right: -${mm(num(s.marginOuter, 16) + ctx.bleed)}; }
 .immersion.fade .im-img { -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent); mask-image: linear-gradient(to bottom, #000 70%, transparent); }
 .chapter.has-immersion .chapter-head { margin-top: 2mm; }
 .chapter-label { ${styleDecl(S.chapterLabel, body, { noIndent: true })} margin-top: 0; }
@@ -1144,6 +1196,7 @@ async function buildBook(rawProject, opts) {
       colW: ctx.colW
     },
     figures: ctx.figures,
+    frames: { all: project.kind === 'magazine' || project.kind === 'newspaper' ? '' : (frameOk((project.frames || {}).all, ctx) ? project.frames.all : '') },
     page: {
       width: num(s.pageWidth, 140), height: num(s.pageHeight, 210),
       marginTop: num(s.marginTop, 20), marginBottom: num(s.marginBottom, 22),

@@ -43,7 +43,7 @@
       else if (t === 'HR') blocks.push({ t: 'scene' });
       else if (t === 'FIGURE') {
         const cap = n.querySelector('figcaption');
-        blocks.push({ t: 'image', asset: n.dataset.asset, widthPct: n.dataset.align === 'full' ? 100 : Number(n.dataset.width) || 60, caption: cap ? runs(cap) : [] });
+        blocks.push({ t: 'image', asset: n.dataset.asset, align: ['left', 'right'].includes(n.dataset.align) ? n.dataset.align : '', widthPct: n.dataset.align === 'full' ? 100 : Number(n.dataset.width) || 60, caption: cap ? runs(cap) : [] });
       } else if (t === 'TABLE') {
         const cap = n.querySelector('caption');
         blocks.push({ t: 'table', rows: Array.from(n.querySelectorAll('tr')).map(tr => Array.from(tr.children).map(c => ({ th: c.tagName === 'TH', runs: runs(c) }))), caption: cap ? runs(cap) : null });

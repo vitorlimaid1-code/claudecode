@@ -59,6 +59,15 @@ if (!paged.includes(BUG5)) throw new Error('paged.js: quinto trecho a corrigir n
 paged = paged.replace(BUG5, `			let overflowResult = this.findOverflow(rendered, bounds, source);
 			let overflowGuard = 0;
 			while (overflowResult && overflowGuard++ < 500) {`);
+// Sexta correção: ao comparar duas posições de quebra, o Paged.js ignorava a posição 0 (falsa em
+// JavaScript). Quando um parágrafo inteiro passava para a página seguinte (posição 0) e depois precisava
+// continuar em outra página, a nova quebra parecia igual à anterior, a paginação parava ali e o resto do
+// capítulo se perdia. Agora 0 é uma posição como outra qualquer.
+const BUG6 = `			if (this["offset"] && otherOffset["offset"] &&
+				this["offset"] !== otherOffset["offset"]) {`;
+if (!paged.includes(BUG6)) throw new Error('paged.js: sexto trecho a corrigir não encontrado (versão diferente?)');
+paged = paged.replace(BUG6, `			if (this["offset"] !== undefined && otherOffset["offset"] !== undefined &&
+				this["offset"] !== otherOffset["offset"]) {`);
 fs.writeFileSync(path.join(out, 'paged.js'), paged);
 
 let css = '/* Gerado por scripts/vendor.js — não editar */\n';

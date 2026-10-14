@@ -563,7 +563,7 @@
         language: 'pt-BR', description: ''
       },
       front: { halfTitle: false, titlePage: true, copyright: true, toc: true, tocTitle: 'Sumário', tocMode: 'auto', tocLevels: 1, tocEntries: [], tocStyle: 'dots', listQuadros: false, dedication: false, epigraph: false, listFigures: false, listCharts: false, listTables: false },
-      titlePage: { logo: null, logoWidth: 25, showPublisher: true, showYear: true },
+      titlePage: { logo: null, logoWidth: 25, showPublisher: true, showYear: true, logoPlacement: 'foot', imprint: '' },
       catalog: Object.assign(emptyCatalog(), isCedet(settings) ? { distribution: CEDET.distribution } : {}),
       back: {
         bio: { enabled: false, title: 'Sobre o autor', html: '', photo: null, photoWidth: 35 },
@@ -681,6 +681,8 @@
       notTitles: Array.isArray(p.notTitles) ? p.notTitles : [],
       // imersão: imagem acima do título dos capítulos (uma para todos ou uma por capítulo, sorteada)
       immersion: Object.assign({ mode: 'off', single: null, pool: [], assign: {}, height: 36, fade: true, numberedOnly: false }, p.immersion || {}),
+      // molduras: 'all' = moldura em todas as páginas (id do modelo ou 'up:<imagem>'); uploads = molduras enviadas
+      frames: Object.assign({ all: '', uploads: [] }, p.frames || {}),
       cover: p.cover || null,
       // livro digital (EPUB/MOBI): imagem da capa escolhida para as lojas e aplicativos de leitura
       ebook: Object.assign({ coverAsset: null, coverInBook: true, preImages: [] }, p.ebook || {}),

@@ -397,6 +397,7 @@
     v.appendChild(el('div', { class: 'form-wrap' }, [
       el('h2', { text: 'Créditos e ficha catalográfica' }),
       el('p', { class: 'muted', text: 'Página de créditos (verso da página de rosto). A quantidade de páginas e as dimensões são preenchidas automaticamente a partir da diagramação.' }),
+      App.catalogUi.publisherCard(rerender),
       App.catalogUi.gallery(rerender),
       (() => {
         // ficha pronta (do bibliotecário/CBL): colar aqui substitui a ficha montada pelos campos

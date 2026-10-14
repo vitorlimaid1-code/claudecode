@@ -104,7 +104,15 @@
     // e ficam para a prévia que junta os trechos
     const offset = options.segment ? (restoreIds(), 0) : fixPageNumbers(book.typo || {});
     // páginas com moldura: a página recebe a marca do capítulo emoldurado
-    document.querySelectorAll('.pagedjs_page').forEach(pg => { const sc = pg.querySelector('section[data-frame]'); if (sc) pg.dataset.frame = sc.dataset.frame; else pg.removeAttribute('data-frame'); });
+    // (ou a moldura de todas as páginas); sem moldura: páginas em branco, de imagem sangrada, capa e
+    // aberturas de capítulo com imagem de imersão
+    const frameAll = (book.frames || {}).all || '';
+    document.querySelectorAll('.pagedjs_page').forEach(pg => {
+      const sc = pg.querySelector('section[data-frame]');
+      let id = sc ? sc.dataset.frame : frameAll;
+      if (pg.classList.contains('pagedjs_blank_page') || pg.classList.contains('pagedjs_fullbleed_page') || pg.querySelector('.immersion, .fullbleed, .book-cover, .pre-image')) id = '';
+      if (id) pg.dataset.frame = id; else pg.removeAttribute('data-frame');
+    });
     if (!options.segment) {
       if ((book.typo || {}).notesMode === 'side') placeSidenotes(book.page);
       renderOverlays(book.overlays || []);

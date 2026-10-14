@@ -305,6 +305,9 @@ ipcMain.handle('catalog:fixedGet', () => readJson(userFile('ficha-fixa.json'), n
 ipcMain.handle('catalog:fixedSet', (e, data) => { if (data) writeJson(userFile('ficha-fixa.json'), data); else { try { fs.unlinkSync(userFile('ficha-fixa.json')); } catch (err) { /* ok */ } } return true; });
 ipcMain.handle('catalog:templatesGet', () => readJson(userFile('modelos-ficha.json'), []));
 ipcMain.handle('catalog:templatesSet', (e, list) => { writeJson(userFile('modelos-ficha.json'), list || []); return true; });
+// editoras e logotipos salvos (valem para todos os livros)
+ipcMain.handle('publishers:get', () => readJson(userFile('editoras.json'), { publishers: [], logos: [] }));
+ipcMain.handle('publishers:set', (e, data) => { writeJson(userFile('editoras.json'), data || { publishers: [], logos: [] }); return true; });
 
 // Capa: prova de cor (CMYK simulado na tela) e leitura de manuscrito para calcular dimensões
 ipcMain.handle('cover:proof', async (e, cover, assets, dpi) => {

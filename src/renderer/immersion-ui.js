@@ -205,38 +205,104 @@
     ]));
   }
 
-  // ---------------------------------------------------------------- molduras (preto e branco)
+  // ---------------------------------------------------------------- molduras
+  let frTab = 'classica';
+  const frames = () => { const p = App.project; p.frames = p.frames || {}; p.frames.uploads = p.frames.uploads || []; if (p.frames.all === undefined) p.frames.all = ''; return p.frames; };
+  const frName = id => /^up:/.test(id) ? ((App.project.assets[id.slice(3)] || {}).name || 'Minha moldura') : ((PageFrames.FRAMES[id] || {}).name || id);
+  // faixa desenhada de uma moldura enviada (fração da página em cada lado), medida na própria imagem:
+  // do lado de fora para dentro, até onde ainda há traço; o texto fica além disso (+ folga)
+  async function measureFrame(dataUrl) {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = dataUrl; });
+    const k = Math.min(1, 600 / Math.max(img.naturalWidth, img.naturalHeight));
+    const W = Math.max(1, Math.round(img.naturalWidth * k)), H = Math.max(1, Math.round(img.naturalHeight * k));
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const g = cv.getContext('2d'); g.drawImage(img, 0, 0, W, H);
+    const d = g.getImageData(0, 0, W, H).data;
+    const px = (x, y) => { const i = (y * W + x) * 4; return [d[i], d[i + 1], d[i + 2], d[i + 3]]; };
+    const paper = px(Math.floor(W / 2), Math.floor(H / 2));
+    const ink = (x, y) => { const p = px(x, y); if (p[3] < 40) return false; if (paper[3] < 40) return true; return Math.abs(p[0] - paper[0]) + Math.abs(p[1] - paper[1]) + Math.abs(p[2] - paper[2]) > 60; };
+    const scan = (n, len, at) => { let worst = 0; for (let j = Math.floor(n * 0.15); j < n * 0.85; j += Math.max(1, Math.floor(n / 60))) { let last = 0; for (let i = 0; i < len * 0.42; i++) if (at(j, i)) last = i + 1; worst = Math.max(worst, last); } return Math.min(0.32, worst / len); };
+    return {
+      left: scan(H, W, (y, i) => ink(i, y)), right: scan(H, W, (y, i) => ink(W - 1 - i, y)),
+      top: scan(W, H, (x, i) => ink(x, i)), bottom: scan(W, H, (x, i) => ink(x, H - 1 - i)),
+      ratio: img.naturalWidth / img.naturalHeight
+    };
+  }
+  async function uploadFrame() {
+    const l = await api.pickImages({ title: 'Moldura (PNG com fundo transparente ou JPG com o centro em branco)', multiple: true });
+    if (!l || !l.length) return;
+    const fr = frames();
+    const st = App.project.settings;
+    for (const a of l) {
+      const id = await App.addAsset(Object.assign(a, { kind: 'moldura' }));
+      const asset = App.project.assets[id];
+      try { const m = await measureFrame(asset.dataUrl); asset.frameInset = { top: m.top, right: m.right, bottom: m.bottom, left: m.left }; asset.frameRatio = m.ratio; } catch (e) { asset.frameInset = { top: 0.08, right: 0.08, bottom: 0.08, left: 0.08 }; }
+      if (!fr.uploads.includes(id)) fr.uploads.push(id);
+      const want = st.pageWidth / st.pageHeight;
+      if (asset.frameRatio && Math.abs(asset.frameRatio - want) / want > 0.04) App.toast(`“${asset.name}” tem proporção diferente da página (${st.pageWidth} × ${st.pageHeight} mm): ela será esticada para caber.`, 5000);
+    }
+    frTab = 'mine';
+    App.changed(`${l.length} moldura(s) enviada(s)`, { preview: false });
+    render();
+  }
   function framesCard() {
     if (!window.PageFrames) return null;
+    const fr = frames();
     const cur = App.chapter();
+    const st = App.project.settings;
     const usedBy = id => App.project.chapters.filter(c => c.frame === id).length;
     const apply = (id, all) => {
       const list = all ? App.project.chapters : (cur ? [cur] : []);
       if (!list.length) return App.toast('Abra um capítulo (lista à esquerda) para aplicar só nele.');
       list.forEach(c => { if (!c.locked) c.frame = id; });
-      App.changed(id ? `Moldura “${PageFrames.FRAMES[id].name}” ${all ? 'em todos os capítulos' : 'em “' + cur.title + '”'}` : 'Moldura removida');
+      App.changed(id ? `Moldura “${frName(id)}” ${all ? 'em todos os capítulos' : 'em “' + cur.title + '”'}` : 'Moldura removida');
       render();
     };
-    const prev = id => 'data:image/svg+xml;utf8,' + encodeURIComponent(PageFrames.svg(id, 100, 150, 7).replace('<svg ', '<svg style="background:#fff" '));
+    const applyAllPages = id => {
+      fr.all = id;
+      // a moldura de todas as páginas vale também nos capítulos (sem moldura própria diferente)
+      App.changed(id ? `Moldura “${frName(id)}” em todas as páginas` : 'Moldura removida de todas as páginas');
+      render();
+    };
+    const prev = id => /^up:/.test(id) ? App.assetUrl(id.slice(3)) : 'data:image/svg+xml;utf8,' + encodeURIComponent(PageFrames.svg(id, 100, 150, PageFrames.FRAMES[id].wide ? 10 : 7).replace('<svg ', '<svg style="background:#fff" '));
+    const ids = frTab === 'mine' ? fr.uploads.filter(a => App.project.assets[a]).map(a => 'up:' + a) : PageFrames.list().filter(x => x.cat === frTab).map(x => x.id);
+    const pxW = Math.round(st.pageWidth / 25.4 * 300), pxH = Math.round(st.pageHeight / 25.4 * 300);
+    const tile = id => el('div', { class: 'fr-tile' + ((cur && cur.frame === id) || fr.all === id ? ' on' : '') }, [
+      el('img', { src: prev(id), alt: frName(id) }),
+      el('b', { text: frName(id) }),
+      el('span', { class: 'small muted', text: [fr.all === id ? 'todas as páginas' : '', usedBy(id) ? `em ${usedBy(id)} capítulo(s)` : ''].filter(Boolean).join(' · ') || ' ' }),
+      el('div', { class: 'fr-btns' }, [
+        el('button', { class: 'primary', text: 'Aplicar à página', title: 'Aplica nas páginas do capítulo aberto', onclick: () => apply(id, false) }),
+        el('button', { text: 'Em todos os capítulos', title: 'Aplica nas páginas de todos os capítulos', onclick: () => apply(id, true) }),
+        el('button', { class: 'fr-allpages', text: 'Todas as páginas', title: 'Aplica em todas as páginas do livro, inclusive nas aberturas de capítulo (menos nas que têm imagem de imersão)', onclick: () => applyAllPages(id) }),
+        /^up:/.test(id) ? el('button', { class: 'ghost small', text: 'Excluir', onclick: () => {
+          fr.uploads = fr.uploads.filter(a => 'up:' + a !== id);
+          if (fr.all === id) fr.all = '';
+          App.project.chapters.forEach(c => { if (c.frame === id) c.frame = ''; });
+          App.changed('Moldura excluída'); render();
+        } }) : null
+      ])
+    ]);
+    const tabs = PageFrames.CATS.concat([['mine', 'Minhas molduras']]);
     return el('div', { class: 'card' }, [
       el('h3', { text: 'Molduras' }),
-      el('p', { class: 'small muted', text: 'Em preto e branco, na margem, em volta do texto (com folga): o texto continua no centro. Valem para todas as páginas do capítulo.' + (cur ? ` Capítulo aberto: “${cur.title}”.` : '') }),
-      el('div', { class: 'fr-grid' }, PageFrames.list().map(fr => el('div', { class: 'fr-tile' + (cur && cur.frame === fr.id ? ' on' : '') }, [
-        el('img', { src: prev(fr.id), alt: fr.name }),
-        el('b', { text: fr.name }),
-        el('span', { class: 'small muted', text: usedBy(fr.id) ? `em ${usedBy(fr.id)} capítulo(s)` : ' ' }),
-        el('div', { class: 'fr-btns' }, [
-          el('button', { class: 'primary', text: 'Aplicar à página', title: 'Aplica nas páginas do capítulo aberto', onclick: () => apply(fr.id, false) }),
-          el('button', { text: 'Em todos', title: 'Aplica nas páginas de todos os capítulos', onclick: () => apply(fr.id, true) })
-        ])
-      ]))),
-      App.project.chapters.some(c => c.frame) ? el('div', { class: 'inline wrap' }, [
+      el('p', { class: 'small muted', text: 'Em preto e branco, na margem, em volta do texto (com folga): o texto continua no centro. “Aplicar à página” vale para as páginas do capítulo aberto' + (cur ? ` (“${cur.title}”)` : '') + '; “Todas as páginas” vale para o livro inteiro, inclusive nas aberturas de capítulo — menos nas que têm imagem de imersão.' }),
+      fr.all ? el('div', { class: 'fr-status' }, [el('span', { text: `Todas as páginas: “${frName(fr.all)}”` }), el('button', { text: 'Tirar de todas as páginas', onclick: () => applyAllPages('') })]) : null,
+      el('div', { class: 'im-tabs' }, tabs.map(([k, label]) => el('button', { class: 'im-tab' + (frTab === k ? ' on' : ''), onclick: () => { frTab = k; render(); } }, [label + ' ', el('span', { class: 'im-count', text: String(k === 'mine' ? fr.uploads.filter(a => App.project.assets[a]).length : PageFrames.list().filter(x => x.cat === k).length) })]))
+        .concat([el('button', { class: 'im-upload', text: '＋ Enviar minha moldura', onclick: uploadFrame })])),
+      frTab === 'mine' ? el('div', { class: 'fr-help' }, [
+        el('b', { text: 'Tamanho da moldura: ' }),
+        `${st.pageWidth} × ${st.pageHeight} mm (o tamanho da página deste livro) — ${pxW} × ${pxH} px a 300 dpi. `,
+        'PNG com fundo transparente ou JPG com o centro em branco. A imagem vai para o fundo da página, o texto fica por cima, e as margens se afastam sozinhas da faixa desenhada (medida na imagem), para o texto não encostar nas bordas da moldura.'
+      ]) : null,
+      ids.length ? el('div', { class: 'fr-grid' }, ids.map(tile)) : el('p', { class: 'muted small', text: 'Nenhuma moldura enviada ainda.' }),
+      App.project.chapters.some(c => c.frame) || fr.all ? el('div', { class: 'inline wrap' }, [
         el('button', { text: 'Remover do capítulo aberto', onclick: () => apply('', false) }),
-        el('button', { class: 'danger', text: 'Remover de todos', onclick: () => apply('', true) })
+        el('button', { class: 'danger', text: 'Remover de tudo', onclick: () => { fr.all = ''; apply('', true); } })
       ]) : null
     ]);
   }
 
   App.hooks.viewRender.immersion = render;
-  App.immersion = { render, distribute, randomize, addUploads, catalog };
+  App.immersion = { render, distribute, randomize, addUploads, catalog, measureFrame };
 })();

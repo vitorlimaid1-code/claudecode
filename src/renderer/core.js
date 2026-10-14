@@ -240,6 +240,7 @@ window.App = (function () {
     if (p.back.bio.photo) add(p.back.bio.photo, { label: 'Foto do autor' });
     if (p.titlePage.logo) add(p.titlePage.logo, { label: 'Logotipo (folha de rosto)' });
     if (p.settings.separatorAsset) add(p.settings.separatorAsset, { label: 'Separador padrão' });
+    ((p.frames || {}).uploads || []).forEach(id => add(id, { label: 'Moldura' }));
     (p.catalog.images || []).forEach(im => add(im.asset, { label: 'Ficha catalográfica' }));
     (p.overlays || []).forEach(o => { if (o.asset) add(o.asset, { label: `Camada “${o.name}” (pág. ${o.pages})` }); });
     if (p.cover) ['front', 'back', 'spine', 'flapFront', 'flapBack', 'wrap', 'logo'].forEach(k => { if (p.cover.images && p.cover.images[k]) add(p.cover.images[k].asset, { label: 'Capa (' + k + ')' }); });
