@@ -433,6 +433,16 @@
     });
     const out = [];
     fnParas.forEach((total, k) => { if (total && (seen[k] || 0) < total * 0.98) out.push(k); });
+    // nota que ficou no meio do texto (fora da área de notas) e foi empurrada para fora da página
+    document.querySelectorAll('.pagedjs_pages .pagedjs_page_content .footnote').forEach(fn => {
+      const host = fn.closest('[data-fnp]');
+      const area = fn.closest('.pagedjs_area');
+      if (!host || !area) return;
+      const ar = area.getBoundingClientRect();
+      const out1 = Array.from(fn.getClientRects()).some(rc => rc.width >= 1 && (rc.left > ar.right + 2 || rc.bottom > ar.bottom + 2));
+      const k = Number(host.dataset.fnp);
+      if (out1 && !out.includes(k)) out.push(k);
+    });
     return out;
   }
 

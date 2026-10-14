@@ -24,6 +24,8 @@
     flex: none;
     position: relative;
   }
+  /* páginas fora da tela não são desenhadas nem recalculadas: a prévia de livros grandes não trava */
+  body.stage .pagedjs_sheet { content-visibility: auto; contain-intrinsic-size: auto var(--pagedjs-width) auto var(--pagedjs-height); }
   .pagedjs_first_page { margin-left: var(--pagedjs-width) !important; }
   .pagedjs_page::after {
     content: attr(data-page-number);

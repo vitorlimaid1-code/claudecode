@@ -498,13 +498,17 @@ function buildHtml(project, ctx) {
   const { meta, front, chapters, settings, back, titlePage } = project;
   const periodical = project.kind === 'magazine' || project.kind === 'newspaper';
   const parts = [];
+  // trecho de paginação de cada parte: 'front' | 'ch:<id>' | 'back' (a prévia pagina cada trecho à parte)
+  const keys = [];
+  let segKey = 'front';
+  const push = h => { parts.push(h); keys.push(segKey); };
   const tocItems = [];
 
   // Ordem padrão: página de rosto > ficha catalográfica > sumário > (dedicatória/epígrafe) > capítulos > páginas extras
-  if (front.halfTitle) parts.push(`<section class="front half-title"><div class="ht-title">${esc(meta.title)}</div></section>`);
+  if (front.halfTitle) push(`<section class="front half-title"><div class="ht-title">${esc(meta.title)}</div></section>`);
   if (front.titlePage) {
     const logo = titlePage.logo && ctx.assets[titlePage.logo];
-    parts.push(`<section class="front title-page">
+    push(`<section class="front title-page">
       <div class="tp-author">${esc(meta.author)}</div>
       <div class="tp-title">${esc(meta.title)}</div>
       ${meta.subtitle ? `<div class="tp-subtitle">${esc(meta.subtitle)}</div>` : ''}
@@ -515,13 +519,14 @@ function buildHtml(project, ctx) {
       </div>
     </section>`);
   }
-  if (front.copyright) parts.push(catalogHtml(project, ctx));
+  if (front.copyright) push(catalogHtml(project, ctx));
   const tocIndex = parts.length;
+
   if (front.dedication && meta.dedication && meta.dedication.trim()) {
-    parts.push(`<section class="front dedication"><div class="ded-text">${multiline(meta.dedication)}</div></section>`);
+    push(`<section class="front dedication"><div class="ded-text">${multiline(meta.dedication)}</div></section>`);
   }
   if (front.epigraph && meta.epigraph && meta.epigraph.trim()) {
-    parts.push(`<section class="front epigraph"><div class="epi-text">${multiline(meta.epigraph)}</div>${meta.epigraphAuthor ? `<div class="epi-author">${esc(meta.epigraphAuthor)}</div>` : ''}</section>`);
+    push(`<section class="front epigraph"><div class="epi-text">${multiline(meta.epigraph)}</div>${meta.epigraphAuthor ? `<div class="epi-author">${esc(meta.epigraphAuthor)}</div>` : ''}</section>`);
   }
   // revista/jornal: o nome da publicação entra no topo da primeira matéria (mesma página)
   let masthead = periodical ? mastheadHtml(project, ctx) : '';
@@ -532,11 +537,12 @@ function buildHtml(project, ctx) {
   ctx.noteN = 0;
   ctx.endnotes = [];
   chapters.forEach((c, i) => {
+    segKey = 'ch:' + c.id;
     let label = '';
     if (c.numbered) { n += 1; label = chapterLabel(settings, n); }
     tocItems.push({ id: c.id, label, title: c.title, level: 1, summary: c.summary || '' });
     const hasOpening = !!(c.openingImage && c.openingImage.asset && ctx.assets[c.openingImage.asset]);
-    if (hasOpening) parts.push(fullBleedHtml(c.openingImage.asset, c.openingImage.fit, ctx));
+    if (hasOpening) push(fullBleedHtml(c.openingImage.asset, c.openingImage.fit, ctx));
     const heads = [];
     let body = markShortTables(numberTables(processBody(anchorHeadings(c.html, c.id, heads), ctx), ctx));
     heads.forEach(h => tocItems.push({ id: h.id, label: '', title: h.title, level: h.level }));
@@ -551,11 +557,11 @@ function buildHtml(project, ctx) {
     if (settings.hyphenExceptions) body = X.applyHyphenExceptions(body, settings.hyphenExceptions);
     const segments = splitFullBleed(body);
     segments.forEach((seg, k) => {
-      if (seg.type === 'image') { parts.push(fullBleedHtml(seg.asset, seg.fit, ctx)); return; }
+      if (seg.type === 'image') { push(fullBleedHtml(seg.asset, seg.fit, ctx)); return; }
       const cols = periodical ? (Number(c.columns) || Number(settings.columns) || 1) : (Number(c.columns) || 1);
       if (k === 0) {
         const cls = `chapter${i === 0 ? ' first-chapter' : ''}${hasOpening ? ' after-opening' : ''}${periodical ? ' article' + (c.newPage === false ? ' flow' : '') : ''}`;
-        parts.push(`<section class="${cls}" id="${esc(c.id)}" data-chapter="${i}" data-cols="${cols}">
+        push(`<section class="${cls}" id="${esc(c.id)}" data-chapter="${i}" data-cols="${cols}">
           ${masthead}
           <header class="chapter-head">
             ${c.kicker ? `<div class="kicker">${esc(c.kicker)}</div>` : ''}
@@ -569,15 +575,16 @@ function buildHtml(project, ctx) {
         </section>`);
         masthead = '';
       } else if (seg.html.replace(/<[^>]+>/g, '').trim() || /<img|<figure|<table/.test(seg.html)) {
-        parts.push(`<section class="chapter chapter-cont" data-chapter="${i}" data-cols="${cols}"><div class="chapter-body">${seg.html}</div></section>`);
+        push(`<section class="chapter chapter-cont" data-chapter="${i}" data-cols="${cols}"><div class="chapter-body">${seg.html}</div></section>`);
       }
     });
   });
 
+  segKey = 'back';
   if (back.bio && back.bio.enabled) {
     const photo = back.bio.photo && ctx.assets[back.bio.photo];
     tocItems.push({ id: 'sobre-autor', label: '', title: back.bio.title, level: 1 });
-    parts.push(`<section class="back-matter bio" id="sobre-autor">
+    push(`<section class="back-matter bio" id="sobre-autor">
       <h1 class="back-title">${esc(back.bio.title || 'Sobre o autor')}</h1>
       ${photo ? `<img class="bio-photo" src="${photo.dataUrl}" style="width:${num(back.bio.photoWidth, 35)}mm">` : ''}
       <div class="chapter-body">${processBody(back.bio.html, ctx)}</div>
@@ -585,7 +592,7 @@ function buildHtml(project, ctx) {
   }
   if (back.extra && back.extra.enabled) {
     tocItems.push({ id: 'conteudo-extra', label: '', title: back.extra.title, level: 1 });
-    parts.push(`<section class="back-matter extra" id="conteudo-extra">
+    push(`<section class="back-matter extra" id="conteudo-extra">
       <h1 class="back-title">${esc(back.extra.title || '')}</h1>
       <div class="chapter-body">${processBody(back.extra.html, ctx)}</div>
     </section>`);
@@ -596,25 +603,30 @@ function buildHtml(project, ctx) {
   if (endBook) {
     if (hyph) { try { endBook = hyph(endBook); } catch (e) { /* ok */ } }
     tocItems.push({ id: 'notas', label: '', title: settings.endnotesTitle || 'Notas', level: 1 });
-    parts.push(endBook);
+    push(endBook);
   }
   const ixHtml = X.indexHtml(ctx, settings);
   if (ixHtml) {
     tocItems.push({ id: 'indice-remissivo', label: '', title: (settings.index && settings.index.title) || 'Índice remissivo', level: 1 });
-    parts.push(ixHtml);
+    push(ixHtml);
   }
 
   ctx.tocItems = tocItems;
   // listas de figuras/gráficos/tabelas logo depois do sumário
   const lists = listsHtml(project, ctx);
-  if (lists.length) parts.splice(tocIndex, 0, ...lists);
+  if (lists.length) { parts.splice(tocIndex, 0, ...lists); keys.splice(tocIndex, 0, ...lists.map(() => 'front')); }
   if (front.toc) {
     const toc = tocHtml(project, tocItems, ctx);
-    if (toc) parts.splice(tocIndex, 0, toc);
+    if (toc) { parts.splice(tocIndex, 0, toc); keys.splice(tocIndex, 0, 'front'); }
   }
 
-  const out = `<div class="book kind-${esc(project.kind || 'book')} capstyle-${esc(settings.captionStyle || 'classica')} notes-${notesMode}${settings.referenceStyle === 'abnt' ? ' ref-abnt' : ''}${settings.quoteStyle === 'abnt' ? ' quote-abnt' : ''}" lang="${esc(project.meta.language || 'pt-BR')}" data-number-from-first="${settings.numberFromFirstChapter || ctx.frontNum ? 1 : 0}" data-front-roman="${ctx.frontNum ? 1 : 0}">${parts.join('\n')}</div>`;
-  return X.resolveXrefs(out, ctx);
+  const open = `<div class="book kind-${esc(project.kind || 'book')} capstyle-${esc(settings.captionStyle || 'classica')} notes-${notesMode}${settings.referenceStyle === 'abnt' ? ' ref-abnt' : ''}${settings.quoteStyle === 'abnt' ? ' quote-abnt' : ''}" lang="${esc(project.meta.language || 'pt-BR')}" data-number-from-first="${settings.numberFromFirstChapter || ctx.frontNum ? 1 : 0}" data-front-roman="${ctx.frontNum ? 1 : 0}">`;
+  // trechos: revista e jornal correm as matérias na mesma página, então são um trecho só
+  const segs = [];
+  if (periodical) segs.push({ key: 'all', parts });
+  else parts.forEach((h, i) => { const k = keys[i]; if (!segs.length || segs[segs.length - 1].key !== k) segs.push({ key: k, parts: [] }); segs[segs.length - 1].parts.push(h); });
+  ctx.segments = segs.map(sg => ({ key: sg.key, html: X.resolveXrefs(open + sg.parts.join('\n') + '</div>', ctx) }));
+  return X.resolveXrefs(open + parts.join('\n') + '</div>', ctx);
 }
 
 // ---------------------------------------------------------------- CSS
@@ -1023,6 +1035,7 @@ async function buildBook(rawProject) {
     overlays,
     missingAssets: [...new Set(ctx.missing)],
     tocItems: ctx.tocItems || [],
+    segments: ctx.segments || [{ key: 'all', html }],
     chapterIds: project.chapters.map(c => c.id),
     // acabamento tipográfico feito na prévia/exportação (grade, justificação, notas laterais, índice…)
     typo: {

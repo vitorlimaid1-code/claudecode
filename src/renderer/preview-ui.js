@@ -43,33 +43,6 @@
     return frame;
   }
 
-  // divide o HTML do livro: pré-textuais | capítulo (com imagem de abertura e páginas sangradas) | finais
-  function splitSegments(book) {
-    const tpl = document.createElement('template');
-    tpl.innerHTML = book.html;
-    const root = tpl.content.querySelector('.book');
-    if (!root) return [{ key: 'all', html: book.html }];
-    const open = root.outerHTML.slice(0, root.outerHTML.indexOf('>') + 1);
-    // revista e jornal: as matérias correm na mesma página; o trecho é a publicação inteira
-    if (/\bkind-(magazine|newspaper)\b/.test(root.className)) return [{ key: 'all', html: book.html }];
-    const out = [];
-    let cur = null;
-    const start = key => { cur = { key, parts: [] }; out.push(cur); };
-    const idOf = sec => (book.chapterIds || [])[Number(sec.dataset.chapter)] || ('i' + sec.dataset.chapter);
-    Array.from(root.children).forEach(el => {
-      if (el.classList.contains('front')) { if (!cur || cur.key !== 'front') start('front'); }
-      else if (el.matches('.chapter[data-chapter]:not(.chapter-cont)')) { const k = 'ch:' + idOf(el); if (!cur || cur.key !== k) start(k); }
-      else if (el.classList.contains('fullbleed')) {
-        const next = el.nextElementSibling;
-        if (next && next.matches('.chapter[data-chapter]:not(.chapter-cont)')) start('ch:' + idOf(next));
-        else if (!cur) start('misc');
-      } else if (el.classList.contains('back-matter')) { if (!cur || cur.key !== 'back') start('back'); }
-      else if (!cur) start('misc');
-      cur.parts.push(el.outerHTML);
-    });
-    return out.map(sg => ({ key: sg.key, html: open + sg.parts.join('\n') + '</div>' }));
-  }
-
   // junta as informações dos trechos (para a pré-impressão, o sumário, o índice etc.)
   function aggregate(fin) {
     const infos = seg.order.map(k => seg.info.get(k)).filter(Boolean);
@@ -135,11 +108,12 @@
     try {
       await ensureStage();
       const tb = performance.now();
-      const book = await App.api.buildBook(App.serialize());
+      const prep = await App.api.layoutPrepare(App.serialize());
       seg.stats = { build: Math.round(performance.now() - tb), apply: 0 };
       if (gen !== seg.gen) return; // já há uma paginação mais nova
+      const book = prep.meta;
       book.overlays = App.layers.resolved();
-      const segs = splitSegments(book);
+      const segs = prep.segments;
       const adjustAll = window.LayoutPasses ? LayoutPasses.savedAdjust(App.project) : {};
       const common = hashText(book.css + JSON.stringify(book.typo || {}) + (book.fontFaceCss || '') + JSON.stringify(book.fonts || []));
       seg.book = book;
@@ -151,7 +125,7 @@
       segs.forEach((s, i) => {
         const chId = s.key.startsWith('ch:') ? s.key.slice(3) : null;
         const adjust = chId && adjustAll[chId] ? { [chId]: adjustAll[chId] } : {};
-        const hash = hashText(s.html) + '|' + common + '|' + JSON.stringify(adjust);
+        const hash = s.hash + '|' + common + '|' + JSON.stringify(adjust);
         seg.want.set(s.key, hash);
         if (seg.done.get(s.key) === hash) return;
         // o capítulo aberto (e os vizinhos) primeiro; o resto na ordem do livro
@@ -164,8 +138,7 @@
       applyResult({});
       if (!jobs.length) return;
       await Promise.all(jobs.map(async j => {
-        const segBook = Object.assign({}, book, { html: j.s.html, overlays: [] });
-        const res = await App.api.layoutSegment(segBook, { adjust: j.adjust }, j.s.key + '#' + j.hash, j.priority);
+        const res = await App.api.layoutSegment(prep.id, j.s.key, { adjust: j.adjust }, j.priority);
         if (!res || res.superseded) return;
         if (res.error) { console.error('paginação', j.s.key, res.error); return; }
         if (seg.want.get(j.s.key) !== j.hash) return; // o trecho mudou enquanto era paginado

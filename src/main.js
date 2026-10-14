@@ -426,8 +426,25 @@ ipcMain.handle('book:build', async (e, project) => bookPayload(project));
 // Paginação da prévia por capítulo, em janelas ocultas paralelas (a interface não trava)
 let layoutPool = null;
 const pool = () => layoutPool || (layoutPool = require('./main/layout-pool').createPool(appUrl('src/renderer/preview.html')));
-ipcMain.handle('layout:segment', async (e, book, options, key, priority) => {
-  try { return await pool().layout(book, options, key, priority); } catch (err) { return { error: String(err && err.message || err) }; }
+// O livro é montado aqui (não na interface) e só a lista de trechos com o resumo (hash) de cada um
+// vai para a prévia; o HTML de cada trecho segue direto daqui para a janela que pagina.
+const builds = new Map();
+let buildSeq = 0;
+function hashText(str) { let h = 5381, g = 52711; for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); h = ((h << 5) + h + c) | 0; g = ((g << 5) + g ^ c) | 0; } return (h >>> 0).toString(36) + (g >>> 0).toString(36) + ':' + str.length; }
+ipcMain.handle('layout:prepare', async (e, project) => {
+  const book = await bookPayload(project);
+  const id = ++buildSeq;
+  const segments = book.segments || [{ key: 'all', html: book.html }];
+  const meta = Object.assign({}, book, { html: '', segments: undefined, overlays: [] });
+  builds.set(id, { meta, segments: new Map(segments.map(s => [s.key, s.html])) });
+  for (const k of builds.keys()) if (k < id - 3) builds.delete(k);
+  return { id, meta, segments: segments.map(s => ({ key: s.key, hash: hashText(s.html) })) };
+});
+ipcMain.handle('layout:segment', async (e, buildId, key, options, priority, jobKey) => {
+  const b = builds.get(buildId);
+  if (!b || !b.segments.has(key)) return { superseded: true };
+  const book = Object.assign({}, b.meta, { html: b.segments.get(key) });
+  try { return await pool().layout(book, options, jobKey || key, priority); } catch (err) { return { error: String(err && err.message || err) }; }
 });
 ipcMain.handle('layout:cancel', async (e, keys) => { if (layoutPool) layoutPool.cancel(keys); return true; });
 ipcMain.handle('layout:workers', async () => pool().size);
