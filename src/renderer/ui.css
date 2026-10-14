@@ -167,3 +167,15 @@ body[data-view="chapter"] .stage-head { display: block; }
 .bx-prev.q-destaque { box-shadow: inset 0 1px 0 #333, inset 0 -1px 0 #333; font-size: 11px; }
 .bx-name { font-size: 12.5px; }
 .bx-name small { display: block; color: var(--muted); font-size: 11px; }
+
+/* revisar títulos */
+.titles-list { display: grid; gap: 3px; max-height: 58vh; overflow-y: auto; padding-right: 4px; }
+.tl-row { display: grid; grid-template-columns: 190px 1fr 52px 70px; gap: 8px; align-items: center; padding: 3px 6px 3px 22px; border-radius: 8px; }
+.tl-row.is-ch { padding-left: 6px; background: var(--side); margin-top: 6px; }
+.tl-row.is-ch input[type=text] { font-weight: 600; }
+.tl-row input[type=text] { padding: 5px 8px; min-width: 0; }
+.tl-row input[type=text]:disabled { background: transparent; border-color: transparent; color: var(--text); }
+.tl-row select { padding: 4px 6px; }
+.tl-row.changed { box-shadow: inset 3px 0 0 var(--accent); }
+.tl-row.suspect input[type=text]:disabled { color: var(--muted); font-style: italic; }
+.tl-row.locked { opacity: .6; }
