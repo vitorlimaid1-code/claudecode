@@ -457,7 +457,7 @@ async function buildCoverPdf(appRoot, cover, assets, meta, geometry, opts) {
   const pdfDate = `D:${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}Z`;
   const info = ctx.obj({
     Title: PDFString.of(`${(meta && meta.title) || 'Capa'} — capa`), Author: PDFString.of((meta && meta.author) || ''),
-    Creator: PDFString.of('Diagramador de Livros'), Producer: PDFString.of('Diagramador de Livros (pdf-lib, LittleCMS)'),
+    Creator: PDFString.of('Casa Vertigem Hub'), Producer: PDFString.of('Casa Vertigem Hub (pdf-lib, LittleCMS)'),
     CreationDate: PDFString.of(pdfDate), ModDate: PDFString.of(pdfDate), Trapped: PDFName.of('False'),
     GTS_PDFXVersion: PDFString.of('PDF/X-1:2001'), GTS_PDFXConformance: PDFString.of('PDF/X-1a:2001')
   });

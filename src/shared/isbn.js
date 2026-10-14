@@ -188,7 +188,7 @@
     const W = lay.w * k, H = lay.h * k;
     const { bars, glyphs } = pathOps(lay, 0, 0, lay.h, true);
     return ['%!PS-Adobe-3.0 EPSF-3.0', '%%BoundingBox: 0 0 ' + Math.ceil(W) + ' ' + Math.ceil(H), '%%HiResBoundingBox: 0 0 ' + f(W) + ' ' + f(H),
-      '%%Title: ISBN ' + lay.display, '%%Creator: Diagramador de Livros', '%%DocumentProcessColors: Black', '%%EndComments',
+      '%%Title: ISBN ' + lay.display, '%%Creator: Casa Vertigem Hub', '%%DocumentProcessColors: Black', '%%EndComments',
       'gsave', '0 0 0 0 setcmykcolor 0 0 ' + f(W) + ' ' + f(H) + ' rectfill', '0 0 0 1 setcmykcolor']
       .concat(bars, ['newpath'], glyphs, ['fill', 'grestore', 'showpage', '%%EOF']).join('\n') + '\n';
   }

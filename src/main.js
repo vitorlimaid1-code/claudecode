@@ -1,4 +1,4 @@
-// Processo principal do Diagramador de Livros.
+// Processo principal do Casa Vertigem Hub (antigo Diagramador de Livros).
 // Tudo roda localmente: nenhuma requisição de rede é permitida.
 const { app, BrowserWindow, Menu, dialog, ipcMain, protocol, session, shell } = require('electron');
 const path = require('path');
@@ -12,6 +12,7 @@ const { ImageLibrary, analyzeImage, hashBuffer } = require('./main/library');
 const exporters = require('./main/exporters');
 const cmyk = require('./main/cmyk');
 const CoverGeometry = require('./shared/cover');
+const LayoutPasses = require('./shared/passes');
 const manuscript = require('./main/manuscript');
 const pdfcolor = require('./main/pdfcolor');
 
@@ -20,9 +21,19 @@ const PROJECT_EXT = 'livro';
 
 // Versão portátil: guarda configurações e bibliotecas ao lado do executável
 if (process.env.PORTABLE_EXECUTABLE_DIR) {
-  app.setPath('userData', path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'DiagramadorDeLivros-dados'));
+  // a pasta de dados da versão anterior (DiagramadorDeLivros-dados) continua sendo usada se já existir
+  const oldDir = path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'DiagramadorDeLivros-dados');
+  app.setPath('userData', fs.existsSync(oldDir) ? oldDir : path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'CasaVertigemHub-dados'));
 } else if (fs.existsSync(path.join(path.dirname(process.execPath), 'portable.txt'))) {
   app.setPath('userData', path.join(path.dirname(process.execPath), 'dados'));
+} else {
+  // instalação normal: configurações e bibliotecas do antigo “Diagramador de Livros” passam para o novo nome
+  try {
+    const appData = app.getPath('appData');
+    const oldDir = path.join(appData, 'Diagramador de Livros');
+    const newDir = path.join(appData, 'Casa Vertigem Hub');
+    if (fs.existsSync(oldDir) && !fs.existsSync(newDir)) fs.cpSync(oldDir, newDir, { recursive: true });
+  } catch (e) { /* segue com a pasta nova */ }
 }
 
 // Sem tráfego de rede do próprio Chromium (atualizações de componentes etc.)
@@ -96,7 +107,7 @@ function hardenContents(contents) {
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1500, height: 940, minWidth: 1100, minHeight: 680,
-    title: 'Diagramador de Livros', backgroundColor: '#f4f2ee',
+    title: 'Casa Vertigem Hub', backgroundColor: '#f7f7f5',
     icon: path.join(APP_ROOT, 'build', 'icon.png'), show: false,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: true }
   });
@@ -109,7 +120,8 @@ function createWindow() {
     e.preventDefault();
     mainWindow.webContents.send('request-close');
   });
-  mainWindow.on('closed', () => { mainWindow = null; });
+  // as janelas ocultas de paginação fecham junto com a janela principal
+  mainWindow.on('closed', () => { mainWindow = null; if (layoutPool) { layoutPool.destroy(); layoutPool = null; } });
   mainWindow.webContents.on('render-process-gone', () => { allowClose = true; });
   mainWindow.on('unresponsive', () => { allowClose = true; });
 }
@@ -184,7 +196,7 @@ function buildMenu() {
         {
           label: 'Sobre',
           click: () => dialog.showMessageBox(mainWindow, {
-            type: 'info', title: 'Sobre', message: `Diagramador de Livros ${app.getVersion()}`,
+            type: 'info', title: 'Sobre', message: `Casa Vertigem Hub ${app.getVersion()}`,
             detail: `Diagramação de livros 100% local e offline.\nSeus textos nunca saem do seu computador.\n\nDados do aplicativo: ${app.getPath('userData')}\n\nPaginação: Paged.js (MIT). Fontes embutidas: SIL Open Font License.`
           })
         }
@@ -197,7 +209,7 @@ function buildMenu() {
 // ---------------------------------------------------------------- projetos
 function readProjectFile(filePath) {
   const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  if (!data || data.format !== 'diagramador-de-livros') throw new Error('Este arquivo não é um projeto do Diagramador de Livros.');
+  if (!data || data.format !== 'diagramador-de-livros') throw new Error('Este arquivo não é um projeto de livro do Casa Vertigem Hub.');
   return normalizeProject(data);
 }
 function writeFileAtomic(filePath, content) {
@@ -411,6 +423,15 @@ async function bookPayload(project) {
 }
 ipcMain.handle('book:build', async (e, project) => bookPayload(project));
 
+// Paginação da prévia por capítulo, em janelas ocultas paralelas (a interface não trava)
+let layoutPool = null;
+const pool = () => layoutPool || (layoutPool = require('./main/layout-pool').createPool(appUrl('src/renderer/preview.html')));
+ipcMain.handle('layout:segment', async (e, book, options, key, priority) => {
+  try { return await pool().layout(book, options, key, priority); } catch (err) { return { error: String(err && err.message || err) }; }
+});
+ipcMain.handle('layout:cancel', async (e, keys) => { if (layoutPool) layoutPool.cancel(keys); return true; });
+ipcMain.handle('layout:workers', async () => pool().size);
+
 async function withRenderWindow(fn, opts) {
   opts = opts || {};
   const win = new BrowserWindow({
@@ -431,13 +452,15 @@ async function renderBookIn(win, project, options) {
   options = options || {};
   const url = win.webContents.getURL();
   const run = o => win.webContents.executeJavaScript(`window.renderBook(${JSON.stringify(book)}, ${JSON.stringify(o)})`, true);
-  const dbg = (label, i) => { if (process.env.DEBUG_LAYOUT) console.log('PASS', label, JSON.stringify({ pages: i.pages, complete: i.complete, words: [i.sourceWords, i.pageWords], clipped: i.clippedNotes })); };
+  const dbg = (label, i) => { if (process.env.DEBUG_LAYOUT) console.log('PASS', label, JSON.stringify({ pages: i.pages, complete: i.complete, words: [i.sourceWords, i.pageWords], clipped: i.clippedNotes, lost: i.lostNotes, keep: i.keepNotes })); };
   // Notas de rodapé: a nota fica inteira na página da chamada (o texto desce). O Paged.js às vezes
   // falha com notas grandes; então tenta regras alternativas e fica com a primeira paginação completa
   // (todas as palavras visíveis) e sem notas cortadas/divididas — nunca com uma que perca texto.
   const better = (a, b) => !b || (a.complete && !b.complete) || (a.complete === b.complete && a.clippedNotes.length < b.clippedNotes.length);
   let info = null, best = null, bestOpts = null, lastOpts = null;
-  const attempts = [{ notePolicy: 'line' }, { notePolicy: 'block' }, { notePolicy: '' }];
+  // ajustes de última página calculados na prévia (mesmo capítulo, mesma diagramação)
+  const adjust = LayoutPasses.savedAdjust(normalizeProject(project));
+  const attempts = [{ notePolicy: 'line', adjust }, { notePolicy: 'block', adjust }, { notePolicy: '', adjust }];
   for (let k = 0; k < attempts.length; k++) {
     const o = Object.assign({}, options, attempts[k]);
     if (best && best.clippedNotes.length && attempts[k].notePolicy === '') o.lineNotes = best.clippedNotes;
@@ -448,11 +471,26 @@ async function renderBookIn(win, project, options) {
     if (better(info, best)) { best = info; bestOpts = o; }
     if (info.complete && !info.clippedNotes.length) break;
   }
+  // parágrafo com nota perdido pelo Paged.js (ficou na coluna de excesso): pagina de novo com esse
+  // parágrafo sem divisão — ele passa inteiro para a página seguinte e nada se perde
+  for (let k = 0; k < 3 && !best.complete && (best.lostNotes || []).length; k++) {
+    const o = Object.assign({}, bestOpts, { keepNotes: best.lostNotes });
+    await win.loadURL(url);
+    info = await run(o);
+    lastOpts = o;
+    dbg('nota-inteira', info);
+    if (better(info, best)) { best = info; bestOpts = o; } else break;
+  }
   if (lastOpts !== bestOpts || best.clippedNotes.length) {
     // volta à melhor paginação; o que ainda restar fica inteiro e visível (nada do texto some)
     await win.loadURL(url);
     info = await run(Object.assign({}, bestOpts, { showClippedNotes: true }));
     if (info.clippedNotes.length) info.revealedNotes = info.clippedNotes;
+  }
+  // capítulo terminando com poucas linhas sozinhas na última página: ajuste leve e nova paginação
+  if ((info.shortEnds || []).length && !info.revealedNotes) {
+    const r = await LayoutPasses.lastPageAdjust(info, Object.assign({}, bestOpts), async o => { await win.loadURL(url); const i = await run(o); dbg('ajuste', i); return i; }, better);
+    info = r.info;
   }
   if (!info.complete) console.error('AVISO: a paginação não chegou ao fim do livro');
   return { book, info };
@@ -556,8 +594,8 @@ async function finishBoxes(pdfBuf, project, opts) {
     const m = project.meta || {};
     doc.setTitle(m.title || '');
     doc.setAuthor(m.author || '');
-    doc.setCreator('Diagramador de Livros');
-    doc.setProducer('Diagramador de Livros (Chromium/Skia PDF)');
+    doc.setCreator('Casa Vertigem Hub');
+    doc.setProducer('Casa Vertigem Hub (Chromium/Skia PDF)');
     doc.setLanguage(m.language || 'pt-BR');
     return Buffer.from(await doc.save({ useObjectStreams: false }));
   } catch (e) {
@@ -782,7 +820,7 @@ ipcMain.handle('barcode:save', async (e, { isbn, opts, format }) => {
     const lines = ['0 0 0 0 k', `0 0 ${lay.w * k} ${lay.h * k} re`, 'f', '0 0 0 1 k'].concat(ops.bars, ['f'], ops.glyphs, ['f']);
     pg.pushOperators(pushGraphicsState(), ...lines.map(l => { const p = l.trim().split(/\s+/); return PDFOperator.of(p.pop(), p.map(v => PDFNumber.of(Number(v)))); }), popGraphicsState());
     doc.setTitle('ISBN ' + lay.display);
-    doc.setCreator('Diagramador de Livros');
+    doc.setCreator('Casa Vertigem Hub');
     fs.writeFileSync(file, Buffer.from(await doc.save()));
   }
   return { file, isbn13: lay.isbn13 };

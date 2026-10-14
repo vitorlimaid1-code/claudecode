@@ -96,6 +96,17 @@ Todo livro novo nasce no padrão do **Manual de Preparação de Arquivos do Cede
 ### Aparência do sistema
 - **Modo noturno** (botão 🌙 no topo), claro ou automático (segue o Windows) e **nove cores** do sistema (Terracota, Azul-marinho, Verde-floresta, Vinho, Roxo, Petróleo, Âmbar, Rosa, Grafite). As páginas do livro continuam brancas na prévia; restaurável em Restaurar padrões.
 
+### Tipografia e paginação (acabamento automático)
+- **Grade de linha de base**: títulos, imagens, tabelas, citações e caixas ocupam um número inteiro de linhas e os espaços entre blocos são múltiplos da entrelinha — as linhas das páginas opostas ficam na mesma altura, mesmo com títulos e imagens.
+- **Justificação fina**: cada parágrafo com linhas frouxas é testado com ajustes mínimos de entreletra (até ±2%) e de espaço entre palavras (até ±5%); fica o que deixa o texto mais uniforme, sem “rios”. **Dicionário de exceções de hifenização** (`a-na-cro-nis-mo` = pontos de quebra; sem hífen = nunca divide).
+- **Índice remissivo**: marque termos no editor (📇 Índice, com subentradas e “marcar todas as ocorrências”); o índice sai nas páginas finais, em ordem alfabética, agrupado por letra, em 1 a 3 colunas, com as páginas (12, 15–17, 40) atualizadas a cada paginação.
+- **Figuras, gráficos, tabelas e quadros** numerados, com listas próprias e **referências cruzadas** (↪ Referência): “ver Figura 3, p. 41”, que acompanha a numeração e a página.
+- **Notas de fim e notas laterais**: as mesmas notas podem sair no rodapé, no fim de cada capítulo, no fim do livro (agrupadas por capítulo) ou na margem externa.
+- **Algarismos romanos nas pré-textuais** (i, ii, iii…), com a contagem arábica recomeçando no 1º capítulo e a ficha catalográfica no formato “xii, 230 p.”.
+- **Normas ABNT**: referências NBR 6023 (alinhadas à esquerda, linha em branco entre elas) e citação longa NBR 10520 (recuo de 4 cm, letra menor); no editor, “ABNT ▾” monta referências (livro, capítulo, artigo, site, tese), citações autor-data e ordena as referências.
+- **Ajuste da última página**: se um capítulo termina com poucas linhas sozinhas na última página, ele é levemente encolhido (ou expandido); o ajuste fica salvo e só é refeito quando o capítulo muda.
+- **Modelos de sumário**: pontilhado, sem pontilhado, número junto ao título, número à esquerda, duas colunas e com resumos dos capítulos.
+
 ### Notas de rodapé
 - A nota fica **inteira na página da chamada**: se não couber, o texto desce para a página seguinte (padrão editorial). Só notas maiores que a página inteira continuam na seguinte. A paginação é conferida palavra por palavra (nada some).
 

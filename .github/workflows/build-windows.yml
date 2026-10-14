@@ -32,22 +32,22 @@ jobs:
       - name: Publicar instalador
         uses: actions/upload-artifact@v4
         with:
-          name: Diagramador-de-Livros-Instalador
-          path: dist/Diagramador-de-Livros-Setup-*.exe
+          name: Casa-Vertigem-Hub-Instalador
+          path: dist/Casa-Vertigem-Hub-Setup-*.exe
           if-no-files-found: error
 
       - name: Publicar versão portátil (um único .exe, sem instalação)
         uses: actions/upload-artifact@v4
         with:
-          name: Diagramador-de-Livros-Portatil
-          path: dist/Diagramador-de-Livros-Portatil-*.exe
+          name: Casa-Vertigem-Hub-Portatil
+          path: dist/Casa-Vertigem-Hub-Portatil-*.exe
           if-no-files-found: error
 
       - name: Publicar versão portátil em pasta (ZIP)
         uses: actions/upload-artifact@v4
         with:
-          name: Diagramador-de-Livros-ZIP
-          path: dist/Diagramador-de-Livros-*-x64.zip
+          name: Casa-Vertigem-Hub-ZIP
+          path: dist/Casa-Vertigem-Hub-*-x64.zip
           if-no-files-found: error
 
       - name: Criar release (somente em tags v*)

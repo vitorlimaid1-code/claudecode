@@ -7,7 +7,7 @@
   const RENAME = { STRONG: 'b', EM: 'i', H1: 'h2', H5: 'h4', H6: 'h4', DEL: 's', STRIKE: 's', INS: 'u', CITE: 'i', DFN: 'i', VAR: 'i', ASIDE: 'div', DT: 'p', DD: 'p' };
   const P_CLASSES = new Set(['no-indent', 'phrase', 'reference', 'epigraph-inline', 'table-source', 'caption-text']);
   const DIV_CLASSES = ['page-break', 'poem', 'box', 'fullbleed'];
-  const FIG_ATTRS = ['data-asset', 'data-align', 'data-wrap', 'data-width', 'data-gap', 'data-rot', 'data-flipx', 'data-flipy', 'data-opacity', 'data-crop', 'data-ratio', 'data-fit'];
+  const FIG_ATTRS = ['data-asset', 'data-align', 'data-wrap', 'data-width', 'data-gap', 'data-rot', 'data-flipx', 'data-flipy', 'data-opacity', 'data-crop', 'data-ratio', 'data-fit', 'data-ref'];
 
   function children(node, doc, parent) {
     node.childNodes.forEach(ch => { const c = cleanNode(ch, doc); if (c) parent.appendChild(c); });
@@ -35,7 +35,7 @@
       if (/^#/.test(href) && !cls.contains('xref')) return frag; // âncoras de arquivos importados (índices, notas) não são mantidas
       const a = doc.createElement('a');
       a.setAttribute('href', href);
-      a.className = /^#/.test(href) ? (cls.contains('xref-page') ? 'xref xref-page' : 'xref') : 'ext';
+      a.className = /^#/.test(href) ? ['xref'].concat(cls.contains('xref-auto') ? ['xref-auto'] : [], cls.contains('xref-page') ? ['xref-page'] : []).join(' ') : 'ext';
       a.appendChild(frag);
       return a;
     }
@@ -102,6 +102,14 @@
     }
 
     const outTag = (RENAME[tag] || tag).toLowerCase();
+    // termo marcado para o índice remissivo
+    if (outTag === 'span' && cls.contains('ix') && node.getAttribute('data-ix')) {
+      const x = doc.createElement('span');
+      x.className = 'ix';
+      x.setAttribute('data-ix', node.getAttribute('data-ix'));
+      if (node.getAttribute('data-ixsub')) x.setAttribute('data-ixsub', node.getAttribute('data-ixsub'));
+      return children(node, doc, x);
+    }
     if (outTag === 'span' && cls.contains('comment')) {
       // comentário de revisão (Word/ODT): anotação no editor, não sai no livro
       const c = doc.createElement('span');
@@ -129,7 +137,7 @@
     }
     const e = doc.createElement(outTag);
     if (outTag === 'p') cls.forEach(c => { if (P_CLASSES.has(c)) e.classList.add(c); });
-    if (outTag === 'table') cls.forEach(c => { if (/^tb-(zebra|compact)$/.test(c)) e.classList.add(c); });
+    if (outTag === 'table') { cls.forEach(c => { if (/^tb-(zebra|compact|quadro)$/.test(c)) e.classList.add(c); }); if (node.getAttribute('data-ref')) e.setAttribute('data-ref', node.getAttribute('data-ref')); }
     if (outTag === 'td' && cls.contains('num')) e.classList.add('num');
     if (outTag === 'p' && (cls.contains('caption') || cls.contains('legenda'))) e.classList.add('caption-import');
     if ((tag === 'TD' || tag === 'TH') && node.getAttribute('colspan')) e.setAttribute('colspan', node.getAttribute('colspan'));

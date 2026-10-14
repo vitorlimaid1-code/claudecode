@@ -59,7 +59,7 @@ window.App = (function () {
   App.chapter = id => App.project.chapters.find(c => c.id === (id || App.chapterId)) || null;
 
   App.updateTitle = function () {
-    api.setTitle(`${App.dirty ? '● ' : ''}${App.fileName(App.filePath)} — Diagramador de Livros`);
+    api.setTitle(`${App.dirty ? '● ' : ''}${App.fileName(App.filePath)} — Casa Vertigem Hub`);
   };
 
   // Marca alteração; opcionalmente registra no histórico

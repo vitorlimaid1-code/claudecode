@@ -1,7 +1,7 @@
 {
   "name": "diagramador-de-livros",
-  "productName": "Diagramador de Livros",
-  "version": "3.4.0",
+  "productName": "Casa Vertigem Hub",
+  "version": "3.5.0",
   "description": "Aplicativo desktop para diagramação de livros, 100% local e offline.",
   "main": "src/main.js",
   "author": "Diagramador de Livros",
@@ -40,8 +40,8 @@
   },
   "build": {
     "appId": "br.diagramador.livros",
-    "productName": "Diagramador de Livros",
-    "copyright": "Diagramador de Livros",
+    "productName": "Casa Vertigem Hub",
+    "copyright": "Casa Vertigem Hub",
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -70,7 +70,7 @@
       {
         "ext": "livro",
         "name": "Projeto de livro",
-        "description": "Projeto do Diagramador de Livros",
+        "description": "Projeto de livro do Casa Vertigem Hub",
         "icon": "build/icon.ico"
       }
     ],
@@ -96,8 +96,8 @@
         }
       ],
       "icon": "build/icon.ico",
-      "executableName": "DiagramadorDeLivros",
-      "artifactName": "Diagramador-de-Livros-${version}-${arch}.${ext}"
+      "executableName": "CasaVertigemHub",
+      "artifactName": "Casa-Vertigem-Hub-${version}-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -105,15 +105,15 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Diagramador de Livros",
+      "shortcutName": "Casa Vertigem Hub",
       "installerLanguages": [
         "pt_BR"
       ],
       "language": "1046",
-      "artifactName": "Diagramador-de-Livros-Setup-${version}.exe",
+      "artifactName": "Casa-Vertigem-Hub-Setup-${version}.exe",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
-      "uninstallDisplayName": "Diagramador de Livros"
+      "uninstallDisplayName": "Casa Vertigem Hub"
     },
     "linux": {
       "target": [
@@ -124,8 +124,8 @@
     },
     "compression": "maximum",
     "portable": {
-      "artifactName": "Diagramador-de-Livros-Portatil-${version}.exe",
-      "unpackDirName": "DiagramadorDeLivros"
+      "artifactName": "Casa-Vertigem-Hub-Portatil-${version}.exe",
+      "unpackDirName": "CasaVertigemHub"
     }
   }
 }

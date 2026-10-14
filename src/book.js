@@ -1,6 +1,7 @@
 // Monta o HTML e o CSS paginável (Paged.js) a partir de um projeto de livro.
 const { normalizeProject, BUNDLED_FONTS, autoBleed, CEDET } = require('./shared/defaults');
 const CatalogParse = require('./shared/catalog-parse');
+const X = require('./book-extras');
 
 function effectiveBleed(s) {
   if (s.bleedAuto) return autoBleed(s);
@@ -196,6 +197,7 @@ function figureHtml(attrs, inner, ctx) {
   ctx.figures.push({ asset: id, widthMM: printW });
   // numeração automática (Figura N / Gráfico N) e entrada nas listas, para figuras com legenda
   let capHtml = caption, figId = '';
+  const dataRef = attrs['data-ref'] || '';
   if (caption && wrap !== 'behind' && ctx.numbering) {
     const kind = asset.chart ? 'graf' : 'fig';
     const own = ownLabel(caption);
@@ -212,6 +214,13 @@ function figureHtml(attrs, inner, ctx) {
       ctx.lists[kind].push({ id: figId, label, title: caption.replace(/<[^>]+>/g, '').trim() });
       capHtml = `<span class="cap-num">${label}</span> – ${caption}`;
     }
+  }
+  if (dataRef) {
+    // referência cruzada: o rótulo atual da figura ("Figura 3") e o id final no livro
+    const kind = asset.chart ? 'graf' : 'fig';
+    const item = figId && ctx.lists[kind].find(x => x.id === figId);
+    if (!figId) figId = dataRef;
+    ctx.refs[dataRef] = { id: figId, label: item ? item.label : (asset.chart ? 'gráfico' : 'figura') };
   }
   return `<figure${figId ? ` id="${figId}"` : ''} class="fig fig-${wrap}${align === 'full' ? ' fig-full' : ''}${asset.chart ? ' fig-chart' : ''}" data-asset="${esc(id)}" data-print-width="${printW.toFixed(2)}" data-px-width="${Math.round(iw * cw)}" style="${figStyle.join('; ')}">${frame}${capHtml && wrap !== 'behind' ? `<figcaption${capStyle ? ` data-cap="${esc(capStyle)}"` : ''}>${capHtml}</figcaption>` : ''}</figure>`;
 }
@@ -252,23 +261,42 @@ function markShortTables(html) {
   });
 }
 
-// Tabelas com título (legenda): Tabela N – título, com âncora para a lista de tabelas
+// Tabelas e quadros com título (legenda): Tabela N / Quadro N – título, com âncora para as listas.
+// Quadro = tabela marcada como quadro (classe tb-quadro) ou com legenda "Quadro N".
 function numberTables(html, ctx) {
-  if (!ctx.numbering) return html;
-  return String(html).replace(/<table\b([^>]*)>(\s*)<caption\b([^>]*)>([\s\S]*?)<\/caption>/gi, (m, attrs, sp, cattrs, cap) => {
-    const text = cap.replace(/<[^>]+>/g, '').trim();
-    if (!text) return m;
-    const own = ownLabel(cap);
-    if (own) {
-      ctx.counters.tab = Math.max(ctx.counters.tab, own.n);
-      const id = `tab-${ctx.counters.tab}-${ctx.lists.tab.length}`;
-      ctx.lists.tab.push({ id, label: own.label, title: own.rest });
-      return `<table${/\sid="/.test(attrs) ? attrs : ` id="${id}"${attrs}`}>${sp}<caption${cattrs}><span class="cap-num">${own.labelHtml}</span>${own.sepHtml}${own.restHtml}</caption>`;
+  return String(html).replace(/<table\b([^>]*)>(\s*)(?:<caption\b([^>]*)>([\s\S]*?)<\/caption>)?/gi, (m, attrs, sp, cattrs, cap) => {
+    const dataRef = (/\sdata-ref="([^"]+)"/.exec(attrs) || [])[1] || '';
+    const ownId = (/\sid="([^"]+)"/.exec(attrs) || [])[1] || '';
+    const text = cap ? cap.replace(/<[^>]+>/g, '').trim() : '';
+    let kind = /\bclass="[^"]*\btb-quadro\b/.test(attrs) ? 'quad' : 'tab';
+    const own = text ? ownLabel(cap) : null;
+    if (own && /^quadro/i.test(own.label)) kind = 'quad';
+    if (own && /^tabela/i.test(own.label)) kind = 'tab';
+    const word = kind === 'quad' ? 'Quadro' : 'Tabela';
+    const withId = id => (ownId ? attrs : ` id="${id}"${attrs}`);
+    if (!text || !ctx.numbering) {
+      if (dataRef) {
+        ctx.refs[dataRef] = { id: ownId || dataRef, label: word.toLowerCase() };
+        return `<table${withId(dataRef)}>${sp}${cap !== undefined ? `<caption${cattrs || ''}>${cap}</caption>` : ''}`;
+      }
+      return m;
     }
-    const n = ++ctx.counters.tab;
-    const id = `tab-${n}`;
-    ctx.lists.tab.push({ id, label: `Tabela ${n}`, title: text });
-    return `<table${/\sid="/.test(attrs) ? attrs : ` id="${id}"${attrs}`}>${sp}<caption${cattrs}><span class="cap-num">Tabela ${n}</span> – ${cap}</caption>`;
+    let id, label, capOut;
+    if (own) {
+      ctx.counters[kind] = Math.max(ctx.counters[kind], own.n);
+      id = ownId || `${kind}-${ctx.counters[kind]}-${ctx.lists[kind].length}`;
+      label = own.label;
+      ctx.lists[kind].push({ id, label, title: own.rest });
+      capOut = `<span class="cap-num">${own.labelHtml}</span>${own.sepHtml}${own.restHtml}`;
+    } else {
+      const n = ++ctx.counters[kind];
+      id = ownId || `${kind}-${n}`;
+      label = `${word} ${n}`;
+      ctx.lists[kind].push({ id, label, title: text });
+      capOut = `<span class="cap-num">${label}</span> – ${cap}`;
+    }
+    if (dataRef) ctx.refs[dataRef] = { id, label };
+    return `<table${withId(id)}>${sp}<caption${cattrs || ''}>${capOut}</caption>`;
   });
 }
 
@@ -276,11 +304,11 @@ function numberTables(html, ctx) {
 function listsHtml(project, ctx) {
   const f = project.front || {};
   const out = [];
-  [['listFigures', 'fig', 'Lista de figuras', 'lista-figuras'], ['listCharts', 'graf', 'Lista de gráficos', 'lista-graficos'], ['listTables', 'tab', 'Lista de tabelas', 'lista-tabelas']].forEach(([key, kind, title, id]) => {
+  [['listFigures', 'fig', 'Lista de figuras', 'lista-figuras'], ['listCharts', 'graf', 'Lista de gráficos', 'lista-graficos'], ['listTables', 'tab', 'Lista de tabelas', 'lista-tabelas'], ['listQuadros', 'quad', 'Lista de quadros', 'lista-quadros']].forEach(([key, kind, title, id]) => {
     const items = ctx.lists[kind];
     if (!f[key] || !items.length) return;
     const li = items.map(it => `<li class="toc-l1"><a href="#${esc(it.id)}"><span class="toc-label">${esc(it.label)}</span><span class="toc-title">${esc(it.title)}</span><span class="toc-dots"></span><span class="toc-page"></span></a></li>`).join('');
-    out.push(`<section class="front toc list-of" id="${id}"><h2 class="toc-heading">${esc(f[key + 'Title'] || title)}</h2><ul class="toc-list">${li}</ul></section>`);
+    out.push(`<section class="front toc list-of${ctx.frontNum ? ' front-num' : ''}" id="${id}"><h2 class="toc-heading">${esc(f[key + 'Title'] || title)}</h2><ul class="toc-list">${li}</ul></section>`);
   });
   return out;
 }
@@ -296,6 +324,7 @@ function processBody(html, ctx) {
   html = html.replace(/\ssrc="blob:[^"]*"/g, '');
   // comentários de revisão nunca saem no livro
   html = html.replace(/<span class="comment"[^>]*>[\s\S]*?<\/span>/g, '');
+  html = X.collectIndex(html, ctx);
   if (!ctx.settings.footnotesVisible) html = stripFootnotes(html);
   html = html.replace(/<figure\b([^>]*class="[^"]*\bimg\b[^"]*"[^>]*)>([\s\S]*?)<\/figure>/gi, (m, attrs, inner) => figureHtml(parseAttrs(attrs), inner, ctx));
   // imagens soltas com data-asset (ex.: dentro de tabelas/caixas)
@@ -434,8 +463,9 @@ function anchorHeadings(html, chapterId, collect) {
   });
 }
 
-function tocHtml(project, items) {
+function tocHtml(project, items, ctx) {
   const { front } = project;
+  const style = ['dots', 'plain', 'inline', 'numleft', 'twocol', 'summary'].includes(front.tocStyle) ? front.tocStyle : 'dots';
   let entries;
   if (front.tocMode === 'manual' && Array.isArray(front.tocEntries) && front.tocEntries.length) {
     entries = front.tocEntries.filter(e => e && e.title).map(e => ({ id: e.target || '', label: e.label || '', title: e.title, level: Number(e.level) || 1 }));
@@ -446,9 +476,10 @@ function tocHtml(project, items) {
   if (!entries.length) return '';
   const li = entries.map(c => {
     const inner = `${c.label ? `<span class="toc-label">${esc(c.label)}</span>` : ''}<span class="toc-title">${esc(c.title)}</span><span class="toc-dots"></span><span class="toc-page"></span>`;
-    return `<li class="toc-l${c.level}">${c.id ? `<a href="#${esc(c.id)}">${inner}</a>` : `<a>${inner}</a>`}</li>`;
+    const sum = style === 'summary' && c.summary ? `<div class="toc-sum">${esc(c.summary)}</div>` : '';
+    return `<li class="toc-l${c.level}">${c.id ? `<a href="#${esc(c.id)}">${inner}</a>` : `<a>${inner}</a>`}${sum}</li>`;
   }).join('');
-  return `<section class="front toc" id="sumario"><h2 class="toc-heading">${esc(front.tocTitle || 'Sumário')}</h2><ul class="toc-list">${li}</ul></section>`;
+  return `<section class="front toc tocstyle-${style}${ctx && ctx.frontNum ? ' front-num' : ''}" id="sumario"><h2 class="toc-heading">${esc(front.tocTitle || 'Sumário')}</h2><ul class="toc-list">${li}</ul></section>`;
 }
 
 function mastheadHtml(project, ctx) {
@@ -497,16 +528,27 @@ function buildHtml(project, ctx) {
 
   let n = 0;
   const hyph = settings.hyphenate ? getHyphenator() : null;
+  const notesMode = periodical ? 'footnote' : (['chapter', 'book', 'side'].includes(settings.notesMode) ? settings.notesMode : 'footnote');
+  ctx.noteN = 0;
+  ctx.endnotes = [];
   chapters.forEach((c, i) => {
     let label = '';
     if (c.numbered) { n += 1; label = chapterLabel(settings, n); }
-    tocItems.push({ id: c.id, label, title: c.title, level: 1 });
+    tocItems.push({ id: c.id, label, title: c.title, level: 1, summary: c.summary || '' });
     const hasOpening = !!(c.openingImage && c.openingImage.asset && ctx.assets[c.openingImage.asset]);
     if (hasOpening) parts.push(fullBleedHtml(c.openingImage.asset, c.openingImage.fit, ctx));
     const heads = [];
     let body = markShortTables(numberTables(processBody(anchorHeadings(c.html, c.id, heads), ctx), ctx));
     heads.forEach(h => tocItems.push({ id: h.id, label: '', title: h.title, level: h.level }));
+    // notas no fim do capítulo, no fim do livro ou na margem externa (em vez do rodapé)
+    if (notesMode !== 'footnote' && settings.footnotesVisible !== false) {
+      const r = X.convertNotes(body, notesMode, ctx, i);
+      body = r.html;
+      if (notesMode === 'chapter') body += X.chapterEndnotes(r.notes, settings.endnotesTitle);
+      if (notesMode === 'book') ctx.endnotes.push({ heading: [label, c.title].filter(Boolean).join(' — '), notes: r.notes });
+    }
     if (hyph) { try { body = hyph(body); } catch (e) { /* sem hifenização */ } }
+    if (settings.hyphenExceptions) body = X.applyHyphenExceptions(body, settings.hyphenExceptions);
     const segments = splitFullBleed(body);
     segments.forEach((seg, k) => {
       if (seg.type === 'image') { parts.push(fullBleedHtml(seg.asset, seg.fit, ctx)); return; }
@@ -549,16 +591,30 @@ function buildHtml(project, ctx) {
     </section>`);
   }
 
+  // notas no fim do livro e índice remissivo (páginas finais numeradas, entram no sumário)
+  let endBook = notesMode === 'book' ? X.bookEndnotes(ctx.endnotes, settings.endnotesTitle) : '';
+  if (endBook) {
+    if (hyph) { try { endBook = hyph(endBook); } catch (e) { /* ok */ } }
+    tocItems.push({ id: 'notas', label: '', title: settings.endnotesTitle || 'Notas', level: 1 });
+    parts.push(endBook);
+  }
+  const ixHtml = X.indexHtml(ctx, settings);
+  if (ixHtml) {
+    tocItems.push({ id: 'indice-remissivo', label: '', title: (settings.index && settings.index.title) || 'Índice remissivo', level: 1 });
+    parts.push(ixHtml);
+  }
+
   ctx.tocItems = tocItems;
   // listas de figuras/gráficos/tabelas logo depois do sumário
   const lists = listsHtml(project, ctx);
   if (lists.length) parts.splice(tocIndex, 0, ...lists);
   if (front.toc) {
-    const toc = tocHtml(project, tocItems);
+    const toc = tocHtml(project, tocItems, ctx);
     if (toc) parts.splice(tocIndex, 0, toc);
   }
 
-  return `<div class="book kind-${esc(project.kind || 'book')} capstyle-${esc(settings.captionStyle || 'classica')}" lang="${esc(project.meta.language || 'pt-BR')}" data-number-from-first="${settings.numberFromFirstChapter ? 1 : 0}">${parts.join('\n')}</div>`;
+  const out = `<div class="book kind-${esc(project.kind || 'book')} capstyle-${esc(settings.captionStyle || 'classica')} notes-${notesMode}${settings.referenceStyle === 'abnt' ? ' ref-abnt' : ''}${settings.quoteStyle === 'abnt' ? ' quote-abnt' : ''}" lang="${esc(project.meta.language || 'pt-BR')}" data-number-from-first="${settings.numberFromFirstChapter || ctx.frontNum ? 1 : 0}" data-front-roman="${ctx.frontNum ? 1 : 0}">${parts.join('\n')}</div>`;
+  return X.resolveXrefs(out, ctx);
 }
 
 // ---------------------------------------------------------------- CSS
@@ -588,13 +644,13 @@ function buildCss(project, ctx) {
   const boxStyle = `font-family: ${fontStack(H.font || body.font)}; font-size: ${num(H.size, 8.5)}pt; letter-spacing: ${num(H.letterSpacing, 0)}em; text-transform: ${H.uppercase ? 'uppercase' : 'none'}; font-style: ${H.italic ? 'italic' : 'normal'}; color: ${color(H.color, '#222')}; vertical-align: bottom; padding-bottom: 4mm;`;
   const numStyle = `font-family: ${fontStack(P.font || body.font)}; font-size: ${num(P.size, 9.5)}pt; color: ${color(P.color, '#000')}; text-transform: none; letter-spacing: 0; font-style: normal;`;
 
-  function marginRules(name, extra, textColor) {
+  function marginRules(name, extra, textColor, noHeader) {
     const L = [];
     const R = [];
     const hl = pn === 'top-outer' ? '@top-center' : '@top-left';
     const hr = pn === 'top-outer' ? '@top-center' : '@top-right';
-    L.push(`${hl} { content: ${leftHeader}; ${boxStyle} }`);
-    R.push(`${hr} { content: ${rightHeader}; ${boxStyle} }`);
+    L.push(`${hl} { content: ${noHeader ? 'none' : leftHeader}; ${boxStyle} }`);
+    R.push(`${hr} { content: ${noHeader ? 'none' : rightHeader}; ${boxStyle} }`);
     if (pn === 'outer') { L.push(`@bottom-left { content: counter(page); ${numStyle}${folioPos} }`); R.push(`@bottom-right { content: counter(page); ${numStyle}${folioPos} }`); }
     if (pn === 'center') { L.push(`@bottom-center { content: counter(page); ${numStyle}${folioPos} }`); R.push(`@bottom-center { content: counter(page); ${numStyle}${folioPos} }`); }
     if (pn === 'top-outer') { L.push(`@top-left { content: counter(page); ${numStyle} vertical-align: bottom; padding-bottom: 4mm; }`); R.push(`@top-right { content: counter(page); ${numStyle} vertical-align: bottom; padding-bottom: 4mm; }`); }
@@ -650,6 +706,8 @@ function buildCss(project, ctx) {
 @page front { ${none6} }
 @page fullbleed { margin: 0; ${none6} }
 @page back { ${none6} }
+${marginRules('frontnum', '', '', true)}
+${marginRules('backnum', '', '')}
 ${chapterPages}
 ${pageNames}
 
@@ -720,8 +778,8 @@ ${pageNames}
 .chapter-label { ${styleDecl(S.chapterLabel, body, { noIndent: true })} margin-top: 0; }
 .chapter-title { ${styleDecl(S.chapterTitle, body, { noSpace: true })} line-height: 1.15; margin: 0; hyphens: manual; string-set: chaptitle content(text); }
 .chapter-sep { margin-top: 4mm; text-align: ${S.chapterTitle.align}; line-height: 0; }
-.chapter-sep img { display: inline-block; max-height: 18mm; object-fit: contain; }
-.chapter-sep .sep-line { display: inline-block; border: 0; border-top: 0.6pt solid ${color(s.separatorColor, '#000')}; height: 0; margin: 0; }
+.chapter-sep img { display: block; max-height: 18mm; object-fit: contain; margin: 0 ${S.chapterTitle.align === 'right' ? '0' : 'auto'} 0 ${S.chapterTitle.align === 'left' ? '0' : 'auto'}; }
+.chapter-sep .sep-line { display: block; border: 0; border-top: 0.6pt solid ${color(s.separatorColor, '#000')}; height: 0; margin: 0 ${S.chapterTitle.align === 'right' ? '0' : 'auto'} 0 ${S.chapterTitle.align === 'left' ? '0' : 'auto'}; }
 .back-matter { page: back; break-before: page; }
 .back-title { ${styleDecl(S.chapterTitle, body, { noSpace: true })} margin: ${mm(Math.max(10, num(S.chapterTitle.spaceBefore, 30) * 0.6))} 0 8mm; }
 .bio-photo { float: left; margin: 1mm 5mm 3mm 0; border-radius: 1mm; object-fit: cover; }
@@ -819,6 +877,62 @@ ${captionStyleCss()}
 @page { @footnote { border-top: 0.5pt solid currentColor; margin-top: 3mm; padding-top: 1.5mm; } }
 ${s.footnoteNumbering === 'chapter' ? '.chapter:not(.chapter-cont) { counter-reset: footnote; }' : ''}
 
+/* ---------- numeração romana nas pré-textuais; notas e índice com número de página ---------- */
+.front.front-num { page: frontnum; }
+.back-matter.back-num { page: backnum; }
+.back-num .back-title { string-set: chaptitle content(text); }
+
+/* ---------- modelos de sumário ---------- */
+.tocstyle-plain .toc-dots, .tocstyle-inline .toc-dots, .tocstyle-numleft .toc-dots { border-bottom: 0; }
+.tocstyle-inline .toc-title { max-width: none; }
+.tocstyle-inline .toc-dots { flex: 0 0 0.9em; }
+.tocstyle-inline .toc-page { text-align: left; }
+.tocstyle-numleft .toc-page { order: -2; min-width: 2.4em; text-align: left; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tocstyle-numleft .toc-label { order: -1; }
+.tocstyle-numleft .toc-title { max-width: none; }
+.tocstyle-twocol .toc-list { column-count: 2; column-gap: 7mm; font-size: 0.92em; }
+.tocstyle-twocol .toc-title { max-width: 70%; }
+.tocstyle-summary .toc-list li.toc-l1 { margin-bottom: 0.9em; }
+.tocstyle-summary .toc-sum { font-size: 0.86em; font-style: italic; line-height: 1.3; margin: 0.15em 2.5em 0 0; text-align: left; hyphens: manual; }
+
+/* ---------- notas de fim e notas laterais ---------- */
+.en-call { vertical-align: super; font-size: 0.65em; line-height: 0; }
+.en-call a { color: inherit; text-decoration: none; }
+.endnotes { margin-top: 2em; padding-top: 0.6em; border-top: 0.5pt solid currentColor; ${styleDecl(S.footnote, body, { noSpace: true })} text-indent: 0; }
+.en-title, .en-chapter { font-weight: 700; font-variant: small-caps; letter-spacing: 0.04em; margin: 0 0 0.5em; break-after: avoid; }
+.en-chapter { margin-top: 1.2em; }
+.en-list { list-style: none; margin: 0; padding: 0; }
+.en-list li { margin: 0 0 0.35em; padding-left: 1.6em; text-indent: -1.6em; text-align: ${body.align || 'justify'}; hyphens: manual; }
+.en-num { display: inline-block; min-width: 1.6em; text-indent: 0; }
+.endnotes-book .en-list, .endnotes-book .en-group { ${styleDecl(S.footnote, body, { noSpace: true })} }
+.sidenote { display: none; }
+.sn-box { ${styleDecl(S.footnote, body, { noSpace: true })} line-height: 1.25; text-indent: 0; hyphens: manual; z-index: 5; }
+.sn-box.sn-left { text-align: right; }
+.sn-box.sn-right { text-align: left; }
+.sn-box .sn-num { font-weight: 700; margin-right: 0.15em; }
+.sn-call { vertical-align: super; font-size: 0.65em; line-height: 0; }
+
+/* ---------- índice remissivo ---------- */
+.ix-list { column-gap: 6mm; font-size: 0.9em; line-height: 1.3; }
+.ix-letter { font-weight: 700; margin: 0.8em 0 0.3em; break-after: avoid; font-variant: small-caps; letter-spacing: 0.06em; }
+.ix-head { break-inside: avoid; page-break-inside: avoid; }
+.ix-head:first-child .ix-letter { margin-top: 0; }
+.back-matter p.ix-entry { margin: 0; padding-left: 1.2em; text-indent: -1.2em; text-align: left; orphans: 2; widows: 2; }
+.back-matter p.ix-sub { padding-left: 2.4em; }
+
+/* ---------- normas ABNT (NBR 6023 referências; NBR 10520 citação longa) ---------- */
+.book.ref-abnt .chapter-body p.reference { text-align: left; padding-left: 0; text-indent: 0; margin: 0 0 ${lh.toFixed(2)}em; hyphens: none; }
+.book.quote-abnt .chapter-body blockquote { margin: ${lh.toFixed(2)}em 0 ${lh.toFixed(2)}em ${Math.min(40, ctx.colW * 0.3).toFixed(1)}mm; font-size: 0.86em; line-height: 1.2; text-align: justify; font-style: normal; }
+.book.quote-abnt .chapter-body blockquote p { text-indent: 0; margin: 0; }
+
+/* ---------- ajuste da última página do capítulo (entreletra e espaço entre palavras mínimos) ---------- */
+.chapter[data-adjust="shrink"] .chapter-body { letter-spacing: -0.008em; word-spacing: -0.02em; }
+.chapter[data-adjust="expand"] .chapter-body { letter-spacing: 0.008em; word-spacing: 0.02em; }
+${s.baselineGrid ? `/* grade: listas, citações, caixas e poemas com a mesma entrelinha do texto (continuam na grade ao dividir) */
+.chapter-body li { margin-bottom: 0; }
+.chapter-body blockquote, .chapter-body blockquote p, .chapter-body div.box, .chapter-body div.box p, .chapter-body div.poem p, .chapter-body li { line-height: ${(num(body.size, 11) * lh).toFixed(4)}pt; }
+.chapter-body div.poem p { margin-bottom: ${(num(body.size, 11) * lh).toFixed(4)}pt; }` : ''}
+
 /* ---------- sumário em níveis e links ---------- */
 .toc-list li.toc-l2 { padding-left: 1.4em; font-size: 0.95em; }
 .toc-list li.toc-l3 { padding-left: 2.8em; font-size: 0.9em; }
@@ -878,7 +992,8 @@ async function buildBook(rawProject) {
   const colW = num(s.pageWidth, 140) - num(s.marginInner, 22) - num(s.marginOuter, 16);
   const bleed = effectiveBleed(s);
   const ctx = { assets: project.assets || {}, settings: s, contentH, colW, bleed, missing: [], figures: [], qrImages: [],
-    numbering: s.captionNumbering !== false, counters: { fig: 0, graf: 0, tab: 0 }, lists: { fig: [], graf: [], tab: [] } };
+    numbering: s.captionNumbering !== false, counters: { fig: 0, graf: 0, tab: 0, quad: 0 }, lists: { fig: [], graf: [], tab: [], quad: [] },
+    refs: {}, index: new Map(), indexCache: project.indexCache || {}, frontNum: s.frontNumbering === 'roman' && project.kind !== 'magazine' && project.kind !== 'newspaper' };
 
   // QR codes da ficha catalográfica (gerados localmente)
   const qrs = (project.catalog.qrcodes || []).filter(q => q && q.text);
@@ -908,6 +1023,17 @@ async function buildBook(rawProject) {
     overlays,
     missingAssets: [...new Set(ctx.missing)],
     tocItems: ctx.tocItems || [],
+    chapterIds: project.chapters.map(c => c.id),
+    // acabamento tipográfico feito na prévia/exportação (grade, justificação, notas laterais, índice…)
+    typo: {
+      grid: !!s.baselineGrid && project.kind !== 'magazine' && project.kind !== 'newspaper',
+      justify: !!s.fineJustify,
+      notesMode: project.kind === 'magazine' || project.kind === 'newspaper' ? 'footnote' : (s.notesMode || 'footnote'),
+      frontRoman: !!ctx.frontNum,
+      folio: s.standard === 'cedet' && s.pageNumbers !== 'center' && s.pageNumbers !== 'none' ? 'outer' : s.pageNumbers,
+      lastPage: { enabled: !!s.lastPageAdjust, minLines: Math.max(1, num(s.lastPageMinLines, 3)) },
+      colW: ctx.colW
+    },
     figures: ctx.figures,
     page: {
       width: num(s.pageWidth, 140), height: num(s.pageHeight, 210),

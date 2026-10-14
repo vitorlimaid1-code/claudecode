@@ -1119,7 +1119,7 @@
     return true;
   }
 
-  App.editor = { setup, insertIntoChapter, zoneAt, load, flush, decorate, figureHtml, insertBlocks, assetsFromDrop, chartDialog, styleFigure, renderLookPanel, selectFigure, applyBlockStyle };
+  App.editor = { setup, insertIntoChapter, zoneAt, load, flush, decorate, figureHtml, insertBlocks, assetsFromDrop, chartDialog, styleFigure, renderLookPanel, selectFigure, applyBlockStyle, ensureHeadingId };
   App.hooks.viewRender.chapter = () => {
     const c = App.chapter();
     if (!c) { if (App.project.chapters.length) { App.chapterId = App.project.chapters[0].id; } else return App.setView('book'); }

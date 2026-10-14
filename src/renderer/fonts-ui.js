@@ -60,7 +60,7 @@
     });
     v.appendChild(el('div', { class: 'form-wrap fonts-wrap' }, [
       el('h2', { text: 'Fontes' }),
-      el('p', { class: 'muted', text: 'Fontes da biblioteca do aplicativo são carregadas só no Diagramador (não é preciso instalá-las no Windows) e incorporadas ao PDF. Fontes do computador podem ser usadas diretamente ou copiadas para a biblioteca para viajar com o app portátil.' }),
+      el('p', { class: 'muted', text: 'Fontes da biblioteca do aplicativo são carregadas só no Casa Vertigem Hub (não é preciso instalá-las no Windows) e incorporadas ao PDF. Fontes do computador podem ser usadas diretamente ou copiadas para a biblioteca para viajar com o app portátil.' }),
       el('div', { class: 'inline wrap' }, [
         el('button', { class: 'primary', text: '+ Adicionar arquivos de fonte…', onclick: async () => report(await api.fontsAddDialog()) }),
         el('button', { text: '↻ Procurar novamente no computador', onclick: async () => { await App.refreshFonts(true); render(); App.toast('Lista de fontes atualizada.'); } }),

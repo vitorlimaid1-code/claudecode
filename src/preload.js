@@ -42,6 +42,9 @@ contextBridge.exposeInMainWorld('api', {
   fontsCss: fams => inv('fonts:css', fams),
 
   buildBook: project => inv('book:build', project),
+  layoutSegment: (book, options, key, priority) => inv('layout:segment', book, options, key, priority),
+  layoutCancel: keys => inv('layout:cancel', keys),
+  layoutWorkers: () => inv('layout:workers'),
   inspect: (project, opts) => inv('export:inspect', project, opts || {}),
   exportRun: req => inv('export:run', req),
   coverAnalyze: s => inv('cover:analyze', s),

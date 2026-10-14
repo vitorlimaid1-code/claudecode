@@ -85,6 +85,11 @@
     return App.card('Sumário', [
       el('label', { class: 'chk' }, [bind(f, 'toc', 'checkbox', { onChange: rerender }), ' Incluir sumário (depois da ficha catalográfica)']),
       field('Título do sumário', bind(f, 'tocTitle', 'text')),
+      field('Modelo do sumário', bind(f, 'tocStyle', 'select', { options: D.TOC_STYLES.map(t => ({ value: t.key, label: `${t.label} — ${t.desc}` })), onChange: rerender })),
+      f.tocStyle === 'summary' ? el('div', { class: 'field wide' }, [
+        el('span', { class: 'flabel', text: 'Resumos dos capítulos (aparecem abaixo do título no sumário)' }),
+        ...App.project.chapters.map(c => el('label', { class: 'field' }, [el('span', { class: 'flabel', text: c.title }), bind(c, 'summary', 'textarea', { rows: 2, placeholder: 'Uma ou duas frases sobre o capítulo', label: 'Resumo no sumário' })]))
+      ]) : null,
       field('Modo', bind(f, 'tocMode', 'select', { options: [{ value: 'auto', label: 'Automático — a partir dos títulos do livro' }, { value: 'manual', label: 'Manual — lista editável' }], onChange: rerender })),
       f.tocMode !== 'manual' ? field('Títulos incluídos', bind(f, 'tocLevels', 'select', { options: [{ value: 1, label: 'Somente capítulos' }, { value: 2, label: 'Capítulos + T1 (títulos de seção)' }, { value: 3, label: 'Capítulos + T1 + T2 (subtítulos)' }], onChange: v => { f.tocLevels = Number(v); rerender(); } })) : null,
       el('div', { class: 'field wide' }, [
@@ -93,7 +98,8 @@
         App.project.settings.captionNumbering !== false ? el('div', { class: 'inline wrap' }, [
           el('label', { class: 'chk' }, [bind(f, 'listFigures', 'checkbox'), ' Lista de figuras']),
           el('label', { class: 'chk' }, [bind(f, 'listCharts', 'checkbox'), ' Lista de gráficos']),
-          el('label', { class: 'chk' }, [bind(f, 'listTables', 'checkbox'), ' Lista de tabelas'])
+          el('label', { class: 'chk' }, [bind(f, 'listTables', 'checkbox'), ' Lista de tabelas']),
+          el('label', { class: 'chk' }, [bind(f, 'listQuadros', 'checkbox'), ' Lista de quadros'])
         ]) : null,
         el('span', { class: 'hint', text: 'As listas entram logo depois do sumário, com o número da página de cada item (e o link no PDF).' })
       ]),

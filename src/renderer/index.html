@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; img-src 'self' app: data: blob:; font-src 'self' app: data:; style-src 'self' app: 'unsafe-inline'; script-src 'self' app:; frame-src 'self' app:; connect-src 'self' app: data: blob:">
-<title>Diagramador de Livros</title>
+<title>Casa Vertigem Hub</title>
 <link rel="stylesheet" href="vendor/fonts.css">
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="theme.css">
@@ -43,6 +43,7 @@
       <button class="nav-item" data-view="back"><span class="ic">✎</span>Páginas finais</button>
       <div class="nav-group">Design</div>
       <button class="nav-item" data-view="layout"><span class="ic">▤</span>Formato e diagramação</button>
+      <button class="nav-item" data-view="typo"><span class="ic">ﬁ</span>Tipografia e paginação</button>
       <button class="nav-item" data-view="stylelib"><span class="ic">❦</span>Biblioteca de estilos</button>
       <button class="nav-item" data-view="styles"><span class="ic">¶</span>Estilos de texto</button>
       <button class="nav-item" data-view="fonts"><span class="ic">A</span>Fontes</button>
@@ -84,6 +85,7 @@
     <section id="view-back" class="view"></section>
     <section id="view-layout" class="view"></section>
     <section id="view-styles" class="view"></section>
+    <section id="view-typo" class="view"></section>
     <section id="view-fonts" class="view"></section>
     <section id="view-assets" class="view"></section>
     <section id="view-layers" class="view"></section>
@@ -216,6 +218,7 @@
 <script src="../shared/cover.js"></script>
 <script src="../shared/isbn.js"></script>
 <script src="../shared/catalog-parse.js"></script>
+<script src="../shared/passes.js"></script>
 <script src="cover-render.js"></script>
 <script src="cover-ui.js"></script>
 <script src="kdp-ui.js"></script>
@@ -227,6 +230,8 @@
 <script src="elements-ui.js"></script>
 <script src="quickstyle.js"></script>
 <script src="appearance-ui.js"></script>
+<script src="typo-tools.js"></script>
+<script src="typography-ui.js"></script>
 <script src="exportprep.js"></script>
 <script src="export-ui.js"></script>
 <script src="page-tools.js"></script>

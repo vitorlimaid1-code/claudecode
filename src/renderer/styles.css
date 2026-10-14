@@ -505,3 +505,32 @@ body[data-view="cover"] .preview, body[data-view="cover"] .splitter { display: n
 .qs-gallery .qs-cap { padding: 10px; }
 .qs-gallery .qs-cap.on { outline: 2px solid var(--accent); }
 .qs-gallery .qs-cap .small { font-family: system-ui, sans-serif; font-style: normal; color: #777; margin-top: 4px; font-size: 11px; }
+
+/* ---------- Tipografia e paginação ---------- */
+.qs-menu-item { text-align: left; border: 0; background: transparent; padding: 6px 8px; border-radius: 6px; }
+.qs-menu-item:hover { background: var(--accent-soft, #f3e3da); }
+.typo-tools { display: inline-flex; gap: 2px; }
+.editor span.ix { border-bottom: 1px dotted var(--accent, #8a3b1f); background: rgba(138, 59, 31, .06); }
+.editor span.ix::after { content: "ⁱ"; color: var(--accent, #8a3b1f); font-size: .7em; vertical-align: super; }
+.editor a.xref-auto { color: var(--accent, #8a3b1f); border-bottom: 1px solid currentColor; text-decoration: none; }
+.editor table.tb-quadro { outline: 1px dashed var(--accent-line, #e2c3b2); }
+.ref-preview { font-family: "EB Garamond", Georgia, serif; font-size: 15px; background: var(--input, #fff); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; margin: 4px 0; min-height: 1.4em; }
+.ix-terms { display: grid; gap: 4px; max-height: 320px; overflow: auto; }
+.ix-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 4px 8px; align-items: center; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.ix-row > span { grid-column: 1; grid-row: 2; }
+.ix-row > button { grid-row: 1 / span 2; padding: 4px 8px; }
+.toc-styles { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.toc-style-card { display: flex; flex-direction: column; align-items: stretch; gap: 4px; text-align: left; padding: 10px; border-radius: 8px; }
+.toc-style-card.on { outline: 2px solid var(--accent); }
+.toc-sample { background: #fbfaf7; color: #222; border: 1px solid #e6e2da; border-radius: 4px; padding: 8px 10px; font-family: "EB Garamond", Georgia, serif; font-size: 13px; display: grid; gap: 4px; }
+.toc-sample > div:not(.ts-sum) { display: flex; align-items: baseline; gap: 4px; }
+.toc-sample .ts-n { display: none; }
+.toc-sample .ts-d { flex: 1; border-bottom: 1px dotted #777; transform: translateY(-3px); }
+.toc-sample-plain .ts-d, .toc-sample-numleft .ts-d { border: 0; }
+.toc-sample-inline .ts-d { flex: 0 0 8px; border: 0; }
+.toc-sample-numleft .ts-p { display: none; }
+.toc-sample-numleft .ts-n { display: inline; font-weight: 700; min-width: 22px; }
+.toc-sample-twocol { grid-template-columns: 1fr 1fr; column-gap: 10px; font-size: 11px; }
+.toc-sample .ts-sum { font-style: italic; font-size: 11px; color: #555; margin-top: -3px; }
+.grid > .span-all, .grid > .warn-box, .grid > .toc-styles, .grid > .chk.full { grid-column: 1 / -1; }
+#view-typo .grid > p.small { grid-column: 1 / -1; margin: 0; }

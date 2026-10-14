@@ -155,6 +155,16 @@
     { key: 'lateral', label: 'Lateral', desc: 'Filete vertical à esquerda, texto alinhado à esquerda' }
   ];
 
+  // Modelos de sumário
+  const TOC_STYLES = [
+    { key: 'dots', label: 'Pontilhado', desc: 'Título, pontilhado e número da página à direita (clássico)' },
+    { key: 'plain', label: 'Sem pontilhado', desc: 'Título à esquerda e número à direita, sem pontos' },
+    { key: 'inline', label: 'Número junto ao título', desc: 'O número da página vem logo depois do título' },
+    { key: 'numleft', label: 'Número à esquerda', desc: 'Número da página em destaque antes do título (moderno)' },
+    { key: 'twocol', label: 'Duas colunas', desc: 'Sumário compacto em duas colunas, com pontilhado' },
+    { key: 'summary', label: 'Com resumos', desc: 'Cada capítulo com um breve resumo abaixo do título' }
+  ];
+
   const isCedet = s => !!s && s.standard === 'cedet';
   // Layout livre (formatos fora do CEDET): margens, sangria e saída padrão do sistema
   const FREE_LAYOUT = {
@@ -364,6 +374,28 @@
     header: 'title-chapter',
     pageNumbers: 'outer',
     numberFromFirstChapter: false,
+    // pré-textuais em algarismos romanos (i, ii, iii…) e arábicos a partir do 1º capítulo
+    frontNumbering: 'none',
+
+    // ---------- acabamento tipográfico ----------
+    // grade de linha de base: as linhas de páginas opostas ficam na mesma altura (títulos, imagens e
+    // tabelas ocupam um número inteiro de linhas)
+    baselineGrid: true,
+    // justificação fina: linhas frouxas recebem ajuste mínimo de entreletra e de espaço entre palavras
+    fineJustify: true,
+    // palavras com hifenização própria: "a-na-cro-nis-mo" (hífens = pontos de quebra) ou sem hífen (nunca quebra)
+    hyphenExceptions: '',
+    // ajuste da última página: encolhe/expande levemente o capítulo para não sobrarem linhas sozinhas
+    lastPageAdjust: true,
+    lastPageMinLines: 3,
+    // notas: 'footnote' (rodapé), 'chapter' (fim do capítulo), 'book' (fim do livro), 'side' (margem externa)
+    notesMode: 'footnote',
+    endnotesTitle: 'Notas',
+    // normas: referências 'hanging' (recuo pendente) ou 'abnt' (NBR 6023); citação longa 'book' ou 'abnt' (NBR 10520)
+    referenceStyle: 'hanging',
+    quoteStyle: 'book',
+    // índice remissivo nas páginas finais (gerado a partir dos termos marcados no texto)
+    index: { enabled: true, title: 'Índice remissivo', columns: 2 },
 
     styles: JSON.parse(JSON.stringify(DEFAULT_STYLES))
   };
@@ -530,7 +562,7 @@
         dedication: 'Para quem sempre acreditou nesta história.', epigraph: '', epigraphAuthor: '',
         language: 'pt-BR', description: ''
       },
-      front: { halfTitle: false, titlePage: true, copyright: true, toc: true, tocTitle: 'Sumário', tocMode: 'auto', tocLevels: 1, tocEntries: [], dedication: false, epigraph: false, listFigures: false, listCharts: false, listTables: false },
+      front: { halfTitle: false, titlePage: true, copyright: true, toc: true, tocTitle: 'Sumário', tocMode: 'auto', tocLevels: 1, tocEntries: [], tocStyle: 'dots', listQuadros: false, dedication: false, epigraph: false, listFigures: false, listCharts: false, listTables: false },
       titlePage: { logo: null, logoWidth: 25, showPublisher: true, showYear: true },
       catalog: Object.assign(emptyCatalog(), isCedet(settings) ? { distribution: CEDET.distribution } : {}),
       back: {
@@ -600,6 +632,13 @@
       if (ps.safety === undefined) ps.safety = 5;
       if (ps.captionNumbering === undefined) ps.captionNumbering = false;
     }
+    // projetos anteriores ao acabamento tipográfico automático mantêm a paginação com que foram feitos
+    if (p.settings && ps.baselineGrid === undefined) {
+      ps.baselineGrid = false;
+      if (ps.fineJustify === undefined) ps.fineJustify = false;
+      if (ps.lastPageAdjust === undefined) ps.lastPageAdjust = false;
+    }
+    if (ps.index) ps.index = Object.assign({}, DEFAULT_SETTINGS.index, ps.index);
     mergeSettings(settings, ps);
     const chapters = Array.isArray(p.chapters)
       ? p.chapters.map(c => ({
@@ -612,7 +651,8 @@
           separator: c.separator || 'default',
           openingImage: c.openingImage || null,
           kicker: c.kicker || '', lead: c.lead || '', byline: c.byline || '',
-          columns: c.columns || 0, newPage: c.newPage !== false
+          columns: c.columns || 0, newPage: c.newPage !== false,
+          summary: c.summary || ''
         }))
       : base.chapters;
     const catalog = Object.assign(emptyCatalog(), p.catalog || {});
@@ -640,6 +680,10 @@
       ebook: Object.assign({ coverAsset: null }, p.ebook || {}),
       fontSubstitutions: Array.isArray(p.fontSubstitutions) ? p.fontSubstitutions : [],
       exportLog: Array.isArray(p.exportLog) ? p.exportLog : [],
+      // ajuste automático da última página de cada capítulo: { idDoCapítulo: { mode: 'shrink'|'expand', hash } }
+      layoutAdjust: p.layoutAdjust && typeof p.layoutAdjust === 'object' ? p.layoutAdjust : {},
+      // páginas do índice remissivo na última paginação (reservam o espaço certo na próxima)
+      indexCache: p.indexCache && typeof p.indexCache === 'object' ? p.indexCache : {},
       settings
     };
   }
@@ -662,7 +706,7 @@
     PAGE_FORMATS, FORMAT_GROUPS, DEFAULT_FORMAT_ID, BUNDLED_FONTS, SYSTEM_FONTS,
     STYLE_DEFS, DEFAULT_STYLES, DEFAULT_SETTINGS, GENRE_PRESETS,
     uid, newProject, normalizeProject, mergeSettings, applyGenrePreset, emptyCatalog,
-    toUnit, fromUnit, MM, KDP, autoBleed, OUTPUT_SHEETS, outputSheetSize, markGeometry, CEDET, isCedet, applyCedet, CAPTION_STYLES,
+    toUnit, fromUnit, MM, KDP, autoBleed, OUTPUT_SHEETS, outputSheetSize, markGeometry, CEDET, isCedet, applyCedet, CAPTION_STYLES, TOC_STYLES,
     FREE_LAYOUT, applyFreeLayout, applyFormatOverrides
   };
 });

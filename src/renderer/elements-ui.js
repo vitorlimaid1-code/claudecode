@@ -75,7 +75,7 @@
     rows = rows.filter(r => r.some(c => c));
     if (!rows.length) return '';
     const w = Math.max(...rows.map(r => r.length));
-    const cls = [o.zebra ? 'tb-zebra' : '', o.compact ? 'tb-compact' : ''].filter(Boolean).join(' ');
+    const cls = [o.quadro ? 'tb-quadro' : '', o.zebra ? 'tb-zebra' : '', o.compact ? 'tb-compact' : ''].filter(Boolean).join(' ');
     const numCol = Array.from({ length: w }, (_, j) => rows.slice(o.head ? 1 : 0).every(r => !r[j] || isNum(r[j])) && rows.slice(o.head ? 1 : 0).some(r => r[j]));
     let h = `<table${cls ? ` class="${cls}"` : ''}>` + (o.caption ? `<caption>${App.escape(o.caption)}</caption>` : '');
     rows.forEach((r, i) => {
@@ -95,11 +95,12 @@
       const head = el('input', { type: 'checkbox', checked: true });
       const zebra = el('input', { type: 'checkbox', checked: false });
       const alignNum = el('input', { type: 'checkbox', checked: true });
+      const kind = el('select', {}, [['tab', 'Tabela (dados numéricos — Tabela N)'], ['quad', 'Quadro (informações em texto — Quadro N)']].map(([v, l]) => el('option', { value: v, text: l })));
       App.modal({
         title: title || 'Tabela', wide: true, onClose: () => resolve(null),
-        body: el('div', {}, [g.el, el('div', { class: 'grid' }, [App.field('Título (legenda — entra numerado na lista de tabelas)', cap), App.field('Fonte (abaixo da tabela)', src),
+        body: el('div', {}, [g.el, el('div', { class: 'grid' }, [App.field('Tipo', kind, 'Tabelas e quadros têm numeração e listas próprias'), App.field('Título (legenda — entra numerado na lista de tabelas ou de quadros)', cap), App.field('Fonte (abaixo da tabela)', src),
           el('label', { class: 'chk' }, [head, ' Primeira linha é cabeçalho']), el('label', { class: 'chk' }, [zebra, ' Linhas alternadas em cinza']), el('label', { class: 'chk' }, [alignNum, ' Números alinhados à direita'])])]),
-        buttons: [{ label: 'Cancelar', onClick: () => resolve(null) }, { label: 'Inserir tabela', primary: true, onClick: () => resolve(tableHtml(g.rows, { caption: cap.value.trim(), source: src.value.trim(), head: head.checked, zebra: zebra.checked, alignNum: alignNum.checked })) }]
+        buttons: [{ label: 'Cancelar', onClick: () => resolve(null) }, { label: 'Inserir tabela', primary: true, onClick: () => resolve(tableHtml(g.rows, { caption: cap.value.trim(), source: src.value.trim(), head: head.checked, zebra: zebra.checked, alignNum: alignNum.checked, quadro: kind.value === 'quad' })) }]
       });
     });
   }

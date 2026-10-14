@@ -27,6 +27,38 @@ paged = paged.replace(BUG, 'offset += node.textContent.lastIndexOf(container.tex
 const BUG2 = 'this.hooks && this.hooks.afterOverflowRemoved.trigger(overflow.content, rendered, this);';
 if (!paged.includes(BUG2)) throw new Error('paged.js: segundo trecho a corrigir não encontrado (versão diferente?)');
 paged = paged.replace(BUG2, 'if (overflow.content) this.hooks && this.hooks.afterOverflowRemoved.trigger(overflow.content, rendered, this);');
+// Terceira correção: ao separar o excesso de uma página, a nota de rodapé ainda não posicionada (e a sua
+// chamada), que ficam na coluna invisível de excesso, eram vistas como conteúdo visível; o excesso era cortado antes dela e o
+// resto do parágrafo se perdia. A chamada não conta como conteúdo visível nessa conferência.
+const BUG3 = `				do {
+					sibling = sibling.nextSibling;
+					siblingBounds = sibling ? getBoundingClientRect(sibling) : undefined;
+				} while (sibling && !siblingBounds?.height);`;
+if (!paged.includes(BUG3)) throw new Error('paged.js: terceiro trecho a corrigir não encontrado (versão diferente?)');
+paged = paged.replace(BUG3, `				do {
+					sibling = sibling.nextSibling;
+					siblingBounds = sibling ? getBoundingClientRect(sibling) : undefined;
+				} while (sibling && (!siblingBounds?.height || (sibling.nodeType === 1 && sibling.dataset && (sibling.dataset.footnoteCall !== undefined || sibling.dataset.note === 'footnote'))));`);
+
+// Quarta correção (velocidade): o Paged.js agenda cada página com requestIdleCallback/requestAnimationFrame,
+// que o Chromium desacelera muito em janelas ocultas (onde a paginação roda). Um agendador imediato
+// deixa a paginação várias vezes mais rápida, sem mudar o resultado.
+const BUG4a = 'const requestIdleCallback = typeof window !== "undefined" && ("requestIdleCallback" in window ? window.requestIdleCallback : window.requestAnimationFrame);';
+if (!paged.includes(BUG4a)) throw new Error('paged.js: quarto trecho a corrigir não encontrado (versão diferente?)');
+paged = paged.replace(BUG4a, 'const requestIdleCallback = cb => setTimeout(cb, 0);');
+const BUG4b = 'this.tick = requestAnimationFrame;';
+if (!paged.includes(BUG4b)) throw new Error('paged.js: quarto trecho (b) a corrigir não encontrado (versão diferente?)');
+paged = paged.replace(BUG4b, 'this.tick = cb => setTimeout(cb, 0);');
+
+// Quinta correção (segurança): a busca de excesso da página roda num laço que, em casos raros de
+// elementos em linha na quebra, podia nunca terminar e congelar o aplicativo. O laço passa a ter um
+// limite (bem acima de qualquer página real); ao atingi-lo, segue com o excesso já encontrado.
+const BUG5 = `			let overflowResult = this.findOverflow(rendered, bounds, source);
+			while (overflowResult) {`;
+if (!paged.includes(BUG5)) throw new Error('paged.js: quinto trecho a corrigir não encontrado (versão diferente?)');
+paged = paged.replace(BUG5, `			let overflowResult = this.findOverflow(rendered, bounds, source);
+			let overflowGuard = 0;
+			while (overflowResult && overflowGuard++ < 500) {`);
 fs.writeFileSync(path.join(out, 'paged.js'), paged);
 
 let css = '/* Gerado por scripts/vendor.js — não editar */\n';

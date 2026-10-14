@@ -5,8 +5,6 @@
   const { $, $$ } = App;
   let active = null;
   let timer = null;
-  let rendering = false;
-  let queued = false;
   let zoom = 0.5;
   try { zoom = parseFloat(localStorage.getItem('zoom')) || 0.5; } catch (e) { /* ok */ }
 
@@ -22,60 +20,172 @@
     return { mode: $('#previewMode').value, guides: $('#guides').checked, gray: $('#gray').checked };
   }
 
-  async function render() {
-    if (rendering) { queued = true; return; }
-    rendering = true;
-    App.flush();
-    $('#previewBusy').classList.add('show');
+  // ---------------------------------------------------------------- paginação por trechos
+  // O livro é dividido em trechos (pré-textuais, cada capítulo, páginas finais). Cada trecho é paginado
+  // numa janela de trabalho separada (vários ao mesmo tempo, sem travar a interface) e a prévia junta as
+  // páginas prontas. Ao editar, só o capítulo alterado é paginado de novo.
+  const seg = { want: new Map(), done: new Map(), info: new Map(), order: [], book: null, gen: 0, pending: 0 };
+  P.segments = seg;
+  function hashText(str) { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return (h >>> 0).toString(36) + ':' + str.length; }
+
+  async function ensureStage() {
+    if (active && active.contentWindow && active.contentWindow.stageApply) return active;
     const frame = document.createElement('iframe');
-    frame.className = 'preview-frame loading';
+    frame.className = 'preview-frame';
     frame.src = 'preview.html';
     $('#previewFrames').appendChild(frame);
-    try {
-      await new Promise((res, rej) => { frame.onload = res; frame.onerror = rej; });
-      const book = await App.api.buildBook(App.serialize());
-      book.overlays = App.layers.resolved();
-      // mesma estratégia da exportação: a prévia mostra exatamente o que sai no PDF
-      const again = async o => { frame.src = 'preview.html?' + Date.now(); await new Promise((res, rej) => { frame.onload = res; frame.onerror = rej; }); return frame.contentWindow.renderBook(book, Object.assign(opts(), o)); };
-      const better = (a, b) => !b || (a.complete && !b.complete) || (a.complete === b.complete && a.clippedNotes.length < b.clippedNotes.length);
-      let info = await frame.contentWindow.renderBook(book, Object.assign(opts(), { notePolicy: 'line' }));
-      let best = info, bestO = { notePolicy: 'line' }, lastO = bestO;
-      for (const o of [{ notePolicy: 'block' }, { notePolicy: '' }]) {
-        if (best.complete && !best.clippedNotes.length) break;
-        if (o.notePolicy === '' && best.clippedNotes.length) o.lineNotes = best.clippedNotes;
-        info = await again(o); lastO = o;
-        if (better(info, best)) { best = info; bestO = o; }
-      }
-      if (lastO !== bestO || best.clippedNotes.length) { info = await again(Object.assign({}, bestO, { showClippedNotes: true })); if (info.clippedNotes.length) info.revealedNotes = info.clippedNotes; }
-      else info = best;
-      const prev = active;
-      let ratio = 0;
-      if (prev && prev.contentDocument) { const se = prev.contentDocument.scrollingElement; ratio = se.scrollHeight ? se.scrollTop / se.scrollHeight : 0; }
-      applyZoom(frame);
-      const se = frame.contentDocument.scrollingElement;
-      se.scrollTop = ratio * se.scrollHeight;
-      frame.classList.remove('loading');
-      if (prev) prev.remove();
-      active = frame;
-      wire(frame);
-      try { frame.contentDocument.documentElement.dataset.theme = document.documentElement.dataset.theme; } catch (e) { /* ok */ }
-      App.lastRender = info;
-      if (P.fitNext) { P.fitNext = false; setTimeout(P.fit, 30); }
-      App.lastRender.missingFonts = book.missingFonts;
-      $('#pageInfo').textContent = `${info.pages} páginas${book.missingFonts && book.missingFonts.length ? ' · ⚠ fonte ausente' : ''}${book.missingAssets && book.missingAssets.length ? ' · ⚠ imagem ausente' : ''}`;
-      P.setLayerEditing(App.view === 'layers');
-      P.highlightLayers([...App.layers.sel]);
-      markCurrent();
+    await new Promise((res, rej) => { frame.onload = res; frame.onerror = rej; });
+    if (active && active !== frame) active.remove();
+    active = frame;
+    wire(frame);
+    applyZoom(frame);
+    try { frame.contentDocument.documentElement.dataset.theme = document.documentElement.dataset.theme; } catch (e) { /* ok */ }
+    return frame;
+  }
+
+  // divide o HTML do livro: pré-textuais | capítulo (com imagem de abertura e páginas sangradas) | finais
+  function splitSegments(book) {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = book.html;
+    const root = tpl.content.querySelector('.book');
+    if (!root) return [{ key: 'all', html: book.html }];
+    const open = root.outerHTML.slice(0, root.outerHTML.indexOf('>') + 1);
+    // revista e jornal: as matérias correm na mesma página; o trecho é a publicação inteira
+    if (/\bkind-(magazine|newspaper)\b/.test(root.className)) return [{ key: 'all', html: book.html }];
+    const out = [];
+    let cur = null;
+    const start = key => { cur = { key, parts: [] }; out.push(cur); };
+    const idOf = sec => (book.chapterIds || [])[Number(sec.dataset.chapter)] || ('i' + sec.dataset.chapter);
+    Array.from(root.children).forEach(el => {
+      if (el.classList.contains('front')) { if (!cur || cur.key !== 'front') start('front'); }
+      else if (el.matches('.chapter[data-chapter]:not(.chapter-cont)')) { const k = 'ch:' + idOf(el); if (!cur || cur.key !== k) start(k); }
+      else if (el.classList.contains('fullbleed')) {
+        const next = el.nextElementSibling;
+        if (next && next.matches('.chapter[data-chapter]:not(.chapter-cont)')) start('ch:' + idOf(next));
+        else if (!cur) start('misc');
+      } else if (el.classList.contains('back-matter')) { if (!cur || cur.key !== 'back') start('back'); }
+      else if (!cur) start('misc');
+      cur.parts.push(el.outerHTML);
+    });
+    return out.map(sg => ({ key: sg.key, html: open + sg.parts.join('\n') + '</div>' }));
+  }
+
+  // junta as informações dos trechos (para a pré-impressão, o sumário, o índice etc.)
+  function aggregate(fin) {
+    const infos = seg.order.map(k => seg.info.get(k)).filter(Boolean);
+    const sum = f => infos.reduce((a, i) => a + (Number(i[f]) || 0), 0);
+    const typo = { loose: 0, fixed: 0, gridded: 0, ms: 0 };
+    infos.forEach(i => { if (i.typo) Object.keys(typo).forEach(k => { typo[k] += Number(i.typo[k]) || 0; }); });
+    return Object.assign({}, fin, {
+      complete: infos.length === seg.order.length && infos.every(i => i.complete),
+      clippedNotes: [], revealedNotes: [].concat(...infos.map(i => i.revealedNotes || [])),
+      sourceWords: sum('sourceWords'), pageWords: sum('pageWords'), typo,
+      shortEnds: [].concat(...infos.map(i => i.shortEnds || [])), lostNotes: [],
+      pending: seg.order.length - infos.length
+    });
+  }
+
+  function applyResult(add) {
+    const w = active && active.contentWindow;
+    if (!w || !w.stageApply) return;
+    const se = active.contentDocument.scrollingElement;
+    const anchor = P.scrollAnchor ? P.scrollAnchor() : null;
+    const ta = performance.now();
+    const fin = w.stageApply(seg.order, add, seg.book, opts());
+    if (seg.stats) seg.stats.apply += Math.round(performance.now() - ta);
+    const info = aggregate(fin);
+    if (info.indexPages && Object.keys(info.indexPages).length) App.project.indexCache = info.indexPages;
+    info.missingFonts = seg.book.missingFonts;
+    App.lastRender = info;
+    if (anchor && P.restoreAnchor) P.restoreAnchor(anchor); else if (se && P._ratio != null) se.scrollTop = P._ratio * se.scrollHeight;
+    App.pageTools.attach(active.contentDocument);
+    if (P.fitNext && fin.pages) { P.fitNext = false; setTimeout(P.fit, 30); }
+    const book = seg.book;
+    $('#pageInfo').textContent = `${info.pages} páginas${info.pending ? ` · paginando ${seg.order.length - info.pending}/${seg.order.length}…` : ''}${book.missingFonts && book.missingFonts.length ? ' · ⚠ fonte ausente' : ''}${book.missingAssets && book.missingAssets.length ? ' · ⚠ imagem ausente' : ''}`;
+    P.setLayerEditing(App.view === 'layers');
+    P.highlightLayers([...App.layers.sel]);
+    markCurrent();
+    App.hooks.afterChange.forEach(fn => { try { fn({ rendered: true, partial: !!info.pending }); } catch (e) { /* ok */ } });
+    if (!info.pending) {
+      $('#previewBusy').classList.remove('show');
       App.updateWordCount();
-      App.hooks.afterChange.forEach(fn => { try { fn({ rendered: true }); } catch (e) { /* ok */ } });
+      if (P.onRendered) P.onRendered(info);
+    }
+  }
+
+  // mantém na tela a mesma página quando trechos anteriores mudam de tamanho
+  P.scrollAnchor = function () {
+    const d = doc();
+    if (!d) return null;
+    const pages = d.querySelectorAll('.pagedjs_page');
+    for (const pg of pages) { const r = pg.getBoundingClientRect(); if (r.bottom > 0) return { el: pg, top: r.top }; }
+    return null;
+  };
+  P.restoreAnchor = function (a) {
+    const d = doc();
+    if (!d || !a || !a.el || !a.el.isConnected) return;
+    const se = d.scrollingElement;
+    for (let k = 0; k < 2; k++) { const dy = a.el.getBoundingClientRect().top - a.top; if (Math.abs(dy) < 1) break; se.scrollTop += dy; }
+  };
+
+  async function render() {
+    const gen = ++seg.gen;
+    App.flush();
+    $('#previewBusy').classList.add('show');
+    try {
+      await ensureStage();
+      const tb = performance.now();
+      const book = await App.api.buildBook(App.serialize());
+      seg.stats = { build: Math.round(performance.now() - tb), apply: 0 };
+      if (gen !== seg.gen) return; // já há uma paginação mais nova
+      book.overlays = App.layers.resolved();
+      const segs = splitSegments(book);
+      const adjustAll = window.LayoutPasses ? LayoutPasses.savedAdjust(App.project) : {};
+      const common = hashText(book.css + JSON.stringify(book.typo || {}) + (book.fontFaceCss || '') + JSON.stringify(book.fonts || []));
+      seg.book = book;
+      seg.order = segs.map(s => s.key);
+      seg.want = new Map();
+      const cur = App.chapterId ? 'ch:' + App.chapterId : '';
+      const curIdx = seg.order.indexOf(cur);
+      const jobs = [];
+      segs.forEach((s, i) => {
+        const chId = s.key.startsWith('ch:') ? s.key.slice(3) : null;
+        const adjust = chId && adjustAll[chId] ? { [chId]: adjustAll[chId] } : {};
+        const hash = hashText(s.html) + '|' + common + '|' + JSON.stringify(adjust);
+        seg.want.set(s.key, hash);
+        if (seg.done.get(s.key) === hash) return;
+        // o capítulo aberto (e os vizinhos) primeiro; o resto na ordem do livro
+        const dist = curIdx >= 0 ? Math.abs(i - curIdx) : i;
+        jobs.push({ s, hash, adjust, priority: Math.max(0, 1000 - dist) });
+      });
+      // remove trechos que não existem mais e reordena (sem paginar nada)
+      [...seg.done.keys()].forEach(k => { if (!seg.want.has(k)) { seg.done.delete(k); seg.info.delete(k); } });
+      jobs.forEach(j => seg.info.delete(j.s.key));
+      applyResult({});
+      if (!jobs.length) return;
+      await Promise.all(jobs.map(async j => {
+        const segBook = Object.assign({}, book, { html: j.s.html, overlays: [] });
+        const res = await App.api.layoutSegment(segBook, { adjust: j.adjust }, j.s.key + '#' + j.hash, j.priority);
+        if (!res || res.superseded) return;
+        if (res.error) { console.error('paginação', j.s.key, res.error); return; }
+        if (seg.want.get(j.s.key) !== j.hash) return; // o trecho mudou enquanto era paginado
+        seg.done.set(j.s.key, j.hash);
+        seg.info.set(j.s.key, res);
+        if (res.adjust && window.LayoutPasses && j.s.key.startsWith('ch:')) {
+          const chId = j.s.key.slice(3);
+          const all = Object.assign(LayoutPasses.savedAdjust(App.project), res.adjust);
+          LayoutPasses.storeAdjust(App.project, all);
+          // a chave do trecho passa a incluir o ajuste salvo: não precisa paginar de novo
+          const nh = j.hash.replace(/\|[^|]*$/, '|' + JSON.stringify(all[chId] ? { [chId]: all[chId] } : {}));
+          seg.want.set(j.s.key, nh);
+          seg.done.set(j.s.key, nh);
+        }
+        applyResult({ [j.s.key]: { pagesHtml: res.pagesHtml, css: res.css } });
+      }));
     } catch (err) {
       console.error(err);
-      frame.remove();
       $('#pageInfo').textContent = 'Erro ao paginar';
-    } finally {
       $('#previewBusy').classList.remove('show');
-      rendering = false;
-      if (queued) { queued = false; render(); }
     }
   }
 

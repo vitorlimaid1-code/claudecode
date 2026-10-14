@@ -81,6 +81,7 @@
     const body = doc.createElement('div');
     body.innerHTML = String(c.html || '').replace(/\ssrc="blob:[^"]*"/g, '');
     body.querySelectorAll('span.comment').forEach(c => c.remove()); // comentários de revisão não vão para o livro
+    body.querySelectorAll('span.ix').forEach(x => x.replaceWith(...x.childNodes)); // marcas do índice remissivo (só no impresso)
     const notes = [];
     body.querySelectorAll('span.footnote').forEach(fn => {
       if (!settings.footnotesVisible) { fn.remove(); return; }
@@ -110,9 +111,12 @@
         const fc = doc.createElement('figcaption'); fc.innerHTML = cap.innerHTML;
         // mesma numeração do livro impresso (Figura N / Gráfico N)
         const OWN = /^\s*(Figura|Fig\.?|Gr[áa]fico|Tabela|Quadro|Imagem|Ilustra[çc][ãa]o|Mapa|Foto(grafia)?)\s*\d+/i;
-        if (ctr && settings.captionNumbering !== false && !OWN.test(fc.textContent)) { const a = App.project.assets[f.dataset.asset]; const k = a && a.chart ? 'graf' : 'fig'; const n = ++ctr[k]; fig.id = `${k}-${n}`; fc.innerHTML = `<b>${k === 'graf' ? 'Gráfico' : 'Figura'} ${n}</b> – ` + fc.innerHTML; }
+        const a = App.project.assets[f.dataset.asset];
+        const k = a && a.chart ? 'graf' : 'fig';
+        if (ctr && settings.captionNumbering !== false && !OWN.test(fc.textContent)) { const n = ++ctr[k]; fig.id = `${k}-${n}`; fc.innerHTML = `<b>${k === 'graf' ? 'Gráfico' : 'Figura'} ${n}</b> – ` + fc.innerHTML; if (f.dataset.ref && ctr.refs) ctr.refs[f.dataset.ref] = { id: fig.id, label: `${k === 'graf' ? 'Gráfico' : 'Figura'} ${n}` }; }
+        else if (f.dataset.ref && ctr && ctr.refs) { const m = OWN.exec(fc.textContent); fig.id = f.dataset.ref; ctr.refs[f.dataset.ref] = { id: fig.id, label: m ? m[0].trim() : (k === 'graf' ? 'gráfico' : 'figura') }; }
         fig.appendChild(fc);
-      }
+      } else if (f.dataset.ref && ctr && ctr.refs) { fig.id = f.dataset.ref; ctr.refs[f.dataset.ref] = { id: fig.id, label: 'figura' }; }
       f.replaceWith(fig);
     });
     body.querySelectorAll('div.fullbleed').forEach(f => {
@@ -124,7 +128,17 @@
       fig.appendChild(img);
       f.replaceWith(fig);
     });
-    if (ctr && settings.captionNumbering !== false) body.querySelectorAll('table > caption').forEach(cap => { if (!cap.textContent.trim() || /^\s*(Tabela|Quadro)\s*\d+/i.test(cap.textContent)) return; const n = ++ctr.tab; cap.parentElement.id = cap.parentElement.id || `tab-${n}`; cap.innerHTML = `<b>Tabela ${n}</b> – ` + cap.innerHTML; });
+    // tabelas e quadros: mesma numeração do livro impresso; referências cruzadas apontam para o id final
+    body.querySelectorAll('table').forEach(t => {
+      const cap = t.querySelector(':scope > caption');
+      const own = cap && /^\s*(Tabela|Quadro)\s*\d+/i.exec(cap.textContent);
+      const quad = t.classList.contains('tb-quadro') || (own && /^\s*Quadro/i.test(own[0]));
+      const word = quad ? 'Quadro' : 'Tabela';
+      let label = word.toLowerCase();
+      if (ctr && settings.captionNumbering !== false && cap && cap.textContent.trim() && !own) { const n = ++ctr[quad ? 'quad' : 'tab']; t.id = t.id || `${quad ? 'quad' : 'tab'}-${n}`; label = `${word} ${n}`; cap.innerHTML = `<b>${label}</b> – ` + cap.innerHTML; }
+      else if (own) label = own[0].trim();
+      if (t.dataset.ref && ctr && ctr.refs) { t.id = t.id || t.dataset.ref; ctr.refs[t.dataset.ref] = { id: t.id, label }; }
+    });
     body.querySelectorAll('div.page-break').forEach(p => p.remove());
     body.querySelectorAll('hr.scene-break').forEach(hr => { const p = doc.createElement('p'); p.className = 'scene'; p.textContent = settings.sceneBreak || '* * *'; hr.replaceWith(p); });
     body.querySelectorAll('[style]').forEach(e => { if (!e.matches('img')) { const ta = e.style.textAlign; e.removeAttribute('style'); if (ta) e.setAttribute('style', `text-align:${ta}`); } });
@@ -193,7 +207,8 @@ aside p { text-indent: 0; }
   async function buildEpub(project, opts) {
     const s = project.settings;
     let n = 0;
-    const ctr = { fig: 0, graf: 0, tab: 0 };
+    const ctr = { fig: 0, graf: 0, tab: 0, quad: 0, refs: {} };
+    const escX = App.escape;
     const docs = project.chapters.map(c => {
       let label = '';
       if (c.numbered && s.chapterNumbering !== 'none') { n++; label = `${s.chapterLabel || ''} ${n}`.trim(); }
@@ -201,6 +216,14 @@ aside p { text-indent: 0; }
     });
     if (project.back.bio.enabled) docs.push({ title: project.back.bio.title, xhtml: xhtmlOf({ id: 'bio', title: project.back.bio.title, html: project.back.bio.html }, '', s) });
     if (project.back.extra.enabled) docs.push({ title: project.back.extra.title, xhtml: xhtmlOf({ id: 'extra', title: project.back.extra.title, html: project.back.extra.html }, '', s) });
+    // referências cruzadas (“ver Figura 3”): rótulo atual e ligação para a figura/tabela
+    docs.forEach(d => {
+      d.xhtml = d.xhtml.replace(/<a\b([^>]*\bclass="[^"]*\bxref-auto\b[^"]*"[^>]*)>([\s\S]*?)<\/a>/g, (mm, attrs) => {
+        const ref = ((/\shref="#([^"]+)"/.exec(attrs) || [])[1]) || '';
+        const r = ctr.refs[ref];
+        return r ? `<a${attrs.replace(/\shref="[^"]*"/, ` href="#${r.id}"`)}>${escX(r.label)}</a>` : mm;
+      });
+    });
     // ligações internas entre capítulos: cada capítulo é um arquivo no EPUB
     const owner = {};
     docs.forEach((d, i) => { const file = `chap${String(i + 1).padStart(3, '0')}.xhtml`; d.xhtml.replace(/\sid="([^"]+)"/g, (mm, id) => { owner[id] = { file, i }; return mm; }); });
