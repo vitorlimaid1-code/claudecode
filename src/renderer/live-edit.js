@@ -580,6 +580,9 @@
     });
     // clique numa nota (chamada) ou figura: abre o painel correspondente no editor
     d.addEventListener('click', e => {
+      // clique num título: oferece “não é um título”
+      const hd = e.target.closest && e.target.closest('.chapter-body > h2, .chapter-body > h3, .chapter-body > h4, .chapter-head .chapter-title');
+      if (App.notTitles) { if (hd) App.notTitles.offer(hd); else App.notTitles.hideChip(); }
       const call = e.target.closest && e.target.closest('a[data-footnote-call], .en-call, .sn-call');
       const fig = e.target.closest && e.target.closest('figure, .fig');
       if (!call && !fig) return;

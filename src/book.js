@@ -222,7 +222,8 @@ function figureHtml(attrs, inner, ctx) {
     if (!figId) figId = dataRef;
     ctx.refs[dataRef] = { id: figId, label: item ? item.label : (asset.chart ? 'gráfico' : 'figura') };
   }
-  return `<figure${figId ? ` id="${figId}"` : ''} class="fig fig-${wrap}${align === 'full' ? ' fig-full' : ''}${asset.chart ? ' fig-chart' : ''}" data-asset="${esc(id)}" data-print-width="${printW.toFixed(2)}" data-px-width="${Math.round(iw * cw)}" style="${figStyle.join('; ')}">${frame}${capHtml && wrap !== 'behind' ? `<figcaption${capStyle ? ` data-cap="${esc(capStyle)}"` : ''}>${capHtml}</figcaption>` : ''}</figure>`;
+  const srcAttr = attrs['data-src'] !== undefined ? ` data-src="${esc(attrs['data-src'])}"` : '';
+  return `<figure${figId ? ` id="${figId}"` : ''}${srcAttr} class="fig fig-${wrap}${align === 'full' ? ' fig-full' : ''}${asset.chart ? ' fig-chart' : ''}" data-asset="${esc(id)}" data-print-width="${printW.toFixed(2)}" data-px-width="${Math.round(iw * cw)}" style="${figStyle.join('; ')}">${frame}${capHtml && wrap !== 'behind' ? `<figcaption${capStyle ? ` data-cap="${esc(capStyle)}"` : ''}>${capHtml}</figcaption>` : ''}</figure>`;
 }
 
 // Estilos de legenda: o do livro (.capstyle-X) vale para as legendas sem estilo próprio (data-cap)

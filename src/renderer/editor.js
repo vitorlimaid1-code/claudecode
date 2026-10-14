@@ -247,6 +247,21 @@
         ])
       ]) : el('div', { class: 'bad', text: 'Imagem ausente — use “Substituir”.' }),
       el('div', { class: 'fp-row' }, [el('label', { text: 'Largura (% da mancha)' }), el('div', { class: 'inline' }, [btn('−', () => setFig('data-width', Math.max(5, width - 5))), slider('data-width', 5, 100, 1, '%', 'Redimensionar imagem'), btn('+', () => setFig('data-width', Math.min(100, width + 5)))])]),
+      el('div', { class: 'fp-row' }, [el('label', { text: 'Legenda' }), (() => {
+        const cap = fig.querySelector('figcaption');
+        const inp = el('input', { type: 'text', placeholder: 'Escreva a legenda (vazio = sem legenda)', value: cap ? cap.textContent : '' });
+        inp.addEventListener('input', () => {
+          let c = fig.querySelector('figcaption');
+          const v = inp.value;
+          if (!v.trim()) { if (c) c.remove(); }
+          else { if (!c) { c = document.createElement('figcaption'); fig.appendChild(c); } c.textContent = v; }
+          styleFigure(fig);
+          onInput();
+          clearTimeout(inp._t);
+          inp._t = setTimeout(() => App.commit('Legenda da imagem'), 900);
+        });
+        return inp;
+      })()]),
       el('div', { class: 'fp-row' }, [el('label', { text: 'Alinhamento' }), seg('data-align', [['left', '⯇', 'Esquerda'], ['center', '≡', 'Centro'], ['right', '⯈', 'Direita'], ['full', '↔', 'Largura total']])]),
       el('div', { class: 'fp-row' }, [el('label', { text: 'Texto ao redor' }), (() => {
         const s = el('select', { onchange: e => setFig('data-wrap', e.target.value, 'Contorno do texto') }, [
@@ -270,6 +285,16 @@
       el('div', { class: 'fp-row' }, [el('label', { text: 'Opacidade' }), slider('data-opacity', 5, 100, 1, '%', 'Opacidade')]),
       el('div', { class: 'fp-grid' }, [
         btn('✂ Recortar…', () => cropDialog(fig)),
+        btn('✨ Remover fundo…', () => App.images && App.images.removeBackground(fig), 'Deixa o fundo transparente (no computador, sem internet)'),
+        btn('▢ Caixa de texto', () => {
+          const box = document.createElement('div');
+          box.className = 'box';
+          box.dataset.style = 'fundo';
+          box.innerHTML = '<p>Escreva aqui o texto da caixa.</p>';
+          fig.after(box);
+          onInput(); App.commit('Caixa de texto junto da imagem');
+          App.toast('Caixa de texto criada logo depois da imagem: clique nela na página para escrever.', 4000);
+        }, 'Cria uma caixa de texto logo depois da imagem'),
         btn(fig.querySelector('figcaption') ? 'Remover legenda' : 'Adicionar legenda', () => {
           const cap = fig.querySelector('figcaption');
           if (cap) cap.remove(); else { const c = document.createElement('figcaption'); c.textContent = 'Legenda'; fig.appendChild(c); }
@@ -1136,7 +1161,7 @@
     return true;
   }
 
-  App.editor = { setup, paste, action: a => toolbarAction(a), insertIntoChapter, zoneAt, load, flush, decorate, figureHtml, insertBlocks, assetsFromDrop, chartDialog, styleFigure, renderLookPanel, selectFigure, applyBlockStyle, ensureHeadingId };
+  App.editor = { setup, paste, action: a => toolbarAction(a), setFig: (fig, attr, v, label) => { selectedFig = fig; setFig(attr, v, label); }, selectedFigure: () => selectedFig, onInput: () => onInput(), insertIntoChapter, zoneAt, load, flush, decorate, figureHtml, insertBlocks, assetsFromDrop, chartDialog, styleFigure, renderLookPanel, selectFigure, applyBlockStyle, ensureHeadingId };
   App.hooks.viewRender.chapter = () => {
     const c = App.chapter();
     if (!c) { if (App.project.chapters.length) { App.chapterId = App.project.chapters[0].id; } else return App.setView('book'); }

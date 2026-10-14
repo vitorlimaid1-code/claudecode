@@ -135,7 +135,8 @@
         el('p', { class: 'muted', text: 'Cada linha é um capítulo ou um título dentro do texto. Mude a função das linhas identificadas errado: um título pode virar capítulo (o texto seguinte vai com ele), um capítulo pode virar título de seção ou texto (o conteúdo se junta ao capítulo anterior). O sumário automático usa estes títulos.' }),
         el('div', { class: 'inline wrap', style: 'margin: 6px 0 10px' }, [
           el('button', { text: '✨ Sugerir pelo padrão “CAPÍTULO 1 / I”', onclick: () => { if (suggest(rows)) draw(); } }),
-          el('label', { class: 'chk small' }, [susp, ' Mostrar parágrafos curtos que parecem título'])
+          el('label', { class: 'chk small' }, [susp, ' Mostrar parágrafos curtos que parecem título']),
+          App.notTitles && App.notTitles.list().length ? el('button', { text: `↺ Marcados como não título (${App.notTitles.list().length})`, onclick: () => { App.closeModal(); App.notTitles.openList(); } }) : null
         ]),
         list
       ]),

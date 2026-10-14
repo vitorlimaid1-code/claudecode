@@ -39,6 +39,7 @@
     active = frame;
     wire(frame);
     if (App.live) App.live.attach(frame.contentDocument);
+    if (App.images) App.images.wire(frame.contentDocument);
     applyZoom(frame);
     try { frame.contentDocument.documentElement.dataset.theme = document.documentElement.dataset.theme; } catch (e) { /* ok */ }
     return frame;

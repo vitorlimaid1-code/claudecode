@@ -676,6 +676,8 @@
       overlays: Array.isArray(p.overlays) ? p.overlays : [],
       // cores de páginas isoladas: { "<nº da página>": { bg, color } }
       pageStyles: p.pageStyles && typeof p.pageStyles === 'object' ? p.pageStyles : {},
+      // títulos marcados pelo usuário como “não é título” (podem ser revertidos)
+      notTitles: Array.isArray(p.notTitles) ? p.notTitles : [],
       cover: p.cover || null,
       // livro digital (EPUB/MOBI): imagem da capa escolhida para as lojas e aplicativos de leitura
       ebook: Object.assign({ coverAsset: null, coverInBook: true, preImages: [] }, p.ebook || {}),

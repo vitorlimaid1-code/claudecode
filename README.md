@@ -32,6 +32,9 @@ Como os executáveis não têm assinatura digital, o Windows SmartScreen pode av
 - O texto é **editado na própria página**: clique em qualquer parágrafo do livro e digite. Não há caixa de texto separada — o que aparece na tela é o livro paginado, com fontes, margens, notas e números de página reais.
 - Digitação, Enter, apagar, colar, negrito/itálico (Ctrl+B/I/U), desfazer (Ctrl+Z) e todos os botões da barra (títulos, citações, notas, imagens, tabelas, ligações) funcionam direto na página. O capítulo é **repaginado em segundo plano** logo depois de parar de digitar, e o cursor continua no mesmo ponto.
 - O título do capítulo também pode ser editado clicando nele na página.
+- **“Não é um título”**: clique num título (ou no título de um capítulo) na página e use o botão que aparece — o título volta a ser texto corrido (um capítulo errado se junta ao anterior). Tudo o que foi marcado fica na lista **↺** (acima da lista de capítulos e em Revisar títulos), com **Reverter** para desfazer.
+- **Imagens direto na página**: arraste uma imagem para qualquer ponto de uma página de capítulo (sobre o texto, nas margens, acima, abaixo ou em cima de outra imagem). Uma linha mostra onde ela vai entrar; à esquerda ou à direita o texto corre ao lado, no centro fica acima e abaixo. Imagens já no livro também podem ser arrastadas para outro ponto (até outro capítulo).
+- Ao clicar numa imagem: **alças** para aumentar e reduzir arrastando, e o painel com **legenda**, **caixa de texto**, **recorte**, giro, opacidade, texto ao redor e **remover o fundo** (feito no computador, sem internet; a original continua no projeto; o texto passa a contornar a figura).
 - **Caixa de texto e caixa de citação**: selecione o texto na página e escolha na barra flutuante **▢ Caixa** (contorno, fundo cinza, barra lateral, filetes, fundo escuro) ou **❝ Citação** (recuada, aspas grandes, barra lateral, destaque centralizado). “Sem caixa” desfaz.
 
 ### Paginação rápida

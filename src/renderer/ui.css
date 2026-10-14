@@ -307,3 +307,19 @@ body[data-view="cover"] .layout { grid-template-columns: 290px 1fr 0 0; }
 .topbar [data-cmd="projectUndo"] span, .topbar [data-cmd="projectRedo"] span, .topbar [data-cmd="history"] span { display: none; }
 @media (max-width: 1560px) { .topbar [data-cmd="library"] span, #btnElements span { display: none; } .topbar select#genreSelect { max-width: 150px; } }
 @media (max-width: 1320px) { .topbar [data-cmd="new"] span, .topbar [data-cmd="open"] span, .topbar [data-cmd="save"] span { display: none; } .brand-name { display: none; } }
+
+/* “não é um título” */
+.nt-chip { position: fixed; z-index: 45; display: flex; gap: 4px; padding: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-md); animation: pgIn .15s ease; }
+.nt-chip .nt-btn { background: var(--grad); color: #fff; border: 0; border-radius: 9px; padding: 6px 12px; font-weight: 600; }
+.nt-chip .nt-btn:hover:not(:disabled) { filter: brightness(1.08); box-shadow: var(--glow); }
+.nt-chip .nt-list { border: 0; background: transparent; border-radius: 9px; }
+.nt-listbox { display: grid; gap: 6px; max-height: 55vh; overflow-y: auto; }
+.nt-row { display: grid; grid-template-columns: 90px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; }
+.nt-kind { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); font-weight: 700; }
+.nt-text b { font-weight: 600; }
+
+/* remover fundo */
+.rb-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 10px 0; }
+.rb-img { display: block; width: 100%; max-height: 46vh; object-fit: contain; border-radius: 10px; border: 1px solid var(--line);
+  background-color: #fff; background-image: linear-gradient(45deg, #e5e5e5 25%, transparent 25%), linear-gradient(-45deg, #e5e5e5 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e5e5e5 75%), linear-gradient(-45deg, transparent 75%, #e5e5e5 75%); background-size: 16px 16px; background-position: 0 0, 0 8px, 8px -8px, -8px 0; }
+.fp-row input[type=text] { width: 100%; padding: 6px 8px; }
