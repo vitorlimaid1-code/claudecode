@@ -29,7 +29,8 @@
   function zoneOpts(zone) {
     if (zone === 'left') return { align: 'left', wrap: 'square', width: 40 };
     if (zone === 'right') return { align: 'right', wrap: 'square', width: 40 };
-    return { align: 'center', wrap: 'none' };
+    // no centro: o texto contorna a imagem dos dois lados
+    return { align: 'center', wrap: 'both', width: 36 };
   }
 
   // ---------------------------------------------------------------- ponto de inserção
@@ -143,7 +144,7 @@
     Object.assign(line.style, { position: 'absolute', left: part[0] + 'px', width: part[1] + 'px', top: (top - 2) + 'px', height: '4px', borderRadius: '3px', background: 'linear-gradient(90deg,#6d28d9,#c026d3,#f43f5e)', boxShadow: '0 0 0 3px rgba(192,38,211,.18)', zIndex: 60, pointerEvents: 'none' });
     const tag = d.createElement('div');
     tag.className = 'drop-line';
-    tag.textContent = t.split ? 'imagem aqui, no meio do parágrafo · texto acima e abaixo' : t.zone === 'center' ? 'imagem aqui · texto acima e abaixo' : t.zone === 'left' ? 'imagem à esquerda · texto ao lado' : 'imagem à direita · texto ao lado';
+    tag.textContent = t.zone === 'center' ? 'imagem aqui, no centro · texto dos dois lados' : t.zone === 'left' ? 'imagem à esquerda · texto ao lado' : 'imagem à direita · texto ao lado';
     Object.assign(tag.style, { position: 'absolute', left: part[0] + 'px', top: (top + 6) + 'px', font: '600 11px system-ui, sans-serif', color: '#fff', background: '#6d28d9', padding: '2px 8px', borderRadius: '8px', zIndex: 61, pointerEvents: 'none', whiteSpace: 'nowrap' });
     box.appendChild(line);
     box.appendChild(tag);
@@ -183,7 +184,7 @@
     // lado escolhido ao soltar (o contorno da forma é mantido nas laterais)
     opts = zoneOpts(to.zone);
     html.setAttribute('data-align', opts.align);
-    html.setAttribute('data-wrap', to.zone !== 'center' && html.dataset.wrap === 'contour' ? 'contour' : opts.wrap);
+    html.setAttribute('data-wrap', to.zone !== 'center' && ['contour', 'both'].includes(html.dataset.wrap) ? 'contour' : opts.wrap);
     if (opts.width && Number(html.dataset.width) > 50) html.setAttribute('data-width', String(opts.width));
     let idx = to.idx;
     if (from.ch === to.ch && from.idx < to.idx) idx -= 1;
@@ -204,7 +205,7 @@
     d.head.appendChild(st);
 
     d.addEventListener('dragstart', e => {
-      const fig = e.target.closest && e.target.closest('.chapter-body > figure.fig[data-src]');
+      const fig = e.target.closest && e.target.closest('.chapter-body figure.fig[data-src]');
       if (!fig || App.view === 'layers') return;
       const sec = fig.closest('section[data-chapter]');
       e.dataTransfer.setData(MOVE, JSON.stringify({ ch: Number(sec.dataset.chapter), idx: Number(fig.dataset.src) }));
@@ -264,16 +265,14 @@
       for (const id0 of ids) {
         let id = id0;
         const o = zoneOpts(t.zone);
-        if (t.zone !== 'center') {
-          const shaped = await shapeAsset(id0);
-          if (shaped) { id = shaped; o.wrap = 'contour'; o.width = 45; }
-        }
+        const shaped = await shapeAsset(id0);
+        if (shaped) { id = shaped; if (t.zone !== 'center') { o.wrap = 'contour'; o.width = 45; } }
         parts.push(App.editor.figureHtml(id, o));
       }
       const html = parts.join('');
       if (insertAt(t.ch, t.idx, t.before, html, t.split)) {
         App.changed(`Imagem inserida em “${t.ch.title}”`);
-        App.toast(t.zone === 'center' ? 'Imagem inserida: o texto continua acima e abaixo.' : `Imagem inserida à ${t.zone === 'left' ? 'esquerda' : 'direita'}: ${/data-wrap="contour"/.test(html) ? 'o texto contorna a forma do desenho' : 'o texto corre ao lado'}.`, 3500);
+        App.toast(t.zone === 'center' ? 'Imagem inserida no centro: o texto contorna a imagem dos dois lados.' : `Imagem inserida à ${t.zone === 'left' ? 'esquerda' : 'direita'}: ${/data-wrap="contour"/.test(html) ? 'o texto contorna a forma do desenho' : 'o texto corre ao lado'}.`, 3500);
       }
     }, true);
 
@@ -281,7 +280,7 @@
     d.addEventListener('mousedown', e => {
       const h = e.target.closest && e.target.closest('.img-handle');
       if (h) { startResize(d, e, h); return; }
-      const fig = e.target.closest && e.target.closest('.chapter-body > figure.fig[data-src]');
+      const fig = e.target.closest && e.target.closest('.chapter-body figure.fig[data-src]');
       clearSelection(d);
       if (fig && App.view !== 'layers') { select(d, fig); if (e.button === 0) mouseDrag(d, e, fig); }
     });
@@ -343,7 +342,7 @@
       const to = dropTarget(d, ev.clientX, ev.clientY) || t;
       if (!to || !from.ch) return;
       if (from.ch === to.ch && from.idx === to.idx && !to.split) {
-        withChapterDom(from.ch, root => { const f = root.children[from.idx]; if (f) { const o = zoneOpts(to.zone); f.setAttribute('data-align', o.align); f.setAttribute('data-wrap', to.zone !== 'center' && f.dataset.wrap === 'contour' ? 'contour' : o.wrap); } });
+        withChapterDom(from.ch, root => { const f = root.children[from.idx]; if (f) { const o = zoneOpts(to.zone); f.setAttribute('data-align', o.align); f.setAttribute('data-wrap', to.zone !== 'center' && ['contour', 'both'].includes(f.dataset.wrap) ? 'contour' : o.wrap); if (o.width && Number(f.dataset.width) > 46) f.setAttribute('data-width', String(o.width)); } });
       } else if (!moveFigure(from, to)) return;
       App.changed('Imagem movida');
     };

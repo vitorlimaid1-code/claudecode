@@ -268,14 +268,15 @@
           const v = e.target.value;
           // contorno da forma numa imagem sem transparência: o fundo liso é removido (cópia; a original fica no projeto)
           const a0 = App.project.assets[fig.dataset.asset];
-          if (v === 'contour' && a0 && App.images) {
+          if (v === 'both') fig.setAttribute('data-align', 'center');
+          if ((v === 'contour' || v === 'both') && a0 && App.images) {
             const id = await App.images.shapeAsset(fig.dataset.asset);
             if (id && id !== fig.dataset.asset) { fig.setAttribute('data-asset', id); const im = fig.querySelector('img'); if (im) im.setAttribute('data-asset', id); App.toast('Fundo liso removido para o texto contornar a forma (a original continua no projeto).', 4000); }
             else if (!id) App.toast('Esta imagem não tem fundo liso: use “Remover fundo…” para ajustar, ou o texto contorna o retângulo.', 5000);
           }
           setFig('data-wrap', v, 'Contorno do texto');
         } }, [
-          ['none', 'Acima e abaixo (sem texto ao lado)'], ['square', 'Quadrado — texto ao lado'], ['contour', 'Contorno da imagem (áreas transparentes)'],
+          ['none', 'Acima e abaixo (sem texto ao lado)'], ['square', 'Quadrado — texto ao lado'], ['contour', 'Contorno da imagem (áreas transparentes)'], ['both', 'No centro — texto contornando dos dois lados'],
           ['left', 'Texto somente à esquerda'], ['right', 'Texto somente à direita'], ['behind', 'Atrás do texto (marca d’água)']
         ].map(([v, l]) => el('option', { value: v, text: l })));
         s.value = fig.dataset.wrap;

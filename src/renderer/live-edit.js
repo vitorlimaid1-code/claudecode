@@ -71,7 +71,7 @@
           end.set(node, out.length);
           return;
         }
-        if (BLOCK.has(el.tagName) && !(side === 'R' && el.hasAttribute('data-split-from'))) sep(el, false);
+        if (BLOCK.has(el.tagName) && !(side === 'R' && (el.hasAttribute('data-split-from') || el.hasAttribute('data-wb-cont')))) sep(el, false);
         for (let c = el.firstChild; c; c = c.nextSibling) visit(c);
       }
       end.set(node, out.length);

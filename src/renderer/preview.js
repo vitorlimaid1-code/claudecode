@@ -563,7 +563,8 @@
   // aparece (com a legenda como área cheia), e o texto corre colado à forma do desenho.
   async function shapePass(tpl, book) {
     const figs = Array.from(tpl.content.querySelectorAll('figure.fig-contour'));
-    if (!figs.length) return;
+    const both = Array.from(tpl.content.querySelectorAll('.chapter-body > figure.fig-both'));
+    if (!figs.length && !both.length) return;
     const t = book.typo || {};
     const st = document.createElement('style');
     st.textContent = book.css + '\n.dl-shape .footnote, .dl-shape .sidenote { display: none !important; }';
@@ -633,9 +634,137 @@
         const poly = right ? ['100% 0%'].concat(pts, ['100% 100%']) : ['0% 0%'].concat(pts, ['0% 100%']);
         orig.style.shapeOutside = `polygon(${poly.join(', ')}) margin-box`;
       });
+      // no centro: o texto contorna a figura dos dois lados (linhas montadas aqui, com o texto medido)
+      const cb = Array.from(root.querySelectorAll('.chapter-body > figure.fig-both'));
+      await Promise.all(cb.map(f => { const im = f.querySelector('img'); return im && im.decode ? im.decode().catch(() => null) : null; }));
+      // de trás para frente: cada montagem só mexe na própria figura e no parágrafo seguinte
+      for (let i = cb.length - 1; i >= 0; i--) { try { wrapBoth(cb[i], both[i]); } catch (e) { console.error('texto dos dois lados', e); } }
     } catch (e) { console.error('contorno das figuras', e); }
     root.remove();
     st.remove();
+  }
+
+  // Texto dos dois lados de uma figura no centro: o CSS só deixa o texto de um lado de cada figura, então
+  // as linhas ao lado dela são montadas aqui. Mede-se, na largura real da coluna e com a fonte do livro,
+  // quanto cabe à esquerda e à direita da forma (o contorno das áreas transparentes, com folga), linha a
+  // linha; o começo do parágrafo seguinte preenche essas linhas na ordem de leitura (esquerda, direita, linha
+  // seguinte) e o resto continua normalmente abaixo da figura.
+  function wrapBoth(f, orig) {
+    const body = f.parentElement, p2 = f.nextElementSibling;
+    if (!orig || !body || !p2 || p2.tagName !== 'P' || !orig.nextElementSibling || orig.nextElementSibling.tagName !== 'P') return;
+    const img = f.querySelector('img');
+    const fr = f.getBoundingClientRect(), br = body.getBoundingClientRect();
+    if (!fr.width || !fr.height || !img || !img.naturalWidth) return;
+    const cs = getComputedStyle(p2);
+    const fs = parseFloat(cs.fontSize) || 14;
+    const L = parseFloat(cs.lineHeight) || fs * 1.35;
+    const pad = 3.5 * 96 / 25.4;
+    const W = Math.max(1, Math.round(fr.width)), H = Math.max(1, Math.round(fr.height));
+    // perfil da forma em faixas: onde começa e termina o desenho em cada altura
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const cx = cv.getContext('2d');
+    const ir = img.getBoundingClientRect();
+    cx.drawImage(img, ir.left - fr.left, ir.top - fr.top, ir.width, ir.height);
+    const cap = f.querySelector('figcaption');
+    if (cap) { const r = cap.getBoundingClientRect(); cx.fillStyle = '#000'; cx.fillRect(r.left - fr.left, r.top - fr.top, r.width, r.height); }
+    const data = cx.getImageData(0, 0, W, H).data;
+    const bands = Math.max(8, Math.min(120, Math.round(H / 3)));
+    const prof = [];
+    for (let k = 0; k < bands; k++) {
+      const y0 = Math.floor(k * H / bands), y1 = Math.max(y0 + 1, Math.floor((k + 1) * H / bands));
+      let lo = W, hi = -1;
+      for (let y = y0; y < y1; y++) {
+        const row = y * W * 4;
+        for (let x = 0; x < lo; x++) if (data[row + x * 4 + 3] > 40) { lo = x; break; }
+        for (let x = W - 1; x > hi; x--) if (data[row + x * 4 + 3] > 40) { hi = x; break; }
+      }
+      prof.push({ y0, y1, lo, hi });
+    }
+    const n = Math.max(1, Math.ceil((H + pad * 0.6) / L));
+    const off = (n * L - H) / 2; // a figura fica centrada na altura das linhas
+    const fx = fr.left - br.left, bw = br.width, minSeg = fs * 2.6;
+    const rows = [];
+    for (let r = 0; r < n; r++) {
+      const a = r * L - off - pad, b = (r + 1) * L - off + pad;
+      let lo = Infinity, hi = -Infinity;
+      prof.forEach(q => { if (q.hi >= 0 && q.y1 > a && q.y0 < b) { lo = Math.min(lo, q.lo); hi = Math.max(hi, q.hi); } });
+      if (hi < 0) { rows.push({ full: bw }); continue; }
+      let lw = fx + lo - pad, rs = fx + hi + 1 + pad;
+      lw = lw >= minSeg ? lw : 0;
+      let rw = bw - rs; rw = rw >= minSeg ? rw : 0;
+      rows.push({ lw, rw });
+    }
+    // pontos de quebra (início de cada palavra) em posições de texto, iguais no clone medido e no original
+    const textNodes = el => { const out = []; const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, { acceptNode: t => t.parentElement.closest('.footnote, .sidenote') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT }); let t; while ((t = w.nextNode())) out.push(t); return out; };
+    const breaksOf = el => {
+      const nodes = textNodes(el), pts = [];
+      let prevSpace = true;
+      nodes.forEach(t => { for (let i = 0; i < t.data.length; i++) { const sp = /\s/.test(t.data[i]); if (!sp && prevSpace) pts.push([t, i]); prevSpace = sp; } });
+      const last = nodes[nodes.length - 1];
+      return { pts, end: last ? [last, last.data.length] : [el, el.childNodes.length] };
+    };
+    const B = breaksOf(p2);
+    if (B.pts.length < 6) return;
+    const probe = p2.cloneNode(false);
+    probe.removeAttribute('id');
+    probe.style.cssText = 'position:absolute; left:0; top:0; visibility:hidden; white-space:nowrap; display:inline-block; width:auto; text-indent:0; margin:0; padding:0;';
+    body.appendChild(probe);
+    const at = k => (k < B.pts.length ? B.pts[k] : B.end);
+    const frag = (el, pts, end, i, j) => { const rg = document.createRange(); const s0 = i < pts.length ? pts[i] : end, e0 = j < pts.length ? pts[j] : end; rg.setStart(s0[0], s0[1]); rg.setEnd(e0[0], e0[1]); return rg; };
+    const widthOf = (i, j) => { probe.replaceChildren(frag(p2, B.pts, B.end, i, j).cloneContents()); return probe.getBoundingClientRect().width; };
+    // quantas palavras cabem a partir de i na largura w (todas inteiras; nunca quebra palavra)
+    const fit = (i, w) => {
+      if (!w || i >= B.pts.length) return i;
+      let j = i;
+      while (j < B.pts.length && widthOf(i, j + 1) <= w - 1) j++;
+      return j;
+    };
+    let k = 0;
+    const segs = [];
+    rows.forEach(r => {
+      if (r.full) { const j = fit(k, r.full); segs.push({ full: [k, j, r.full] }); k = j; return; }
+      const j1 = fit(k, r.lw); const L1 = [k, j1, r.lw]; k = j1;
+      const j2 = fit(k, r.rw); const R1 = [k, j2, r.rw]; k = j2;
+      segs.push({ L: L1, R: R1 });
+    });
+    probe.remove();
+    if (!k) return;
+    // monta no original: linhas com a figura no meio; o resto do parágrafo continua depois
+    const op = orig.nextElementSibling;
+    const OB = breaksOf(op);
+    if (OB.pts.length !== B.pts.length) return;
+    const last = k;
+    const seg = ([i, j, w], align) => {
+      const sp = document.createElement('span');
+      sp.className = 'wb-seg';
+      const ends = j >= B.pts.length;
+      sp.style.cssText = `display:block; flex:none; width:${w.toFixed(2)}px; white-space:nowrap; overflow:hidden; text-indent:0; text-align:${align}; text-align-last:${ends || j === i ? 'left' : 'justify'};`;
+      if (j > i) sp.appendChild(frag(op, OB.pts, OB.end, i, j).cloneContents());
+      return sp;
+    };
+    const wrap = document.createElement('div');
+    wrap.className = 'wrap-both';
+    wrap.setAttribute('contenteditable', 'false');
+    wrap.style.cssText = `position:relative; height:${(n * L).toFixed(2)}px; margin:${(pad * 0.5).toFixed(2)}px 0; break-inside:avoid; page-break-inside:avoid;`;
+    segs.forEach(s2 => {
+      const row = document.createElement('span');
+      row.className = 'wb-row';
+      row.style.cssText = `display:flex; height:${L.toFixed(3)}px; line-height:${L.toFixed(3)}px; white-space:nowrap;`;
+      if (s2.full) row.appendChild(seg(s2.full, 'justify'));
+      else { row.appendChild(seg(s2.L, 'justify')); const g = document.createElement('span'); g.style.cssText = 'flex:1 1 auto;'; row.appendChild(g); row.appendChild(seg(s2.R, 'justify')); }
+      wrap.appendChild(row);
+    });
+    // texto das linhas sai do parágrafo; o que sobrou continua como o mesmo parágrafo
+    const rg = frag(op, OB.pts, OB.end, 0, last);
+    rg.setStart(op, 0);
+    rg.deleteContents();
+    if (op.textContent.trim()) { op.classList.add('no-indent'); op.setAttribute('data-wb-cont', '1'); } else op.remove();
+    orig.style.position = 'absolute';
+    orig.style.left = fx.toFixed(2) + 'px';
+    orig.style.top = off.toFixed(2) + 'px';
+    orig.style.margin = '0';
+    orig.replaceWith(wrap);
+    wrap.insertBefore(orig, wrap.firstChild);
   }
 
   function typoPrepass(tpl, book) {

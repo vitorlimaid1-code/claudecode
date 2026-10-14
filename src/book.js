@@ -163,6 +163,8 @@ function figureHtml(attrs, inner, ctx) {
   // para a justificação não abrir buracos nem quebrar linhas de forma desproporcional
   // (com contorno da forma, o texto encosta na figura: ela pode ocupar até 65%)
   if (floatSide) width = Math.min(width, wrap === 'contour' ? 65 : 50);
+  // no centro com texto dos dois lados: sobra coluna suficiente de cada lado
+  if (wrap === 'both' && align !== 'full') width = Math.min(width, 46);
   // avançar sobre a margem (como nas ilustrações de livros antigos): a figura sai da mancha pelo lado
   const out = floatSide && attrs['data-bleed'] === '1' ? Math.max(0, Math.min(num(ctx.settings.marginInner, 20), num(ctx.settings.marginOuter, 16)) - 3) : 0;
   const figStyle = [out ? `width: calc(${width.toFixed(2)}% + ${out.toFixed(2)}mm)` : `width: ${width.toFixed(2)}%`];
