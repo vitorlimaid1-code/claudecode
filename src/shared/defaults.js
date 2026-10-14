@@ -261,7 +261,7 @@
   // Fontes embutidas no aplicativo (funcionam offline e são incorporadas ao PDF)
   const BUNDLED_FONTS = [
     'EB Garamond', 'Crimson Pro', 'Libre Baskerville', 'Lora',
-    'Merriweather', 'Cormorant Garamond', 'Playfair Display'
+    'Merriweather', 'Cormorant Garamond', 'Playfair Display', 'Josefin Sans', 'Montserrat'
   ];
 
   // Sugestões de fontes comuns do Windows (a lista real vem do Gerenciador de Fontes)
@@ -280,9 +280,9 @@
     { key: 'body', label: 'Texto principal', tag: 'p', fields: ['font', 'size', 'lineHeight', 'color', 'letterSpacing', 'wordSpacing', 'indent', 'spaceAfter', 'align'] },
     { key: 'chapterTitle', label: 'Título do capítulo', tag: 'h1', fields: ['font', 'size', 'color', 'align', 'italic', 'bold', 'uppercase', 'letterSpacing', 'spaceBefore', 'spaceAfter'] },
     { key: 'chapterLabel', label: 'Rótulo “Capítulo 1”', fields: ['font', 'size', 'color', 'italic', 'uppercase', 'letterSpacing', 'spaceAfter'] },
-    { key: 'h2', label: 'T1 — Título de seção', tag: 'h2', fields: ['font', 'size', 'color', 'align', 'italic', 'bold', 'uppercase', 'smallcaps', 'letterSpacing', 'spaceBefore', 'spaceAfter'] },
-    { key: 'h3', label: 'T2 — Subtítulo', tag: 'h3', fields: ['font', 'size', 'color', 'align', 'italic', 'bold', 'uppercase', 'smallcaps', 'letterSpacing', 'spaceBefore', 'spaceAfter'] },
-    { key: 'h4', label: 'T3 — Intertítulo', tag: 'h4', fields: ['font', 'size', 'color', 'align', 'italic', 'bold', 'uppercase', 'smallcaps', 'letterSpacing', 'spaceBefore', 'spaceAfter'] },
+    { key: 'h2', label: 'T1 — Título de seção', tag: 'h2', fields: ['font', 'size', 'lineHeight', 'color', 'align', 'italic', 'bold', 'uppercase', 'smallcaps', 'letterSpacing', 'spaceBefore', 'spaceAfter'] },
+    { key: 'h3', label: 'T2 — Subtítulo', tag: 'h3', fields: ['font', 'size', 'lineHeight', 'color', 'align', 'italic', 'bold', 'uppercase', 'smallcaps', 'letterSpacing', 'spaceBefore', 'spaceAfter'] },
+    { key: 'h4', label: 'T3 — Intertítulo', tag: 'h4', fields: ['font', 'size', 'lineHeight', 'color', 'align', 'italic', 'bold', 'uppercase', 'smallcaps', 'letterSpacing', 'spaceBefore', 'spaceAfter'] },
     { key: 'quote', label: 'Citação longa', tag: 'blockquote', fields: ['font', 'size', 'lineHeight', 'color', 'align', 'italic', 'indentLeft', 'indentRight', 'spaceBefore', 'spaceAfter'] },
     { key: 'phrase', label: 'Frase em destaque', tag: 'p.phrase', fields: ['font', 'size', 'lineHeight', 'color', 'align', 'italic', 'bold', 'uppercase', 'indentLeft', 'indentRight', 'spaceBefore', 'spaceAfter'] },
     { key: 'poem', label: 'Poesia', tag: 'div.poem', fields: ['font', 'size', 'lineHeight', 'color', 'align', 'italic', 'indentLeft', 'spaceBefore', 'spaceAfter'] },
@@ -322,14 +322,21 @@
     if (cs.background) d.push(`background: ${cs.background}`, 'padding: 0 0.1em');
     return d.join('; ');
   }
+  // aparência “caixa alta espaçada” (subtítulos do anexo): só tipografia; posição, fonte e tamanho seguem editáveis
+  const HEADING_PRESETS = {
+    spaced: { h2: { font: 'Josefin Sans', size: 15, lineHeight: 1.42, color: '#1a1a1a', align: 'left', italic: false, bold: true, uppercase: true, smallcaps: false, letterSpacing: 0.1 },
+      h3: { font: 'Josefin Sans', size: 12, lineHeight: 1.4, color: '#1a1a1a', align: 'left', italic: false, bold: true, uppercase: true, smallcaps: false, letterSpacing: 0.09 },
+      h4: { font: 'Josefin Sans', size: 10.5, lineHeight: 1.4, color: '#1a1a1a', align: 'left', italic: false, bold: true, uppercase: true, smallcaps: false, letterSpacing: 0.08 } }
+  };
   const charStylesCss = list => (list || []).filter(cs => cs && cs.id).map(cs => `span[data-cs="${String(cs.id).replace(/"/g, '')}"] { ${charStyleDecl(cs)}; }`).join('\n');
 
   const DEFAULT_STYLES = {
     body: { font: 'EB Garamond', size: 11.5, lineHeight: 1.4, color: '#000000', letterSpacing: 0, wordSpacing: 0, indent: 1.5, spaceAfter: 0, align: 'justify' },
     chapterTitle: { font: '', size: 22, color: '#000000', align: 'center', italic: false, bold: false, uppercase: false, letterSpacing: 0, spaceBefore: 35, spaceAfter: 6 },
     chapterLabel: { font: '', size: 10.5, color: '#000000', italic: false, uppercase: true, letterSpacing: 0.15, spaceAfter: 3 },
-    h2: { font: '', size: 15.5, color: '#000000', align: 'center', italic: false, bold: false, uppercase: false, smallcaps: false, letterSpacing: 0, spaceBefore: 7, spaceAfter: 3.5 },
-    h3: { font: '', size: 13, color: '#000000', align: 'left', italic: true, bold: false, uppercase: false, smallcaps: false, letterSpacing: 0, spaceBefore: 5, spaceAfter: 2.5 },
+    // T1 e T2: caixa alta, sem serifa geométrica em negrito, letras espaçadas, à esquerda (personalizáveis)
+    h2: { font: 'Josefin Sans', size: 15, lineHeight: 1.42, color: '#1a1a1a', align: 'left', italic: false, bold: true, uppercase: true, smallcaps: false, letterSpacing: 0.1, spaceBefore: 8, spaceAfter: 5 },
+    h3: { font: 'Josefin Sans', size: 12, lineHeight: 1.4, color: '#1a1a1a', align: 'left', italic: false, bold: true, uppercase: true, smallcaps: false, letterSpacing: 0.09, spaceBefore: 6, spaceAfter: 3 },
     h4: { font: '', size: 11.5, color: '#000000', align: 'left', italic: false, bold: false, uppercase: false, smallcaps: true, letterSpacing: 0.04, spaceBefore: 4, spaceAfter: 2 },
     quote: { font: '', size: 10.5, lineHeight: 1.35, color: '#000000', align: 'justify', italic: false, indentLeft: 10, indentRight: 6, spaceBefore: 3, spaceAfter: 3 },
     phrase: { font: '', size: 14, lineHeight: 1.3, color: '#000000', align: 'center', italic: true, bold: false, uppercase: false, indentLeft: 8, indentRight: 8, spaceBefore: 5, spaceAfter: 5 },
@@ -746,7 +753,7 @@
     PAGE_FORMATS, FORMAT_GROUPS, DEFAULT_FORMAT_ID, BUNDLED_FONTS, SYSTEM_FONTS,
     STYLE_DEFS, DEFAULT_STYLES, DEFAULT_CHAR_STYLES, charStyleDecl, charStylesCss, DEFAULT_SETTINGS, GENRE_PRESETS,
     uid, newProject, normalizeProject, mergeSettings, applyGenrePreset, emptyCatalog,
-    toUnit, fromUnit, MM, KDP, autoBleed, OUTPUT_SHEETS, outputSheetSize, markGeometry, CEDET, isCedet, applyCedet, CAPTION_STYLES, TOC_STYLES,
+    toUnit, fromUnit, MM, KDP, autoBleed, OUTPUT_SHEETS, outputSheetSize, markGeometry, CEDET, isCedet, applyCedet, CAPTION_STYLES, TOC_STYLES, HEADING_PRESETS,
     FREE_LAYOUT, applyFreeLayout, applyFormatOverrides
   };
 });

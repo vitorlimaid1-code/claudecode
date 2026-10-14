@@ -703,6 +703,21 @@
     return texts.length > 0;
   }
   L.applyCharStyle = applyCharStyle;
+  // seleção feita nas páginas -> a mesma seleção no texto do capítulo (para mudanças de estrutura)
+  L.selectionToModel = function (host) {
+    const c = chapterOfNode(host);
+    if (!c || c.locked || !activate(c)) return null;
+    const ss = stageSelection();
+    if (!ss) return null;
+    setEditorSelection(ss[0], ss[1]);
+    return c;
+  };
+  // depois de mudar a estrutura no texto do capítulo: as páginas se refazem a partir do modelo
+  L.structureChanged = function () {
+    state = null;
+    App.editSeq++;
+    $('#editor').dispatchEvent(new Event('input', { bubbles: true }));
+  };
 
   // ---------------------------------------------------------------- integração com a prévia
   L.attach = function (d) {

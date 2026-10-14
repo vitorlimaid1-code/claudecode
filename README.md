@@ -189,6 +189,14 @@ O layout padrão é o de **livro**. Em **Outros módulos** (barra lateral) ficam
 - **Blocos de imagem** (tela *Blocos e páginas sangradas*): áreas cinza, horizontais (largura toda) ou verticais (ao lado do texto), com legenda de teste. No preview, o **+** do bloco escolhe a imagem (ou arraste uma imagem para dentro dele); “Legenda ✓/✕” liga/desliga a legenda e ✕ remove o bloco. “Distribuir” coloca os blocos em pontos estratégicos das matérias. Na exportação, o verificador avisa se algum bloco ficou sem imagem.
 - **Páginas sangradas (full bleed)**, opcionais, antes e/ou depois de cada matéria (ou capítulo, no livro): imagem cobrindo a página inteira; com “página dupla” a imagem fica na página par e a matéria abre na ímpar ao lado. Um **box** opcional com título e texto informativo (escuro, claro ou só contorno; nos cantos ou em faixa).
 
+### Colunas num trecho (botão direito)
+- Selecione o texto (no editor ou direto nas páginas), clique com o **botão direito** › **Dividir em 2 colunas** ou **3 colunas**. Só os parágrafos selecionados vão para as colunas (com fio fino entre elas, que pode ser tirado); o resto da página continua em uma coluna.
+- Imagens, caixas de texto, tabelas, citações em caixa e títulos T1 nunca entram no bloco: a seleção é dividida em volta deles. Molduras, letra capitular, filete e imersão continuam funcionando.
+- Um trecho longo em colunas enche cada página até o pé e continua, em colunas, na página seguinte; o último pedaço fica com as colunas equilibradas. Botão direito dentro do trecho: mudar para 2/3 colunas, tirar/pôr o fio ou **remover as colunas**.
+
+### Subtítulos em caixa alta espaçada
+- T1 e T2 saem por padrão em **caixa alta, sem serifa geométrica em negrito (Josefin Sans), letras espaçadas, à esquerda**. Fonte, tamanho, entrelinha, espaçamento das letras, alinhamento e espaços antes/depois são ajustáveis em *Estilos de texto*; em livros já existentes, use o botão **✦ Caixa alta espaçada** no cartão do T1/T2/T3. Novas fontes embutidas: Josefin Sans e Montserrat.
+
 ### Estilos de sumário (galeria)
 - Botão **✦ Estilos de sumário…** (em Dados e páginas iniciais › Sumário e em Tipografia e paginação): janela com 18 estilos prontos, em miniaturas com o formato, as margens e os capítulos do seu livro.
 - **Fontes e espaçamentos:** Clássico grande (Garamond, versalete), Moderno grosso (Playfair extra-grosso), Fino e arejado (Cormorant leve), Compacto, Editorial (fio grosso, número à esquerda), Centrado (Baskerville), Bem espaçado (Merriweather com fios).

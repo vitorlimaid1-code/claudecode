@@ -6,7 +6,7 @@
   const DROP = new Set(['SCRIPT', 'STYLE', 'META', 'LINK', 'TITLE', 'HEAD', 'IFRAME', 'OBJECT', 'EMBED', 'SVG', 'MATH', 'TEMPLATE', 'NOSCRIPT', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA', 'FORM', 'NAV', 'COL', 'COLGROUP']);
   const RENAME = { STRONG: 'b', EM: 'i', H1: 'h2', H5: 'h4', H6: 'h4', DEL: 's', STRIKE: 's', INS: 'u', CITE: 'i', DFN: 'i', VAR: 'i', ASIDE: 'div', DT: 'p', DD: 'p' };
   const P_CLASSES = new Set(['no-indent', 'phrase', 'reference', 'epigraph-inline', 'table-source', 'caption-text']);
-  const DIV_CLASSES = ['page-break', 'poem', 'box', 'fullbleed', 'tframe', 'ph-block'];
+  const DIV_CLASSES = ['page-break', 'poem', 'box', 'fullbleed', 'tframe', 'ph-block', 'cols'];
   const FIG_ATTRS = ['data-asset', 'data-align', 'data-wrap', 'data-width', 'data-gap', 'data-rot', 'data-flipx', 'data-flipy', 'data-opacity', 'data-crop', 'data-ratio', 'data-fit', 'data-ref', 'data-bleed'];
 
   // estilos aceitos nas células de tabelas coladas com a formatação original
@@ -72,6 +72,17 @@
         const d = doc.createElement('div');
         d.className = 'tframe';
         ['data-pos', 'data-width', 'data-look', 'data-border'].forEach(a => { if (/^[a-z0-9.-]{1,12}$/.test(node.getAttribute(a) || '')) d.setAttribute(a, node.getAttribute(a)); });
+        const inner = doc.createElement('div');
+        children(node, doc, inner);
+        d.innerHTML = normalizeBlocks(inner, doc, true);
+        return d;
+      }
+      // trecho dividido em colunas (só aquele texto, não a página)
+      if (special === 'cols') {
+        const d = doc.createElement('div');
+        d.className = 'cols';
+        d.setAttribute('data-n', node.getAttribute('data-n') === '3' ? '3' : '2');
+        if (node.getAttribute('data-rule') === '0') d.setAttribute('data-rule', '0');
         const inner = doc.createElement('div');
         children(node, doc, inner);
         d.innerHTML = normalizeBlocks(inner, doc, true);

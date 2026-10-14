@@ -697,7 +697,9 @@ function buildHtml(project, ctx) {
     const bl = c.bleed || {};
     if (bl.before && bl.before.asset && ctx.assets[bl.before.asset]) push(fullBleedHtml(bl.before.asset, bl.before.fit, ctx, 'fb-chapter' + (bl.spread !== false ? ' fb-spread' : ''), bl.before.box));
     const heads = [];
-    let body = markLongBoxes(markShortTables(origTables(numberTables(processBody(anchorHeadings(ctx.markBlocks ? markBlocks(c.html) : c.html, c.id, heads), ctx), ctx), ctx)));
+    // trecho em colunas logo no início do capítulo: só ele recebe a letra capitular
+    const chHtml = String(c.html || '').replace(/^(\s*<div class="cols)"/, '$1 cols-open"');
+    let body = markLongBoxes(markShortTables(origTables(numberTables(processBody(anchorHeadings(ctx.markBlocks ? markBlocks(chHtml) : chHtml, c.id, heads), ctx), ctx), ctx)));
     heads.forEach(h => tocItems.push({ id: h.id, label: '', title: h.title, level: h.level }));
     // notas no fim do capítulo, no fim do livro ou na margem externa (em vez do rodapé)
     if (notesMode !== 'footnote' && settings.footnotesVisible !== false) {
@@ -1056,7 +1058,7 @@ ${s.indentFirstParagraph ? '' : `
 ${body.align === 'justify' ? '.chapter-body p[data-split-to] { text-align-last: justify; }' : ''}
 .chapter-body p[style*="center"], .chapter-body p[style*="right"] { text-indent: 0; }
 ${s.dropCap ? `
-.chapter:not(.chapter-cont) .chapter-body > p:first-child:not([data-split-from])::first-letter {
+.chapter:not(.chapter-cont) .chapter-body > p:first-child:not([data-split-from])::first-letter, .chapter:not(.chapter-cont) .chapter-body > div.cols.cols-open:first-child:not([data-split-from]) > p:first-child:not([data-split-from])::first-letter {
   float: left;
   font-family: ${fontStack(S.chapterTitle.font || body.font)};
   font-size: ${(lh * dropLines + 0.4 - (dropLines - 2) * 0.1).toFixed(2)}em;
@@ -1064,10 +1066,10 @@ ${s.dropCap ? `
   padding: 0.04em 0.08em 0 0;
   color: ${color(S.chapterTitle.color, '#000')};
 }` : ''}
-${s.smallCapsFirstLine ? `.chapter:not(.chapter-cont) .chapter-body > p:first-child:not([data-split-from])::first-line { font-variant: small-caps; letter-spacing: 0.04em; }` : ''}
-.chapter-body h2 { ${styleDecl(S.h2, body)} line-height: 1.2; hyphens: manual; text-indent: 0; }
-.chapter-body h3 { ${styleDecl(S.h3, body)} line-height: 1.2; hyphens: manual; text-indent: 0; }
-.chapter-body h4 { ${styleDecl(S.h4, body)} line-height: 1.2; hyphens: manual; text-indent: 0; }
+${s.smallCapsFirstLine ? `.chapter:not(.chapter-cont) .chapter-body > p:first-child:not([data-split-from])::first-line, .chapter:not(.chapter-cont) .chapter-body > div.cols.cols-open:first-child:not([data-split-from]) > p:first-child:not([data-split-from])::first-line { font-variant: small-caps; letter-spacing: 0.04em; }` : ''}
+.chapter-body h2 { ${styleDecl(S.h2, body)} line-height: ${num(S.h2.lineHeight, 1.2)}; hyphens: manual; text-indent: 0; }
+.chapter-body h3 { ${styleDecl(S.h3, body)} line-height: ${num(S.h3.lineHeight, 1.2)}; hyphens: manual; text-indent: 0; }
+.chapter-body h4 { ${styleDecl(S.h4, body)} line-height: ${num(S.h4.lineHeight, 1.2)}; hyphens: manual; text-indent: 0; }
 ${s.keepHeadingsWithNext ? '.chapter-body h2, .chapter-body h3, .chapter-body h4 { break-after: avoid; break-inside: avoid; }' : ''}
 .chapter-body blockquote { ${styleDecl(S.quote, body)} }
 .chapter-body blockquote p { text-indent: 0; margin: 0 0 0.3em; }
@@ -1076,6 +1078,13 @@ ${s.keepHeadingsWithNext ? '.chapter-body h2, .chapter-body h3, .chapter-body h4
 .chapter-body div.poem p { text-indent: 0; margin: 0 0 1em; text-align: inherit; hyphens: none; break-inside: avoid; }
 .chapter-body p.epigraph-inline { ${styleDecl(S.epigraph, body)} text-indent: 0; }
 .chapter-body p.reference { ${styleDecl(S.reference, body, { noSpace: true })} margin: 0 0 ${mm(S.reference.spaceAfter)} 0; padding-left: ${Math.abs(num(S.reference.indent, -1.5))}em; text-indent: ${num(S.reference.indent, -1.5)}em; }
+/* trecho em colunas (só o texto selecionado): fio fino entre as colunas, colunas equilibradas */
+.chapter-body div.cols { column-count: 2; column-gap: 6mm; column-rule: 0.4pt solid #a3a3a3; column-fill: balance; margin: 0.4em 0 0.8em; }
+.chapter-body div.cols[data-n="3"] { column-count: 3; column-gap: 5mm; }
+.chapter-body div.cols[data-rule="0"] { column-rule: 0; }
+.chapter-body div.cols > p:first-child, .chapter-body div.cols > h3 + p, .chapter-body div.cols > h4 + p { text-indent: 0; }
+.chapter-body div.cols > h3, .chapter-body div.cols > h4 { break-after: avoid; margin-top: 0; }
+.chapter-body div.cols p { orphans: 2; widows: 2; }
 .chapter-body div.box { ${styleDecl(S.box, body, { noSpace: true })} margin: ${mm(S.box.spaceBefore)} 0 ${mm(S.box.spaceAfter)}; border: 0.6pt solid ${color(S.box.borderColor, '#999')}; padding: 3mm 4mm; break-inside: avoid; }
 .chapter-body div.box.box-long { break-inside: auto; }
 .chapter-body div.box p { text-indent: 0; margin: 0 0 0.4em; }

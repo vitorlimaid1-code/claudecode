@@ -95,6 +95,7 @@
   function wire(d) {
     if (d.__blocksWired) return;
     d.__blocksWired = true;
+    if (App.cols) App.cols.wireStage(d);
     d.addEventListener('mousedown', async e => {
       const b = e.target.closest && e.target.closest('.ph-plus, .ph-cap, .ph-del');
       if (b) {

@@ -97,6 +97,43 @@
         }
       });
     }
+    // trecho em colunas: enquanto cabe na página, as colunas ficam equilibradas; quando passa do pé da
+    // página, elas enchem até o pé (uma depois da outra) e o resto continua, em colunas, na página seguinte.
+    // (Sem isto o paginador cortava o bloco pela primeira coluna e deixava um vão.)
+    if (!window.__colsFitHandler && tpl.content.querySelector('div.cols')) {
+      window.__colsFitHandler = true;
+      const fit = (root, area, fresh) => {
+        const list = root && root.querySelectorAll ? root.querySelectorAll('div.cols') : [];
+        if (!list.length || !area) return;
+        // sobra que veio da página anterior: começa de novo (equilibrada) nesta página
+        if (fresh) list.forEach(c => { if (c.dataset.colsFill) { delete c.dataset.colsFill; c.style.removeProperty('column-height'); c.style.removeProperty('column-wrap'); } });
+        const b = area.getBoundingClientRect();
+        list.forEach(c => {
+          if (c.dataset.colsFill) return; // já encaixado nesta página (pedaço que termina no pé)
+          const r = c.getBoundingClientRect();
+          // passou do pé da página: o paginador põe o excesso numa coluna à direita da página (fora dela)
+          if (!r.height || (r.bottom <= b.bottom + 0.5 && r.right <= b.right + 0.5)) return;
+          const k = c.offsetHeight / r.height || 1; // px do layout por px da tela (zoom da prévia)
+          const p = c.querySelector('p, li, blockquote') || c;
+          const L = parseFloat(getComputedStyle(p).lineHeight) || 16;
+          // o paginador desconta, no pé, as margens/recuos inferiores do bloco e de quem o contém
+          let extra = 0;
+          for (let e = c; e && e !== area && e.nodeType === 1; e = e.parentElement) { const cs = getComputedStyle(e); extra += (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderBottomWidth) || 0) + (parseFloat(cs.marginBottom) || 0); }
+          const room = (b.bottom - r.top) * k - extra - 1;
+          if (room < L * 2) return; // nem duas linhas: o bloco começa na página seguinte
+          // colunas da altura que sobra na página; o excesso forma uma nova fileira de colunas logo abaixo,
+          // que o paginador leva (como qualquer texto) para a página seguinte
+          c.style.setProperty('column-height', (Math.floor(room / L) * L).toFixed(2) + 'px');
+          c.style.setProperty('column-wrap', 'wrap');
+          c.dataset.colsFill = '1';
+        });
+      };
+      Paged.registerHandlers(class ColsFit extends Paged.Handler {
+        // página montada de uma vez (início do trecho) e páginas que recebem a sobra da anterior
+        layout(wrapper, layout) { fit(wrapper, layout && layout.element); }
+        afterOverflowAdded(dest) { fit(dest, dest && dest.closest && (dest.closest('.pagedjs_page_content') || dest), true); }
+      });
+    }
     const target = document.getElementById('render');
     const previewer = new Paged.Previewer();
     const flow = await previewer.preview(tpl.content, [{ [location.href]: book.css }], target);

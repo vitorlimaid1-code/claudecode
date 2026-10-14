@@ -7,7 +7,7 @@ const root = path.join(__dirname, '..');
 const nm = path.join(root, 'node_modules');
 const out = path.join(root, 'src', 'renderer', 'vendor');
 
-const FONTS = ['eb-garamond', 'crimson-pro', 'libre-baskerville', 'lora', 'merriweather', 'cormorant-garamond', 'playfair-display'];
+const FONTS = ['eb-garamond', 'crimson-pro', 'libre-baskerville', 'lora', 'merriweather', 'cormorant-garamond', 'playfair-display', 'josefin-sans', 'montserrat'];
 const WEIGHTS = ['400', '400-italic', '700', '700-italic'];
 const SUBSETS = ['latin', 'latin-ext'];
 // pesos extras (fino e extra-grosso) usados pelos modelos de sumário e de título

@@ -69,7 +69,7 @@
       return el('details', { class: 'card style-card', open: def.key === 'body' || def.key === 'chapterTitle' }, [
         el('summary', {}, [el('strong', { text: def.label }), sample]),
         el('div', { class: 'grid' }, inputs),
-        el('div', { class: 'inline' }, [el('button', { class: 'ghost small-btn', text: '↺ Padrão deste estilo', onclick: () => { s.styles[def.key] = JSON.parse(JSON.stringify(D.DEFAULT_STYLES[def.key])); App.changed('Estilo restaurado: ' + def.label); rerender(); } })])
+        el('div', { class: 'inline' }, [/^h[234]$/.test(def.key) ? el('button', { class: 'small-btn', text: '✦ Caixa alta espaçada', title: 'Sem serifa geométrica em negrito, maiúsculas e letras espaçadas, à esquerda (depois ajuste fonte, tamanho e posição à vontade)', onclick: () => { Object.assign(st, JSON.parse(JSON.stringify(D.HEADING_PRESETS.spaced[def.key]))); App.changed('Estilo: ' + def.label + ' em caixa alta espaçada'); rerender(); } }) : null, el('button', { class: 'ghost small-btn', text: '↺ Padrão deste estilo', onclick: () => { s.styles[def.key] = JSON.parse(JSON.stringify(D.DEFAULT_STYLES[def.key])); App.changed('Estilo restaurado: ' + def.label); rerender(); } })])
       ]);
     });
     const typesetBar = el('div', { class: 'card preset' }, [
