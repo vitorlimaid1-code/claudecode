@@ -552,6 +552,14 @@
       const files = Array.from(e.clipboardData.files || []);
       // texto simples de uma linha: entra na página na hora
       if (!html && !files.length && text && !/[\r\n]/.test(text)) { d.execCommand('insertText', false, text); return; }
+      // texto simples com vários parágrafos: também entra na página na hora, um parágrafo por linha
+      if (!html && !files.length && text) {
+        const parts = text.replace(/\r\n?/g, '\n').split(/\n[ \t]*\n|\n/).map(s => s.trim()).filter(Boolean);
+        if (parts.length <= 40) {
+          parts.forEach((t, i) => { if (i) splitInStage(); d.execCommand('insertText', false, t); });
+          return;
+        }
+      }
       L.runOnModel(() => App.editor.paste({ html, text, files }), 'Colar');
     });
     d.addEventListener('mousedown', () => { lock = null; });
