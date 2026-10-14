@@ -35,11 +35,12 @@
     redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/>',
     moon: '<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4 6.5 6.5 0 0 0 20 14.5Z"/>',
     mountain: '<path d="m3 19 6-9 4 6 3-4 5 7Z"/><circle cx="16.5" cy="6.5" r="2"/>',
+    globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18Z"/>',
     book: '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2Z"/><path d="M4 19a2 2 0 0 1 2-2h13"/>'
   };
   const svg = name => `<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name] || P.book}</svg>`;
   const NAV = { frontimages: 'cover', immersion: 'mountain', book: 'info', catalog: 'credits', back: 'pen', layout: 'layout', typo: 'sparkles', stylelib: 'palette', styles: 'pilcrow', fonts: 'font', assets: 'images', layers: 'layers', notes: 'note', tools: 'check', cover: 'book', export: 'export', poetry: 'feather', periodical: 'news', kdp: 'kdp', appearance: 'contrast', reset: 'reset' };
-  const CMD = { enhance: 'sparkles', new: 'file', open: 'folder', save: 'save', import: 'upload', projectUndo: 'undo', projectRedo: 'redo', history: 'clock', library: 'library', export: 'export' };
+  const CMD = { enhance: 'sparkles', translate: 'globe', new: 'file', open: 'folder', save: 'save', import: 'upload', projectUndo: 'undo', projectRedo: 'redo', history: 'clock', library: 'library', export: 'export' };
   function apply() {
     document.querySelectorAll('.nav-item').forEach(b => {
       const k = b.dataset.view ? NAV[b.dataset.view] : b.id === 'navTitles' ? 'heading' : null;

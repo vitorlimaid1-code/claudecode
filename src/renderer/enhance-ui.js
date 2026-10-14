@@ -173,11 +173,28 @@
   async function processOne(item) {
     const log = (m, k) => addLog(`${item.name} — ${m}`, k);
     item.status = 'run'; renderList();
-    log('lendo o EPUB…');
-    const res = await api.enhRead(item.path);
+    const { proj } = await loadBook(item.path, item.name, log, { images: $('#enhImages').checked });
+    item.out = await saveDocx(proj, log);
+    item.status = 'ok';
+  }
+
+  // Lê um livro (EPUB, DOCX, DOC, ODT…), tira avisos do Gutenberg e páginas pré/pós-textuais e monta um
+  // projeto temporário no padrão do sistema, com os capítulos e as ilustrações. Usado também pela Tradução.
+  async function loadBook(filePath, name, log, opts) {
+    opts = opts || {};
+    log('lendo o arquivo…');
+    const res = await api.enhRead(filePath);
     if (!res || res.error) throw new Error(res ? res.error : 'arquivo ilegível');
-    if (res.kind !== 'epub') throw new Error('não é um EPUB');
-    log(`${(res.docs || []).length} arquivo(s) internos · “${decode(res.meta.title)}” · ${decode(res.meta.author)}`);
+    if (res.kind !== 'epub') {
+      // Word/ODT/texto: capítulos do importador, depois a mesma limpeza (avisos, páginas extras)
+      const chs = BookText.convertImport(Object.assign({ name }, res));
+      const meta = chs.meta || {};
+      res.docs = [{ id: 'doc', html: chs.map(c => `<h1>${App.escape(c.title || '')}</h1>${c.html}`).join('\n') }];
+      res.meta = Object.assign({ title: meta.title || name, author: meta.author || '', language: meta.language || '' }, res.meta || {});
+      if (!opts.allowAny && !/\.(docx?|odt|epub|rtf|txt|html?)$/i.test(filePath)) throw new Error('formato não suportado');
+    }
+    res.meta = res.meta || {};
+    log(`${(res.docs || []).length} arquivo(s) internos · “${decode(res.meta.title) || name}”${res.meta.author ? ' · ' + decode(res.meta.author) : ''}`);
     const html = cleanGutenberg(res, m => log(m));
     let chapters = BookText.htmlToChapters(html, decode(res.meta.title) || item.name);
     const det = chapters.detected;
@@ -186,7 +203,7 @@
     log(`${chapters.length} capítulo(s)${det ? ' (pelos marcadores “' + (det.labeled ? 'CHAPTER/CAPÍTULO ' : '') + (det.style === 'roman' ? 'I, II…' : '1, 2…') + '”)' : ''}: ${chapters.slice(0, 3).map(c => c.title).join(' · ')}${chapters.length > 3 ? ' …' : ''}`);
     // projeto temporário com a configuração padrão do sistema (não mexe no livro aberto)
     const proj = D.normalizeProject(await api.newProject());
-    proj.meta.title = decode(res.meta.title) || item.name;
+    proj.meta.title = decode(res.meta.title) || name;
     proj.meta.author = decode(res.meta.author);
     proj.meta.language = decode(res.meta.language) || proj.meta.language;
     if (det) { proj.settings.chapterNumbering = det.style === 'words' ? 'arabic' : det.style; proj.settings.chapterLabel = det.labeled ? 'Capítulo' : ''; }
@@ -197,7 +214,7 @@
       const tpl = document.createElement('template');
       tpl.innerHTML = c.html;
       for (const img of tpl.content.querySelectorAll('img[src^="data:"]')) {
-        if (!$('#enhImages').checked) { (img.closest('figure') || img).remove(); continue; }
+        if (opts.images === false) { (img.closest('figure') || img).remove(); continue; }
         const id = 'img' + (++imgs);
         const dim = await imageSize(img.getAttribute('src'));
         proj.assets[id] = { id, name: 'Ilustração ' + imgs, dataUrl: img.getAttribute('src'), width: dim.w, height: dim.h, info: {} };
@@ -210,16 +227,20 @@
       return { id: D.uid(), title: c.title, numbered: c.numbered !== false, html: tpl.innerHTML, locked: false, style: {}, separator: 'default', openingImage: null };
     })());
     if (imgs) log(`${imgs} ilustração(ões) mantida(s) nos capítulos`);
+    return { proj, res, det, images: imgs };
+  }
+
+  // Grava o DOCX na pasta Downloads, no padrão do sistema (Garamond, títulos, alinhamentos, sumário)
+  async function saveDocx(proj, log, suffix) {
     const words = proj.chapters.reduce((s, c) => s + BookText.countWords(c.html), 0);
     log(`${words.toLocaleString('pt-BR')} palavras · gerando o DOCX no padrão do sistema (títulos, alinhamento, tamanho do texto, parágrafos e sumário)…`);
-    const target = await api.enhTarget(proj.meta.title, 'docx');
+    const target = await api.enhTarget(proj.meta.title + (suffix || ''), 'docx');
     const doc = App.exportPrep.buildDoc(proj);
     doc.fontOverride = 'Garamond'; // texto e títulos em Garamond, com tamanhos, alinhamentos e espaços do sistema
     const r = await api.exportRun({ kind: 'docx', project: proj, doc, opts: { target } });
     if (!r || !r.files) throw new Error('falha ao gravar o DOCX');
-    item.out = r.files[0];
-    item.status = 'ok';
     log(`pronto → ${r.files[0]}`, 'ok');
+    return r.files[0];
   }
 
   async function start() {
@@ -325,5 +346,5 @@
     addLog('Pronto. Envie os arquivos e clique em Iniciar.');
   }
 
-  App.enhance = { open, cleanGutenberg, addFiles, start, queue };
+  App.enhance = { open, cleanGutenberg, addFiles, start, queue, loadBook, saveDocx };
 })();

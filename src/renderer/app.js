@@ -217,6 +217,7 @@
           ['Capa e imagens iniciais', 'a capa abre o livro em página inteira e é a capa do EPUB; imagens extras vêm antes da página de rosto. Ao escolher a capa, informe a sinopse (vai para os metadados do EPUB).'],
           ['Não é um título', 'clique num título errado na página e use “Não é um título”: ele volta ao texto corrido. Reverta pela lista ↺ acima dos capítulos.'],
           ['Imagens', 'arraste para qualquer ponto da página: à esquerda/direita o texto corre ao lado; no centro, o texto contorna a imagem dos dois lados (até no meio de um parágrafo). Para mover uma imagem do livro, segure e arraste com o mouse. Clique na imagem para redimensionar pelas alças, pôr legenda, caixa de texto, recortar ou remover o fundo.'],
+          ['Tradução', 'botão Tradução no topo: envie livros (EPUB, DOCX, DOC) em qualquer idioma; o sistema limpa as páginas extras e os avisos do Gutenberg, traduz como um tradutor literário sênior (Claude, com chave da API, ou um modelo local pelo Ollama), aplica travessões nos diálogos, o Novo Acordo Ortográfico, o dicionário de estilo e a pontuação, salva o DOCX no padrão do app em Downloads e mostra o relatório com parecer, mudanças e correções — salvável em PDF.'],
           ['Melhoramento', 'botão Melhoramento no topo: envie um ou vários EPUBs do Project Gutenberg e clique em Iniciar. O sistema tira avisos do Gutenberg, rosto, dedicatória, sumário original e páginas finais, mantém os capítulos, monta o nosso sumário e salva um DOCX com os estilos do app na pasta Downloads, um livro após o outro, com log.'],
           ['Imersão', 'menu Design › Imersão: escolha uma imagem para o alto de todos os capítulos, ou várias e “Randomizar” (uma por capítulo, sem repetir em seguida). Ao enviar imagens do computador, escolha a categoria de cada uma (ou arraste os arquivos para a aba da categoria). Na mesma tela, Molduras em preto e branco (clássicas, vitorianas e de terror, ou as suas): “Aplicar à página” (capítulo aberto), “Em todos os capítulos” ou “Todas as páginas” (menos as aberturas com imagem de imersão).'],
           ['Editora e logotipo', 'em Créditos e ficha: “Editoras…” cadastra os nomes (ficam salvos); escolher a editora atualiza a ficha e o rosto na hora. Envie logotipos e clique num deles para pô-lo no rosto, abaixo do título, com “Impresso no Brasil / Sorriso, MT”.'],
@@ -244,7 +245,7 @@
 
   const commands = {
     new: newBook, open: () => open(), save: () => save(false), saveAs: () => save(true),
-    import: () => App.importer.fromDialog(), export: () => App.setView('export'), enhance: () => App.enhance.open(),
+    import: () => App.importer.fromDialog(), export: () => App.setView('export'), enhance: () => App.enhance.open(), translate: () => App.translate.open(),
     refresh: () => App.preview.schedule(true), help,
     projectUndo: () => App.undo(), projectRedo: () => App.redo(), history: () => App.showHistory(),
     library: () => App.library.toggle(), find: () => App.tools.find(),
@@ -326,10 +327,11 @@
         card('upload', 'Enviar um livro', 'Word, PDF, EPUB, ODT, TXT ou Markdown', () => App.importer.fromDialog(), true),
         card('folder', 'Abrir um projeto', 'Continuar um livro salvo (.livro)', () => runCommand('open')),
         card('plus', 'Começar do zero', 'Livro, revista ou jornal em branco', () => runCommand('new')),
-        card('sparkles', 'Melhoramento', 'EPUBs do Gutenberg → DOCX no padrão, um ou vários', () => App.enhance.open())
+        card('sparkles', 'Melhoramento', 'EPUBs do Gutenberg → DOCX no padrão, um ou vários', () => App.enhance.open()),
+        card('globe', 'Tradução', 'Qualquer idioma → português do Brasil, em DOCX no padrão', () => App.translate.open())
       ]),
       el('button', { class: 'wl-skip', text: 'Entrar no aplicativo →', onclick: go() }),
-      el('p', { class: 'wl-foot', text: 'Tudo fica no seu computador — o aplicativo funciona sem internet.' })
+      el('p', { class: 'wl-foot', text: 'Tudo fica no seu computador e funciona sem internet — só a tradução com o Claude usa a internet.' })
     ])]);
     document.body.appendChild(back);
   }

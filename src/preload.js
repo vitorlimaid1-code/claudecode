@@ -81,6 +81,14 @@ contextBridge.exposeInMainWorld('api', {
   enhTarget: (base, ext) => inv('enh:target', base, ext),
   enhDownloads: () => inv('enh:downloads'),
   onProgress: cb => ipcRenderer.on('progress', (e, msg) => cb(msg)),
+  trPick: () => inv('tr:pick'),
+  trConfig: () => inv('tr:config'),
+  trSetConfig: p => inv('tr:setConfig', p),
+  trTest: () => inv('tr:test'),
+  trChunk: req => inv('tr:chunk', req),
+  trReport: req => inv('tr:report', req),
+  trSavePdf: (html, name, target) => inv('tr:savePdf', html, name, target),
+  onTrProgress: cb => ipcRenderer.on('tr:progress', (e, m) => cb(m)),
   onRequestClose: cb => ipcRenderer.on('request-close', () => cb()),
   pathForFile: file => { try { return webUtils.getPathForFile(file); } catch (e) { return ''; } }
 });

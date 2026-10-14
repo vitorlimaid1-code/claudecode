@@ -394,6 +394,35 @@ ipcMain.handle('enh:target', (e, base, ext) => {
 });
 ipcMain.handle('enh:downloads', () => app.getPath('downloads'));
 
+// ---------------------------------------------------------------- tradução (tela própria)
+let translatorApi = null;
+const tr = () => translatorApi || (translatorApi = require('./main/translator').createTranslator({ userFile, safeStorage: require('electron').safeStorage }));
+ipcMain.handle('tr:pick', async () => {
+  const res = await dialog.showOpenDialog(mainWindow, { title: 'Livros para traduzir', filters: [{ name: 'Livros', extensions: ['epub', 'docx', 'doc', 'odt', 'rtf', 'txt', 'html', 'htm'] }], properties: ['openFile', 'multiSelections'] });
+  return res.canceled ? [] : res.filePaths;
+});
+ipcMain.handle('tr:config', () => tr().config());
+ipcMain.handle('tr:setConfig', (e, patch) => tr().setConfig(patch || {}));
+ipcMain.handle('tr:test', () => tr().test());
+ipcMain.handle('tr:chunk', async (e, req) => {
+  try { return await tr().translate(req, chars => { try { e.sender.send('tr:progress', { id: req.id, chars }); } catch (err) { /* janela fechada */ } }); } catch (err) {
+    return { error: String(err && err.message || err), fatal: !!(err && err.fatal), retry: !!(err && err.retry), refusal: !!(err && err.refusal), tooLong: !!(err && err.tooLong) };
+  }
+});
+ipcMain.handle('tr:report', async (e, req) => { try { return await tr().report(req); } catch (err) { return { error: String(err && err.message || err) }; } });
+// relatório da tradução em PDF (a interface monta o HTML; aqui vira PDF A4 e vai para onde o usuário escolher)
+ipcMain.handle('tr:savePdf', async (e, html, baseName, target) => {
+  const res = target ? { filePath: target } : await dialog.showSaveDialog(mainWindow, { title: 'Salvar relatório da tradução', defaultPath: path.join(app.getPath('downloads'), safeName(baseName || 'Relatório da tradução', 120) + '.pdf'), filters: [{ name: 'PDF', extensions: ['pdf'] }] });
+  if (res.canceled || !res.filePath) return null;
+  const win = new BrowserWindow({ show: false, width: 900, height: 1200, webPreferences: { sandbox: true, contextIsolation: true, javascript: false } });
+  try {
+    await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    const pdf = await win.webContents.printToPDF({ printBackground: true, pageSize: 'A4', margins: { marginType: 'none' } });
+    fs.writeFileSync(res.filePath, pdf);
+    return res.filePath;
+  } finally { win.destroy(); }
+});
+
 // ---------------------------------------------------------------- imagens
 function fileToAsset(filePath) {
   const buf = fs.readFileSync(filePath);
