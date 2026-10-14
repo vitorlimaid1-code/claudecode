@@ -1,6 +1,6 @@
 /* global App, BookText */
 // Melhoramento: EPUBs do Project Gutenberg viram DOCX no padrão do livro (títulos, alinhamento, tamanho do
-// texto, parágrafos e sumário do sistema), salvos na pasta Downloads. Tira avisos e licença do Gutenberg,
+// texto, parágrafos e sumário do sistema), gravados no lugar do EPUB (que vai para a Lixeira) ou em Downloads. Tira avisos e licença do Gutenberg,
 // capa, folha de rosto, créditos, notas do transcritor, dedicatória, sumário e listas do arquivo — fica só
 // o texto dos capítulos. Um livro ou vários, um depois do outro, com registro de cada etapa.
 (function () {
@@ -174,7 +174,14 @@
     const log = (m, k) => addLog(`${item.name} — ${m}`, k);
     item.status = 'run'; renderList();
     const { proj } = await loadBook(item.path, item.name, log, { images: $('#enhImages').checked });
-    item.out = await saveDocx(proj, log);
+    const replace = $('#enhReplace').checked;
+    // substituir: o DOCX vai para a pasta do EPUB, com o mesmo nome do arquivo, e o EPUB para a Lixeira
+    item.out = await saveDocx(proj, log, '', replace ? { nextTo: item.path, name: item.path.split(/[\\/]/).pop().replace(/\.epub$/i, '') } : null);
+    if (replace) {
+      const r = await api.enhReplace(item.path, item.out);
+      if (r && r.ok) log('EPUB original substituído pelo DOCX (o EPUB foi para a Lixeira)', 'ok');
+      else log('atenção: ' + ((r && r.msg) || 'o EPUB foi mantido'), 'bad');
+    }
     item.status = 'ok';
   }
 
@@ -230,11 +237,12 @@
     return { proj, res, det, images: imgs };
   }
 
-  // Grava o DOCX na pasta Downloads, no padrão do sistema (Garamond, títulos, alinhamentos, sumário)
-  async function saveDocx(proj, log, suffix) {
+  // Grava o DOCX na pasta Downloads (ou ao lado do arquivo de origem: where.nextTo), no padrão do sistema
+  // (Garamond, títulos, alinhamentos, sumário)
+  async function saveDocx(proj, log, suffix, where) {
     const words = proj.chapters.reduce((s, c) => s + BookText.countWords(c.html), 0);
     log(`${words.toLocaleString('pt-BR')} palavras · gerando o DOCX no padrão do sistema (títulos, alinhamento, tamanho do texto, parágrafos e sumário)…`);
-    const target = await api.enhTarget(proj.meta.title + (suffix || ''), 'docx');
+    const target = await api.enhTarget((where && where.name) || proj.meta.title + (suffix || ''), 'docx', where && where.nextTo);
     const doc = App.exportPrep.buildDoc(proj);
     doc.fontOverride = 'Garamond'; // texto e títulos em Garamond, com tamanhos, alinhamentos e espaços do sistema
     const r = await api.exportRun({ kind: 'docx', project: proj, doc, opts: { target } });
@@ -250,7 +258,7 @@
     running = true;
     renderControls();
     const t0 = Date.now();
-    addLog(`Início: ${todo.length} livro(s) · saída em ${dlDir}`);
+    addLog(`Início: ${todo.length} livro(s) · ${$('#enhReplace').checked ? 'cada DOCX substitui o seu EPUB, na mesma pasta' : 'saída em ' + dlDir}`);
     let ok = 0;
     for (const item of todo) {
       try { await processOne(item); ok++; } catch (e) { item.status = 'err'; item.msg = String(e.message || e); addLog(`${item.name} — erro: ${item.msg}`, 'bad'); }
@@ -301,6 +309,14 @@
     if (screen) { screen.classList.add('show'); return; }
     dlDir = await api.enhDownloads();
     logBox = el('ol', { class: 'pg-log enh-log' });
+    // preferência lembrada: substituir o EPUB de origem (padrão) ou salvar uma cópia em Downloads
+    let pref = true;
+    try { pref = localStorage.getItem('enh.replace') !== '0'; } catch (e) { /* ok */ }
+    const whereTxt = el('span', { class: 'muted small' });
+    const replaceChk = el('input', { type: 'checkbox', id: 'enhReplace', checked: pref });
+    const showWhere = () => { whereTxt.textContent = replaceChk.checked ? 'Salvo na pasta de cada EPUB, no lugar dele' : 'Salvo em: ' + dlDir; };
+    replaceChk.addEventListener('change', () => { try { localStorage.setItem('enh.replace', replaceChk.checked ? '1' : '0'); } catch (e) { /* ok */ } showWhere(); });
+    showWhere();
     listBox = el('div', { class: 'enh-list' });
     const drop = el('button', { class: 'enh-drop', onclick: async () => addFiles(await api.enhPick()) }, [
       el('span', { class: 'enh-drop-ic', html: App.icons ? App.icons.svg('upload') : '' }),
@@ -321,6 +337,7 @@
           listBox,
           el('div', { class: 'enh-opts' }, [
             el('label', { class: 'chk' }, [el('input', { type: 'checkbox', id: 'enhImages', checked: true }), ' Manter as ilustrações dentro dos capítulos']),
+            el('label', { class: 'chk', title: 'O DOCX é gravado na pasta do EPUB, com o mesmo nome; só depois de conferido o EPUB vai para a Lixeira (dá para recuperar de lá).' }, [replaceChk, ' Substituir o EPUB original pelo DOCX (o EPUB vai para a Lixeira)']),
             el('label', { class: 'chk' }, [el('input', { type: 'checkbox', id: 'enhOpen', checked: true }), ' Mostrar a pasta ao terminar'])
           ]),
           el('div', { class: 'enh-what' }, [
@@ -332,7 +349,7 @@
               'converte as notas de rodapé e aplica o padrão do sistema: títulos, alinhamento, tamanho do texto, entrelinha e recuo de parágrafo'
             ].map(t => el('li', { text: t })))
           ]),
-          el('div', { class: 'enh-run' }, [el('button', { id: 'enhStart', class: 'primary big', onclick: start }), el('span', { class: 'muted small', text: 'Salvo em: ' + dlDir })])
+          el('div', { class: 'enh-run' }, [el('button', { id: 'enhStart', class: 'primary big', onclick: start }), whereTxt])
         ]),
         el('section', { class: 'enh-col' }, [el('h3', { text: 'Registro' }), logBox])
       ])

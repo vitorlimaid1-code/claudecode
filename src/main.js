@@ -384,8 +384,9 @@ ipcMain.handle('enh:pick', async () => {
 ipcMain.handle('enh:read', async (e, filePath) => {
   try { return Object.assign(await importAny(filePath), { name: path.basename(filePath, path.extname(filePath)), size: fs.statSync(filePath).size }); } catch (err) { return { error: String(err && err.message || err) }; }
 });
-ipcMain.handle('enh:target', (e, base, ext) => {
-  const dir = app.getPath('downloads');
+ipcMain.handle('enh:target', (e, base, ext, nextTo) => {
+  // nextTo: arquivo de origem — o DOCX fica na mesma pasta dele (para substituir o EPUB)
+  const dir = nextTo && fs.existsSync(nextTo) ? path.dirname(nextTo) : app.getPath('downloads');
   fs.mkdirSync(dir, { recursive: true });
   const b = safeName(base || 'livro', 120);
   let f = path.join(dir, `${b}.${ext || 'docx'}`);
@@ -393,6 +394,17 @@ ipcMain.handle('enh:target', (e, base, ext) => {
   return f;
 });
 ipcMain.handle('enh:downloads', () => app.getPath('downloads'));
+// substitui o EPUB de origem pelo DOCX já gravado ao lado dele: o EPUB vai para a Lixeira (recuperável),
+// e só depois de conferir que o DOCX existe, não está vazio e ficou na mesma pasta
+ipcMain.handle('enh:replace', async (e, src, docx) => {
+  try {
+    if (!src || !/\.epub$/i.test(src) || !fs.existsSync(src)) return { ok: false, msg: 'arquivo de origem não encontrado' };
+    if (!docx || !/\.docx$/i.test(docx) || !fs.existsSync(docx) || fs.statSync(docx).size < 1000) return { ok: false, msg: 'o DOCX não foi conferido; o EPUB foi mantido' };
+    if (path.resolve(path.dirname(src)) !== path.resolve(path.dirname(docx))) return { ok: false, msg: 'o DOCX não está na pasta do EPUB; o EPUB foi mantido' };
+    await shell.trashItem(src);
+    return { ok: true };
+  } catch (err) { return { ok: false, msg: 'não foi possível mandar o EPUB para a Lixeira (' + String(err.message || err) + '); ele foi mantido' }; }
+});
 
 // ---------------------------------------------------------------- tradução (tela própria)
 let translatorApi = null;

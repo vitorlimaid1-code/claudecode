@@ -49,7 +49,7 @@ Tela própria, aberta pelo botão **Melhoramento** no topo (ou na tela de boas-v
 - monta o **sumário do sistema** (com a nossa estética) e aplica os estilos do app: títulos de capítulo, rótulo “Capítulo N”, alinhamento e tamanho do texto, recuo de parágrafo, citações e legendas;
 - preserva o layout do original: alinhamentos (centralizados, à direita), parágrafos sem recuo, ilustrações com a largura e a posição (centro, esquerda, direita) do EPUB e na proporção certa;
 - texto e títulos em **Garamond**, com tamanhos, alinhamentos, recuos e espaços do sistema; cada capítulo começa em página nova por uma quebra única dentro do próprio título (nunca sobra página em branco);
-- gera um **DOCX** (Word) por livro e salva direto na pasta **Downloads** (sem sobrescrever arquivos com o mesmo nome). Ao abrir, o Word pergunta se deve atualizar os campos — responda “Sim” para preencher os números de página do sumário.
+- gera um **DOCX** (Word) por livro. Com **“Substituir o EPUB original pelo DOCX”** (ligado por padrão, a escolha fica lembrada), o DOCX é gravado na pasta do EPUB, com o mesmo nome, e — só depois de conferido — o EPUB vai para a **Lixeira** (recuperável); se algo falhar, o EPUB é mantido. Com a opção desligada, salva uma cópia na pasta **Downloads** (sem sobrescrever arquivos com o mesmo nome). Ao abrir, o Word pergunta se deve atualizar os campos — responda “Sim” para preencher os números de página do sumário.
 - **Modo em massa**: vários livros na fila são processados um após o outro, com log de cada etapa (capítulos encontrados, páginas removidas, imagens, arquivo salvo) e erros sem interromper os demais.
 
 ### Tradução (qualquer idioma → português do Brasil)
