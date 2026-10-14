@@ -179,3 +179,11 @@ body[data-view="chapter"] .stage-head { display: block; }
 .tl-row.changed { box-shadow: inset 3px 0 0 var(--accent); }
 .tl-row.suspect input[type=text]:disabled { color: var(--muted); font-style: italic; }
 .tl-row.locked { opacity: .6; }
+
+/* modo noturno: botões discretos continuam sem fundo */
+:root[data-theme="dark"] .topbar button:not(.primary), :root[data-theme="dark"] .nav-item, :root[data-theme="dark"] .toolbar button,
+:root[data-theme="dark"] button.ghost, :root[data-theme="dark"] .qs-bar .qs-btn, :root[data-theme="dark"] .bx-tile { background: transparent; border-color: transparent; }
+:root[data-theme="dark"] .topbar button:not(.primary):hover, :root[data-theme="dark"] .toolbar button:hover, :root[data-theme="dark"] button.ghost:hover:not(:disabled) { background: var(--hover); }
+:root[data-theme="dark"] .nav-item.active { background: var(--panel); }
+:root[data-theme="dark"] button.danger { color: var(--bad); }
+:root[data-theme="dark"] .bx-prev { background: #f4f4f2; }
