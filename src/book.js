@@ -261,6 +261,14 @@ function markShortTables(html) {
   });
 }
 
+// Caixas de texto longas (mais de ~5 linhas) podem continuar na página seguinte; as curtas ficam inteiras
+function markLongBoxes(html) {
+  return String(html).replace(/<div\b([^>]*\bclass="box"[^>]*)>([\s\S]*?)<\/div>/gi, (m, attrs, inner) => {
+    const words = inner.replace(/<span class="footnote">[\s\S]*?<\/span>/g, '').replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length;
+    return words > 50 ? `<div${attrs.replace(/\bclass="box"/, 'class="box box-long"')}>${inner}</div>` : m;
+  });
+}
+
 // Tabelas e quadros com título (legenda): Tabela N / Quadro N – título, com âncora para as listas.
 // Quadro = tabela marcada como quadro (classe tb-quadro) ou com legenda "Quadro N".
 function numberTables(html, ctx) {
@@ -563,7 +571,7 @@ function buildHtml(project, ctx) {
     const hasOpening = !!(c.openingImage && c.openingImage.asset && ctx.assets[c.openingImage.asset]);
     if (hasOpening) push(fullBleedHtml(c.openingImage.asset, c.openingImage.fit, ctx));
     const heads = [];
-    let body = markShortTables(numberTables(processBody(anchorHeadings(ctx.markBlocks ? markBlocks(c.html) : c.html, c.id, heads), ctx), ctx));
+    let body = markLongBoxes(markShortTables(numberTables(processBody(anchorHeadings(ctx.markBlocks ? markBlocks(c.html) : c.html, c.id, heads), ctx), ctx)));
     heads.forEach(h => tocItems.push({ id: h.id, label: '', title: h.title, level: h.level }));
     // notas no fim do capítulo, no fim do livro ou na margem externa (em vez do rodapé)
     if (notesMode !== 'footnote' && settings.footnotesVisible !== false) {
@@ -855,6 +863,7 @@ ${s.keepHeadingsWithNext ? '.chapter-body h2, .chapter-body h3, .chapter-body h4
 .chapter-body p.epigraph-inline { ${styleDecl(S.epigraph, body)} text-indent: 0; }
 .chapter-body p.reference { ${styleDecl(S.reference, body, { noSpace: true })} margin: 0 0 ${mm(S.reference.spaceAfter)} 0; padding-left: ${Math.abs(num(S.reference.indent, -1.5))}em; text-indent: ${num(S.reference.indent, -1.5)}em; }
 .chapter-body div.box { ${styleDecl(S.box, body, { noSpace: true })} margin: ${mm(S.box.spaceBefore)} 0 ${mm(S.box.spaceAfter)}; border: 0.6pt solid ${color(S.box.borderColor, '#999')}; padding: 3mm 4mm; break-inside: avoid; }
+.chapter-body div.box.box-long { break-inside: auto; }
 .chapter-body div.box p { text-indent: 0; margin: 0 0 0.4em; }
 /* estilos de caixa de texto e de citação (escolhidos ao selecionar o texto) */
 .book .chapter-body div.box[data-style="fundo"] { border: 0; background: #ededeb; padding: 3.5mm 4.5mm; }
@@ -1023,6 +1032,7 @@ ${Object.entries(project.pageStyles || {}).map(([n, ps]) => {
 .masthead + .chapter { break-before: avoid; }
 
 ${chapterOverrides}
+.book .chapter-body blockquote.fn-host, .book .chapter-body div.box.fn-host, .book .chapter-body p.fn-host.fn-host { break-inside: auto; }
 `;
 }
 

@@ -37,6 +37,11 @@
       // padrão editorial: a nota fica inteira na página da chamada; se não couber, o texto desce
       const pol = options.notePolicy === undefined ? 'line' : (options.notePolicy || ((options.lineNotes || []).includes(i) ? 'line' : ''));
       if (pol) n.dataset.fnPolicy = pol;
+      // blocos “sem divisão” (caixa, destaque, poesia) com nota dentro: o Paged.js deixa a página vazia
+      // depois deles; com nota, podem dividir-se como um parágrafo comum
+      for (let a = n.parentElement; a && !a.classList.contains('chapter-body'); a = a.parentElement) {
+        if (a.matches('div.box, blockquote, p.phrase, div.poem p')) a.classList.add('fn-host');
+      }
     });
     // parágrafos com nota: numerados para conferir se chegaram inteiros às páginas; os que se perderam numa
     // paginação anterior (defeito do Paged.js com notas na coluna de excesso) ficam sem divisão nesta
