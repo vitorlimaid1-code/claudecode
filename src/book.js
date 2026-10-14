@@ -4,6 +4,8 @@ const CatalogParse = require('./shared/catalog-parse');
 const X = require('./book-extras');
 const PageFrames = require('./shared/frames');
 const TocThemes = require('./shared/tocthemes');
+const HeaderRules = require('./shared/headerrules');
+const Overlays = require('./shared/overlays');
 
 function effectiveBleed(s) {
   if (s.bleedAuto) return autoBleed(s);
@@ -202,7 +204,17 @@ function figureHtml(attrs, inner, ctx) {
     const imgStyle = `position:absolute; width:${(100 / cw).toFixed(4)}%; height:${(100 / ch).toFixed(4)}%; left:${(-cl / cw * 100).toFixed(4)}%; top:${(-ct / ch * 100).toFixed(4)}%; max-width:none;`;
     imgHtml = `<div style="${rotBox}"><div style="position:absolute; inset:0; overflow:hidden;"><img src="${asset.dataUrl}" alt="" style="${imgStyle}"></div></div>`;
   }
-  const frame = `<div class="fig-frame" style="aspect-ratio: ${A.toFixed(5)}; opacity: ${opacity};${wrap === 'behind' ? ' position:absolute; left:0; right:0; top:0; z-index:-1;' : ''}">${imgHtml}</div>`;
+  // caixas de texto e legendas sobre a imagem (modelos prontos; altura e rotação de cada uma)
+  let ovHtml = '';
+  String(inner).replace(/<div\b([^>]*\bfig-ov\b[^>]*)>([\s\S]*?)<\/div>/gi, (m, oa, txt) => {
+    const a = parseAttrs(oa);
+    const pr = Overlays.byKey(a['data-ov']);
+    if (!pr) return m;
+    const body = String(txt).replace(/<(?!br\s*\/?>)[^>]+>/gi, '').trim();
+    if (body) ovHtml += `<div class="fig-ov ov-${pr.key}" style="${Overlays.placeStyle(pr, a['data-y'], a['data-rot'])}">${body}</div>`;
+    return m;
+  });
+  const frame = `<div class="fig-frame" style="aspect-ratio: ${A.toFixed(5)}; opacity: ${opacity};${wrap === 'behind' ? ' position:absolute; left:0; right:0; top:0; z-index:-1;' : ''}">${imgHtml}${ovHtml}</div>`;
   const printW = colW * width / 100;
   ctx.figures.push({ asset: id, widthMM: printW });
   // numeração automática (Figura N / Gráfico N) e entrada nas listas, para figuras com legenda
@@ -816,7 +828,25 @@ function buildCss(project, ctx) {
   const folioPos = num(s.folioGap, 0) > 0 ? ` vertical-align: top; padding-top: ${num(s.folioGap, 0)}mm;` : '';
   const H = S.header;
   const P = S.pageNumber;
-  const boxStyle = `font-family: ${fontStack(H.font || body.font)}; font-size: ${num(H.size, 8.5)}pt; letter-spacing: ${num(H.letterSpacing, 0)}em; text-transform: ${H.uppercase ? 'uppercase' : 'none'}; font-style: ${H.italic ? 'italic' : 'normal'}; color: ${color(H.color, '#222')}; vertical-align: bottom; padding-bottom: 4mm;`;
+  // filete sob o cabeçalho: o texto do cabeçalho sobe o necessário para não encostar nele
+  const hr = Object.assign({ style: 'none' }, s.headerRule || {});
+  const hrOn = hr.style && hr.style !== 'none' && s.header !== 'none';
+  const hrGap = Math.max(0.8, Math.min(10, num(hr.gap, 2.2)));
+  const hdrPad = hrOn ? Math.max(4, hrGap + 2.8) : 4;
+  const boxStyle = `font-family: ${fontStack(H.font || body.font)}; font-size: ${num(H.size, 8.5)}pt; letter-spacing: ${num(H.letterSpacing, 0)}em; text-transform: ${H.uppercase ? 'uppercase' : 'none'}; font-style: ${H.italic ? 'italic' : 'normal'}; color: ${color(H.color, '#222')}; vertical-align: bottom; padding-bottom: ${hdrPad}mm;`;
+  // a linha fica entre o cabeçalho e o texto; com o livro aberto, as linhas das duas páginas se
+  // encontram na lombada (vão até a borda interna da página)
+  let headerRuleCss = '';
+  if (hrOn) {
+    const C = color(hr.color, '#6b6b6b'), mi = num(s.marginInner, 22);
+    const spine = hr.spine !== false && hr.style !== 'curta';
+    const PG = side => `.pagedjs_page.pagedjs_${side}_page:has(.pagedjs_margin-top .hasContent) .pagedjs_area`;
+    const pos = side => hr.style === 'curta' ? 'left: 35%; right: 35%;' : side === 'left' ? `left: 0; right: ${spine ? -mi : 0}mm;` : `left: ${spine ? -mi : 0}mm; right: 0;`;
+    ['left', 'right'].forEach(side => {
+      headerRuleCss += `${PG(side)}::before { content: ''; position: absolute; pointer-events: none; top: -${hrGap}mm; transform: translateY(-100%); ${pos(side)} ${HeaderRules.decl(hr.style, C, hr.weight, side)} }\n`;
+    });
+    if (hr.style === 'ornamento') headerRuleCss += `.pagedjs_page:has(.pagedjs_margin-top .hasContent) .pagedjs_area::after { content: '◆'; position: absolute; top: -${hrGap}mm; left: 50%; transform: translate(-50%, -50%); font-size: 5.5pt; line-height: 1; color: ${C}; background: ${color(s.pageColor, '#fff')}; padding: 0 1.4mm; }\n`;
+  }
   const numStyle = `font-family: ${fontStack(P.font || body.font)}; font-size: ${num(P.size, 9.5)}pt; color: ${color(P.color, '#000')}; text-transform: none; letter-spacing: 0; font-style: normal;`;
 
   function marginRules(name, extra, textColor, noHeader) {
@@ -889,7 +919,7 @@ function buildCss(project, ctx) {
 
   const marks = s.cropMarks ? 'marks: crop cross;' : '';
   const wo = Math.max(1, num(s.widowsOrphans, 2));
-  const dropLines = Math.max(2, Math.min(5, num(s.dropCapLines, 2)));
+  const dropLines = Math.max(2, Math.min(8, num(s.dropCapLines, 2)));
   const lh = num(body.lineHeight, 1.4);
   const pageColor = color(s.pageColor, '#ffffff');
   const none6 = '@top-left { content: none; } @top-center { content: none; } @top-right { content: none; } @bottom-left { content: none; } @bottom-center { content: none; } @bottom-right { content: none; }';
@@ -1060,11 +1090,11 @@ ${body.align === 'justify' ? '.chapter-body p[data-split-to] { text-align-last: 
 ${s.dropCap ? `
 .chapter:not(.chapter-cont) .chapter-body > p:first-child:not([data-split-from])::first-letter, .chapter:not(.chapter-cont) .chapter-body > div.cols.cols-open:first-child:not([data-split-from]) > p:first-child:not([data-split-from])::first-letter {
   float: left;
-  font-family: ${fontStack(S.chapterTitle.font || body.font)};
+  font-family: ${fontStack(s.dropCapFont || S.chapterTitle.font || body.font)};
   font-size: ${(lh * dropLines + 0.4 - (dropLines - 2) * 0.1).toFixed(2)}em;
   line-height: 0.8;
   padding: 0.04em 0.08em 0 0;
-  color: ${color(S.chapterTitle.color, '#000')};
+  color: ${color(s.dropCapColor || S.chapterTitle.color, '#000')};
 }` : ''}
 ${s.smallCapsFirstLine ? `.chapter:not(.chapter-cont) .chapter-body > p:first-child:not([data-split-from])::first-line, .chapter:not(.chapter-cont) .chapter-body > div.cols.cols-open:first-child:not([data-split-from]) > p:first-child:not([data-split-from])::first-line { font-variant: small-caps; letter-spacing: 0.04em; }` : ''}
 .chapter-body h2 { ${styleDecl(S.h2, body)} line-height: ${num(S.h2.lineHeight, 1.2)}; hyphens: manual; text-indent: 0; }
@@ -1168,6 +1198,10 @@ ${s.footnoteNumbering === 'chapter' ? '.chapter:not(.chapter-cont) { counter-res
 .tocstyle-twocol .toc-title { max-width: 70%; }
 .tocstyle-summary .toc-list li.toc-l1 { margin-bottom: 0.9em; }
 .tocstyle-summary .toc-sum { font-size: 0.86em; font-style: italic; line-height: 1.3; margin: 0.15em 2.5em 0 0; text-align: left; hyphens: manual; }
+/* caixas e legendas sobre as imagens */
+${Overlays.css()}
+/* filete sob o cabeçalho */
+${headerRuleCss}
 ${TocThemes.css(project.front.tocTheme, { mt: num(s.marginTop, 20), mb: num(s.marginBottom, 22), mi: num(s.marginInner, 22), mo: num(s.marginOuter, 16), bleed: ctx.bleed, contentH: ctx.contentH, colW: ctx.colW, color: project.front.tocColor })}
 
 /* ---------- notas de fim e notas laterais ---------- */
@@ -1292,6 +1326,8 @@ async function buildBook(rawProject, opts) {
   const fams = new Set();
   Object.values(s.styles).forEach(st => { if (st && st.font) fams.add(st.font); });
   (s.charStyles || []).forEach(cs => { if (cs && cs.font) fams.add(cs.font); });
+  if (s.dropCap && s.dropCapFont) fams.add(s.dropCapFont);
+  project.chapters.forEach(c => { if (/fig-ov/.test(c.html || '')) String(c.html).replace(/data-ov="([\w-]+)"/g, (m, k) => { const pr = Overlays.byKey(k); if (pr) fams.add(pr.font); return m; }); });
   project.chapters.forEach(c => { if (c.style.font) fams.add(c.style.font); if (c.style.titleFont) fams.add(c.style.titleFont); });
   (project.overlays || []).forEach(o => { if (o.font) fams.add(o.font); });
   if (project.front.toc) { const tt = TocThemes.byKey(project.front.tocTheme); if (tt.font) fams.add(tt.font); }

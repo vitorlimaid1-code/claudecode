@@ -390,6 +390,10 @@
     outputSheet: { mode: 'marks', w: 210, h: 297, marks: true, markOffset: 5, markLen: 5, markWeight: 0.25 },
     dropCap: true,
     dropCapLines: 2,
+    dropCapFont: '', // vazio = a do título do capítulo
+    dropCapColor: '',
+    // filete fino sob o cabeçalho (título/autor), que se encontra na lombada com o livro aberto
+    headerRule: { style: 'fina', color: '#6b6b6b', weight: 0.5, gap: 2.2, spine: true },
     smallCapsFirstLine: false,
     sceneBreak: '*  *  *',
 

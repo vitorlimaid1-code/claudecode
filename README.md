@@ -189,6 +189,17 @@ O layout padrão é o de **livro**. Em **Outros módulos** (barra lateral) ficam
 - **Blocos de imagem** (tela *Blocos e páginas sangradas*): áreas cinza, horizontais (largura toda) ou verticais (ao lado do texto), com legenda de teste. No preview, o **+** do bloco escolhe a imagem (ou arraste uma imagem para dentro dele); “Legenda ✓/✕” liga/desliga a legenda e ✕ remove o bloco. “Distribuir” coloca os blocos em pontos estratégicos das matérias. Na exportação, o verificador avisa se algum bloco ficou sem imagem.
 - **Páginas sangradas (full bleed)**, opcionais, antes e/ou depois de cada matéria (ou capítulo, no livro): imagem cobrindo a página inteira; com “página dupla” a imagem fica na página par e a matéria abre na ímpar ao lado. Um **box** opcional com título e texto informativo (escuro, claro ou só contorno; nos cantos ou em faixa).
 
+### Letra capitular
+- Em *Formato e diagramação › Capítulos*: **fonte da capitular** (embutidas, sua biblioteca ou fontes do computador), **quantas linhas** ela ocupa (2 a 8) e a **cor**, com amostra ao lado.
+
+### Filete do cabeçalho
+- Uma linha fina separa o cabeçalho (título do livro, autor ou capítulo) do texto. Com o livro aberto, as linhas das duas páginas **se encontram na lombada**.
+- Galeria em *Formato e diagramação › Cabeçalho*: linha fina, marcada, dupla, grossa e fina, fina e grossa, pontilhada, tracejada, esvaecida (mais forte na lombada), com ornamento ◆, curta centralizada ou sem filete; cor, espessura e distância até o texto ajustáveis.
+
+### Caixas e legendas sobre as imagens (menu **Caixas**)
+- 13 modelos prontos (faixa escura, itálico sobre a foto, fio lateral, etiqueta, contorno, título grande, caixa branca, caixa preta, vidro claro, citação, nota adesiva, carimbo, faixa diagonal), cada um com fonte, cores e tamanho próprios, que acompanham o tamanho da imagem.
+- Escolha o capítulo e a imagem; **um clique** num modelo aplica, **dois cliques** removem. Depois de aplicar: texto, **altura** (de cima para baixo) e **rotação**; **★ Salvar preferências** guarda a posição para as próximas vezes que o modelo for usado.
+
 ### Colunas num trecho (botão direito)
 - Selecione o texto (no editor ou direto nas páginas), clique com o **botão direito** › **Dividir em 2 colunas** ou **3 colunas**. Só os parágrafos selecionados vão para as colunas (com fio fino entre elas, que pode ser tirado); o resto da página continua em uma coluna.
 - Imagens, caixas de texto, tabelas, citações em caixa e títulos T1 nunca entram no bloco: a seleção é dividida em volta deles. Molduras, letra capitular, filete e imersão continuam funcionando.

@@ -528,6 +528,20 @@
     v.innerHTML = '';
     const rerender = () => App.hooks.viewRender.layout();
     const n = (key, label, step, min, max, hint) => field(label, bind(s, key, 'number', { step, min, max }), hint);
+    // amostra da letra capitular (fonte, linhas e cor escolhidas)
+    const dcBox = el('div', { class: 'dc-prev span-all' });
+    const dcPrev = () => {
+      const lines = Math.max(2, Math.min(8, Number(s.dropCapLines) || 2));
+      const f = s.dropCapFont || (s.styles.chapterTitle || {}).font || s.styles.body.font;
+      if (App.ensureFonts) App.ensureFonts([f, s.styles.body.font]);
+      const txt = 'ra uma vez um livro que ainda não existia. Ele morava apenas na cabeça de quem o escrevia, entre cafés esfriados e frases riscadas, e cada página nova pedia uma letra grande e elegante para começar.';
+      dcBox.innerHTML = '';
+      const p = el('p', { style: `font-family:"${s.styles.body.font}",Georgia,serif; font-size:13px; line-height:1.4; text-align:justify; margin:0;` });
+      if (s.dropCap) p.appendChild(el('span', { text: 'E', style: `float:left; font-family:"${f}",Georgia,serif; font-size:${(1.4 * lines + 0.4 - (lines - 2) * 0.1).toFixed(2)}em; line-height:0.8; padding:0.04em 0.08em 0 0; color:${s.dropCapColor || (s.styles.chapterTitle || {}).color || '#000'};` }));
+      p.appendChild(document.createTextNode(s.dropCap ? txt : 'E' + txt));
+      dcBox.appendChild(p);
+    };
+    setTimeout(dcPrev, 0);
     const len = (key, label, min, max, hint) => {
       // larguras/alturas da folha de saída ficam dentro de settings.outputSheet
       const sheetKey = { outputSheetW: 'w', outputSheetH: 'h' }[key];
@@ -659,8 +673,11 @@
       card('Capítulos', [
         field('Rótulo', bind(s, 'chapterLabel', 'text', { placeholder: 'Capítulo' })),
         field('Numeração', bind(s, 'chapterNumbering', 'select', { options: [{ value: 'arabic', label: '1, 2, 3' }, { value: 'roman', label: 'I, II, III' }, { value: 'words', label: 'Um, Dois, Três' }, { value: 'none', label: 'Sem número' }] })),
-        el('label', { class: 'chk' }, [bind(s, 'dropCap', 'checkbox'), ' Letra capitular']),
-        n('dropCapLines', 'Linhas da capitular', 1, 2, 5),
+        el('label', { class: 'chk' }, [bind(s, 'dropCap', 'checkbox', { onChange: () => dcPrev() }), ' Letra capitular']),
+        field('Fonte da capitular', bind(s, 'dropCapFont', 'select', { options: [{ value: '', label: '(a do título do capítulo)' }].concat(App.fontOptions(false)), onChange: () => dcPrev(), label: 'Fonte da capitular' }), 'Fontes embutidas, da sua biblioteca ou do computador'),
+        field('Linhas ocupadas pela capitular', bind(s, 'dropCapLines', 'number', { step: 1, min: 2, max: 8, onChange: () => dcPrev() })),
+        field('Cor da capitular', bind(s, 'dropCapColor', 'color', { fallback: '#000000', onChange: () => dcPrev() })),
+        dcBox,
         el('label', { class: 'chk' }, [bind(s, 'smallCapsFirstLine', 'checkbox'), ' 1ª linha em versalete'])
       ], 'Fontes, tamanhos e cores dos títulos ficam em “Estilos de texto”.'),
       card('Separador abaixo dos títulos', [
@@ -673,7 +690,8 @@
         s.separator === 'line' ? field('Cor do filete', bind(s, 'separatorColor', 'color')) : null
       ], 'Cada capítulo pode usar outro separador em “Aparência”.'),
       card('Cabeçalho, numeração e notas', [
-        field('Cabeçalho', bind(s, 'header', 'select', { options: [{ value: 'title-chapter', label: 'Título do livro / título do capítulo' }, { value: 'author-title', label: 'Autor / título do livro' }, { value: 'chapter-chapter', label: 'Título do capítulo nas duas páginas' }, { value: 'none', label: 'Sem cabeçalho' }] })),
+        field('Cabeçalho', bind(s, 'header', 'select', { options: [{ value: 'title-chapter', label: 'Título do livro / título do capítulo' }, { value: 'author-title', label: 'Autor / título do livro' }, { value: 'chapter-chapter', label: 'Título do capítulo nas duas páginas' }, { value: 'none', label: 'Sem cabeçalho' }], onChange: rerender })),
+        App.headerRuleGallery ? App.headerRuleGallery(s, rerender) : null,
         field('Número da página', bind(s, 'pageNumbers', 'select', { options: [{ value: 'outer', label: 'Rodapé, canto externo' }, { value: 'center', label: 'Rodapé, centralizado' }].concat(cedet ? [] : [{ value: 'top-outer', label: 'Topo, canto externo' }]).concat([{ value: 'none', label: 'Sem numeração' }]) }), cedet ? 'CEDET: canto inferior externo ou centro inferior; ímpares sempre à direita.' : ''),
         n('folioGap', 'Distância do número ao texto (mm)', 0.5, 0, 30, '0 = número centrado na margem inferior. CEDET: 3 mm, para ficar dentro dos 20 mm de segurança'),
         el('label', { class: 'chk' }, [bind(s, 'numberFromFirstChapter', 'checkbox'), ' Página 1 = primeiro capítulo']),

@@ -115,6 +115,21 @@
       const img = doc.createElement('img');
       img.setAttribute('data-asset', node.getAttribute('data-asset'));
       f.appendChild(img);
+      // caixas/legendas sobre a imagem: modelo, altura, rotação e o texto (simples, com quebras de linha)
+      Array.from(node.children).filter(x => x.classList && x.classList.contains('fig-ov')).forEach(o => {
+        const k = o.getAttribute('data-ov') || '';
+        if (!/^[a-z0-9-]{1,30}$/.test(k)) return;
+        const d = doc.createElement('div');
+        d.className = 'fig-ov';
+        d.setAttribute('data-ov', k);
+        const y = Math.min(100, Math.max(0, Number(o.getAttribute('data-y')) || 0)), rot = Math.min(180, Math.max(-180, Number(o.getAttribute('data-rot')) || 0));
+        d.setAttribute('data-y', String(Math.round(y * 10) / 10));
+        d.setAttribute('data-rot', String(Math.round(rot * 10) / 10));
+        d.setAttribute('contenteditable', 'false');
+        d.setAttribute('style', `top:${y}%`);
+        String(o.innerText !== undefined && o.innerText !== '' ? o.innerText : o.textContent).replace(/\u00ad/g, '').split(/\n/).forEach((ln, i) => { if (i) d.appendChild(doc.createElement('br')); d.appendChild(doc.createTextNode(ln)); });
+        f.appendChild(d);
+      });
       const cap = node.querySelector('figcaption');
       if (cap) { const c = doc.createElement('figcaption'); children(cap, doc, c); f.appendChild(c); }
       return f;

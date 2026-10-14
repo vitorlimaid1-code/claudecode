@@ -538,3 +538,7 @@ body[data-view="cover"] .preview, body[data-view="cover"] .splitter { display: n
 .toc-sample .ts-sum { font-style: italic; font-size: 11px; color: #555; margin-top: -3px; }
 .grid > .span-all, .grid > .warn-box, .grid > .toc-styles, .grid > .chk.full { grid-column: 1 / -1; }
 #view-typo .grid > p.small { grid-column: 1 / -1; margin: 0; }
+
+/* caixas/legendas sobre imagens, no editor (marca aproximada: o visual exato está nas páginas) */
+.editor figure.img { position: relative; }
+.editor figure.img > .fig-ov { position: absolute; left: 8%; right: 8%; transform: translateY(-50%); background: rgba(20, 20, 28, .62); color: #fff; font: 600 11px/1.3 system-ui, sans-serif; padding: 3px 8px; border-radius: 6px; text-align: center; pointer-events: none; }
