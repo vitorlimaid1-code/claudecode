@@ -51,7 +51,7 @@
   function sampleArticle(blocks) {
     const p = 'Texto de exemplo da matéria. Substitua por seu conteúdo: cole o texto, importe um arquivo ou digite direto na página. As colunas, a hifenização e a justificação se ajustam sozinhas.';
     const ps = Array.from({ length: 8 }, () => `<p>${p} ${p}</p>`);
-    if (blocks) { ps.splice(1, 0, App.blocks.phHtml(false, 'Legenda de teste: a imagem principal da matéria.')); ps.splice(5, 0, App.blocks.phHtml(true, 'Legenda de teste: imagem de apoio.')); }
+    if (blocks) { ps.splice(0, 0, App.blocks.phHtml(false, 'Legenda de teste: a imagem principal da matéria.')); ps.splice(5, 0, App.blocks.phHtml(true, 'Legenda de teste: imagem de apoio.')); }
     else ps.splice(2, 0, '<div class="tframe" data-pos="band" data-width="80" data-look="pull"><p>Para tomar as decisões certas, você <b>precisa primeiro definir onde quer chegar.</b></p></div>');
     return ps.join('');
   }

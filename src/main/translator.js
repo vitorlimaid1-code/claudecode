@@ -1,6 +1,8 @@
 // Tradução literária para o português do Brasil. O texto é traduzido por um modelo de linguagem com as
 // diretrizes editoriais do sistema (tradutor literário sênior, copidesque e preparador de textos):
-//  - Claude (API da Anthropic, SDK oficial) — qualidade editorial, precisa de internet e de uma chave;
+//  - OpenRouter (padrão) — modelos gratuitos como o NVIDIA Nemotron 3 Ultra, precisa de internet e de uma chave;
+//  - Google Gemini (API do Google AI Studio) — precisa de internet e de uma chave (há cota gratuita);
+//  - Claude (API da Anthropic, SDK oficial) — fora da tela por enquanto, o código fica pronto para voltar;
 //  - Ollama (modelo rodando no próprio computador) — sem internet, qualidade conforme o modelo instalado.
 // Depois, a pós-edição local (src/shared/ptbr.js) aplica travessões, ortografia, dicionário e pontuação.
 const fs = require('fs');
@@ -41,6 +43,9 @@ const MODELS = [
 
 const OR_URL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1'; // (endereço trocável só para testes)
 const OR_DEFAULT_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b:free';
+const GG_URL = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta'; // (trocável só para testes)
+const GG_DEFAULT_MODEL = 'gemini-2.5-flash';
+const PROVIDERS = ['openrouter', 'google', 'ollama'];
 
 function createTranslator({ userFile, safeStorage }) {
   const cfgFile = userFile('tradutor.json');
@@ -53,7 +58,8 @@ function createTranslator({ userFile, safeStorage }) {
     const c = read();
     const key = dec(c.key);
     return {
-      provider: c.provider || (process.env.TRANSLATE_MOCK ? 'mock' : 'claude'),
+      // o Claude saiu da tela por enquanto: quem estava nele passa para o OpenRouter (o motor principal)
+      provider: PROVIDERS.includes(c.provider) || (c.provider === 'mock' && process.env.TRANSLATE_MOCK) ? c.provider : (process.env.TRANSLATE_MOCK ? 'mock' : 'openrouter'),
       model: c.model || 'claude-opus-5-5',
       effort: c.effort || 'high',
       ollamaUrl: c.ollamaUrl || 'http://localhost:11434',
@@ -61,6 +67,9 @@ function createTranslator({ userFile, safeStorage }) {
       orModel: c.orModel || OR_DEFAULT_MODEL,
       hasOrKey: !!dec(c.orKey) || !!process.env.OPENROUTER_API_KEY,
       orKeyHint: (k => (k ? k.slice(0, 8) + '…' + k.slice(-4) : process.env.OPENROUTER_API_KEY ? 'variável OPENROUTER_API_KEY' : ''))(dec(c.orKey)),
+      ggModel: c.ggModel || GG_DEFAULT_MODEL,
+      hasGgKey: !!dec(c.ggKey) || !!process.env.GEMINI_API_KEY,
+      ggKeyHint: (k => (k ? k.slice(0, 6) + '…' + k.slice(-4) : process.env.GEMINI_API_KEY ? 'variável GEMINI_API_KEY' : ''))(dec(c.ggKey)),
       glue: c.glue !== false,
       hasKey: !!key || !!process.env.ANTHROPIC_API_KEY,
       keyHint: key ? key.slice(0, 7) + '…' + key.slice(-4) : process.env.ANTHROPIC_API_KEY ? 'variável ANTHROPIC_API_KEY' : '',
@@ -70,9 +79,10 @@ function createTranslator({ userFile, safeStorage }) {
   }
   function setConfig(patch) {
     const c = read();
-    ['provider', 'model', 'effort', 'ollamaUrl', 'ollamaModel', 'orModel', 'glue'].forEach(k => { if (patch[k] !== undefined) c[k] = patch[k]; });
+    ['provider', 'model', 'effort', 'ollamaUrl', 'ollamaModel', 'orModel', 'ggModel', 'glue'].forEach(k => { if (patch[k] !== undefined) c[k] = patch[k]; });
     if (patch.apiKey !== undefined) c.key = patch.apiKey ? enc(String(patch.apiKey).trim()) : null;
     if (patch.orKey !== undefined) c.orKey = patch.orKey ? enc(String(patch.orKey).trim()) : null;
+    if (patch.ggKey !== undefined) c.ggKey = patch.ggKey ? enc(String(patch.ggKey).trim()) : null;
     write(c);
     return config();
   }
@@ -123,6 +133,47 @@ function createTranslator({ userFile, safeStorage }) {
     // alguns modelos devolvem o raciocínio entre <think>…</think> no próprio texto
     const text = String((ch.message || {}).content || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
     return { text, finish: ch.finish_reason || ch.native_finish_reason || '', usage: j.usage || {}, model: j.model || cfg.orModel };
+  }
+
+  // Google Gemini (API REST do Google AI Studio): generateContent com instrução de sistema
+  const ggKey = () => dec(read().ggKey) || process.env.GEMINI_API_KEY || '';
+  async function gemini(system, user, maxTokens) {
+    const cfg = config();
+    const key = ggKey();
+    if (!key) throw Object.assign(new Error('Informe a chave do Google Gemini em Configurações da tradução (crie em aistudio.google.com/apikey).'), { fatal: true });
+    const model = String(cfg.ggModel).replace(/^models\//, '');
+    const body = { contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { temperature: 0.3, maxOutputTokens: maxTokens || 32000 } };
+    if (system) body.systemInstruction = { parts: [{ text: system }] };
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 20 * 60 * 1000);
+    let r;
+    try {
+      r = await fetch(`${GG_URL}/models/${encodeURIComponent(model)}:generateContent`, {
+        method: 'POST', signal: ac.signal,
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify(body)
+      });
+    } catch (e) {
+      throw Object.assign(new Error('Sem conexão com o Google Gemini (verifique a internet).'), { retry: true });
+    } finally { clearTimeout(timer); }
+    const raw = await r.text();
+    let j = {};
+    try { j = JSON.parse(raw); } catch (e) { /* resposta não-JSON */ }
+    const emsg = (j.error && (j.error.message || j.error.status)) || raw.slice(0, 200);
+    if ((r.status === 400 && /API.?key/i.test(emsg)) || r.status === 401) throw Object.assign(new Error('Chave do Google Gemini inválida. Confira em aistudio.google.com/apikey.'), { fatal: true });
+    if (r.status === 403) throw Object.assign(new Error('A chave do Google não tem acesso à API Gemini (403): ' + emsg), { fatal: true });
+    if (r.status === 404) throw Object.assign(new Error(`Modelo “${model}” não encontrado no Google Gemini (404).`), { fatal: true });
+    if (r.status === 429) throw Object.assign(new Error('Limite da cota do Google Gemini atingido (pedidos por minuto ou por dia); aguardando para tentar de novo.'), { retry: true });
+    if (r.status >= 500) throw Object.assign(new Error(`Google Gemini indisponível (${r.status}).`), { retry: true });
+    if (!r.ok) throw new Error(`Google Gemini respondeu ${r.status}: ${emsg}`);
+    if (j.promptFeedback && j.promptFeedback.blockReason) throw Object.assign(new Error(`O Google Gemini bloqueou este trecho (${j.promptFeedback.blockReason}).`), { refusal: true });
+    const cand = (j.candidates || [])[0] || {};
+    const finish = cand.finishReason || '';
+    if (/SAFETY|PROHIBITED|BLOCKLIST|RECITATION|SPII/.test(finish)) throw Object.assign(new Error(`O Google Gemini recusou este trecho (${finish}).`), { refusal: true });
+    // partes de raciocínio (thought) não entram no texto
+    const text = ((cand.content || {}).parts || []).filter(x => !x.thought).map(x => x.text || '').join('').trim();
+    const u = j.usageMetadata || {};
+    return { text, finish, usage: { input_tokens: u.promptTokenCount || 0, output_tokens: (u.candidatesTokenCount || 0) + (u.thoughtsTokenCount || 0) }, model: j.modelVersion || model };
   }
 
   // separa as duas seções da resposta
@@ -181,6 +232,15 @@ function createTranslator({ userFile, safeStorage }) {
       const out = parse(res.text);
       return Object.assign(out, { usage: { input_tokens: res.usage.prompt_tokens || 0, output_tokens: res.usage.completion_tokens || 0 }, model: res.model, stop: res.finish || 'end_turn', price: { in: 0, out: 0 } });
     }
+    if (cfg.provider === 'google') {
+      if (onProgress) onProgress(0);
+      const res = await gemini(SYSTEM, msg, 32000);
+      if (res.finish === 'MAX_TOKENS') throw Object.assign(new Error('Trecho longo demais para uma resposta.'), { tooLong: true });
+      if (!res.text) throw Object.assign(new Error('O modelo devolveu uma resposta vazia.'), { retry: true });
+      if (onProgress) onProgress(res.text.length);
+      const out = parse(res.text);
+      return Object.assign(out, { usage: res.usage, model: res.model, stop: res.finish || 'end_turn', price: { in: 0, out: 0 } });
+    }
     const { client: c, A } = anthropic();
     const m = MODELS.find(x => x.id === cfg.model) || MODELS[0];
     const params = {
@@ -233,6 +293,7 @@ ${(req.notes || []).slice(0, 120).map(n => '- ' + n).join('\n') || '(sem notas)'
     let text = '';
     if (cfg.provider === 'mock') text = '### PARECER\nTradução de teste (modo de simulação).\n### PRINCIPAIS MUDANÇAS\n- Simulação.\n### PRINCIPAIS CORREÇÕES\n- Simulação.';
     else if (cfg.provider === 'openrouter') text = (await openrouter([{ role: 'user', content: prompt }], 8000)).text;
+    else if (cfg.provider === 'google') text = (await gemini('', prompt, 8000)).text;
     else if (cfg.provider === 'ollama') {
       const r = await fetch(cfg.ollamaUrl.replace(/\/$/, '') + '/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model: cfg.ollamaModel, stream: false, messages: [{ role: 'user', content: prompt }] }) });
       if (!r.ok) throw new Error('Ollama: ' + r.status);
@@ -269,6 +330,22 @@ ${(req.notes || []).slice(0, 120).map(n => '- ' + n).join('\n') || '(sem notas)'
         const d = kj.data || {};
         return { ok: true, msg: `Conectado ao OpenRouter · ${cfg.orModel}${d.is_free_tier ? ' · plano gratuito (limite de pedidos por minuto e por dia)' : ''}` };
       } catch (e) { return { ok: false, msg: 'sem conexão com o OpenRouter (verifique a internet).' }; }
+    }
+    if (cfg.provider === 'google') {
+      const key = ggKey();
+      if (!key) return { ok: false, msg: 'informe a chave do Google Gemini (crie em aistudio.google.com/apikey).' };
+      const model = String(cfg.ggModel).replace(/^models\//, '');
+      try {
+        const r = await fetch(GG_URL + '/models?pageSize=1000', { headers: { 'x-goog-api-key': key } });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) return { ok: false, msg: (r.status === 400 || r.status === 401 || r.status === 403) ? 'chave do Google Gemini inválida ou sem acesso à API Gemini.' : `o Google respondeu ${r.status}.` };
+        const ids = (j.models || []).filter(x => !x.supportedGenerationMethods || x.supportedGenerationMethods.includes('generateContent')).map(x => String(x.name).replace(/^models\//, ''));
+        if (ids.length && !ids.includes(model)) {
+          const sim = ids.filter(x => /^gemini-[\d.]+-(flash|pro)(-latest)?$/.test(x)).slice(0, 8);
+          return { ok: false, msg: `modelo “${model}” não está disponível para esta chave.${sim.length ? ' Disponíveis: ' + sim.join(', ') : ''}` };
+        }
+        return { ok: true, msg: `Conectado ao Google Gemini · ${model}` };
+      } catch (e) { return { ok: false, msg: 'sem conexão com o Google (verifique a internet).' }; }
     }
     if (cfg.provider === 'ollama') {
       const r = await fetch(cfg.ollamaUrl.replace(/\/$/, '') + '/api/tags').catch(e => ({ ok: false, statusText: e.message }));

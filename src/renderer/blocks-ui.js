@@ -44,7 +44,8 @@
   function insertPh(v) { insertHtml(phHtml(v), v ? 'Bloco de imagem vertical' : 'Bloco de imagem horizontal'); }
   function insertFrame(pos) { insertHtml(frameHtml(pos), 'Caixa de texto à parte'); App.toast('Caixa inserida: clique no texto dela, na página, para escrever; clique na borda tracejada para mudar posição e estilo.', 5000); }
 
-  // blocos distribuídos de forma estratégica: horizontal depois da abertura, verticais ao longo do texto
+  // blocos distribuídos de forma estratégica: a imagem principal logo abaixo do título e da linha fina
+  // (antes do texto), verticais ao longo do texto
   function distribute(c) {
     if (!c || c.locked) return 0;
     let n = 0;
@@ -54,7 +55,8 @@
       if (!ps.length) return;
       const t = document.createElement('template');
       const add = (after, html) => { t.innerHTML = html; after.after(t.content); n++; };
-      add(ps[0], phHtml(false, 'Legenda de teste: a imagem principal da matéria.'));
+      t.innerHTML = phHtml(false, 'Legenda de teste: a imagem principal da matéria.');
+      root.insertBefore(t.content, root.firstChild); n++;
       if (ps.length >= 5) add(ps[Math.floor(ps.length * 0.45)], phHtml(true, 'Legenda de teste: imagem de apoio.'));
       if (ps.length >= 10) add(ps[Math.floor(ps.length * 0.78)], phHtml(true, 'Legenda de teste: detalhe.'));
     });

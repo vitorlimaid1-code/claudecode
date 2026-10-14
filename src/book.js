@@ -1034,14 +1034,18 @@ ${pageNames}
 .chapter-body figure.ph-h { column-span: all; width: 100%; } .chapter-body figure.ph-h .ph-box { aspect-ratio: 16 / 9; }
 .chapter-body figure.ph-v .ph-box { aspect-ratio: 3 / 4; }
 .chapter-body figure.ph-hero .ph-box { aspect-ratio: 3 / 2; }
-/* composições de página (revista/jornal): variações do título de cada matéria */
-.chapter[data-layout="hero"] .chapter-title, .chapter[data-layout="galeria"] .chapter-title { font-size: 2.4em; line-height: 1.05; }
-.chapter[data-layout="abertura"] .chapter-head { text-align: center; } .chapter[data-layout="abertura"] .chapter-title { font-size: 2.9em; line-height: 1; letter-spacing: -0.01em; }
+/* composições de página: título sempre em destaque, depois a linha fina, a imagem de abertura e o texto */
+.chapter[data-layout] .chapter-head { margin: 0 0 4.5mm; break-inside: avoid; }
+.chapter[data-layout] .chapter-title { font-size: 28pt; line-height: 1.04; font-weight: 700; letter-spacing: -0.005em; }
+.chapter[data-layout] .lead { margin-top: 2.5mm; }
+.chapter[data-layout] .chapter-body > figure.ph:first-child, .chapter[data-layout] .chapter-body > .fig:first-child { margin-top: 0; }
+.chapter[data-layout="hero"] .chapter-title, .chapter[data-layout="galeria"] .chapter-title { font-size: 34pt; line-height: 1.02; }
+.chapter[data-layout="abertura"] .chapter-head { text-align: center; } .chapter[data-layout="abertura"] .chapter-title { text-align: center; font-size: 42pt; line-height: 1; letter-spacing: -0.01em; }
 .chapter[data-layout="abertura"] .lead { font-size: 1.25em; max-width: 80%; margin-left: auto; margin-right: auto; }
-.chapter[data-layout="jornal"] .chapter-title { font-size: 2.2em; font-weight: 800; line-height: 1.05; } .chapter[data-layout="jornal"] .chapter-head { border-bottom: 1.5pt solid currentColor; padding-bottom: 2.5mm; }
-.chapter[data-layout="ensaio"] .chapter-head { text-align: center; } .chapter[data-layout="ensaio"] .chapter-title { font-style: italic; font-size: 2.1em; } .chapter[data-layout="ensaio"] .chapter-body { padding: 0 8%; }
+.chapter[data-layout="jornal"] .chapter-title { font-size: 32pt; font-weight: 800; line-height: 1.02; }
+.chapter[data-layout="ensaio"] .chapter-head { text-align: center; } .chapter[data-layout="ensaio"] .chapter-title { font-style: italic; font-size: 30pt; text-align: center; } .chapter[data-layout="ensaio"] .chapter-body { padding: 0 8%; }
+.chapter[data-layout="entrevista"] .chapter-title { font-size: 26pt; }
 .chapter[data-layout="entrevista"] .chapter-body p > b:first-child, .chapter[data-layout="entrevista"] .chapter-body p > strong:first-child { text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.9em; }
-.chapter[data-layout="classica"] .chapter-title, .chapter[data-layout="citacao"] .chapter-title { font-size: 2em; }
 .chapter[data-layout="retrato"] .chapter-head, .chapter[data-layout="lateral"] .chapter-head { border-left: 2.4pt solid currentColor; padding-left: 4mm; }
 .chapter:not([data-cols="2"]):not([data-cols="3"]) .chapter-body figure.ph-v { float: right; width: 42%; margin: 0.3em 0 3mm 5mm; }
 .ph-label { font: 600 8pt/1 system-ui, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: #8d8d96; }
@@ -1079,6 +1083,7 @@ body:not(.stage) .tframe[data-guide]:not(.tf-keep) { outline: none !important; }
 .chapter { break-before: page; }
 .chapter.after-opening, .chapter.chapter-cont { break-before: page; }
 .chapter-head { text-align: ${S.chapterTitle.align}; margin: ${mm(S.chapterTitle.spaceBefore)} 0 ${mm(S.chapterTitle.spaceAfter)} 0; break-after: avoid; }
+
 /* imersão: a imagem ocupa o alto da página de abertura, além das margens e do corte (sangria) */
 /* no fluxo fica só a parte dentro da mancha (sem margens negativas, que confundem a paginação);
    a imagem sai da mancha até o corte por posição absoluta */
