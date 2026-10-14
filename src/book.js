@@ -2,6 +2,7 @@
 const { normalizeProject, BUNDLED_FONTS, autoBleed, CEDET } = require('./shared/defaults');
 const CatalogParse = require('./shared/catalog-parse');
 const X = require('./book-extras');
+const PageFrames = require('./shared/frames');
 
 function effectiveBleed(s) {
   if (s.bleedAuto) return autoBleed(s);
@@ -386,6 +387,27 @@ function immersionFor(project, c, i, ctx) {
   return id && ctx.assets[id] ? id : null;
 }
 
+// Molduras: desenho na margem, em volta da mancha (com folga), nas páginas dos capítulos marcados
+function frameCss(project, ctx) {
+  const s = project.settings;
+  const used = [...new Set(project.chapters.map(c => c.frame).filter(id => id && PageFrames.FRAMES[id]))];
+  if (!used.length) return '';
+  const mt = num(s.marginTop, 20), mb = num(s.marginBottom, 22), mi = num(s.marginInner, 22), mo = num(s.marginOuter, 16);
+  const g = 3.5;
+  let t = Math.min(9, Math.max(2.5, Math.min(mt, mb, mi, mo) * 0.45));
+  t = Math.min(t, Math.min(mt, mb, mi, mo) - g - 1.5);
+  if (t < 1.2) return '';
+  const w = ctx.colW + 2 * (g + t), h = ctx.contentH + 2 * (g + t);
+  const out = ['.pagedjs_page[data-frame] .pagedjs_pagebox { position: relative; }'];
+  used.forEach(id => {
+    const svg = PageFrames.svg(id, w, h, t);
+    const sel = `.pagedjs_page[data-frame="${id}"] .pagedjs_pagebox::before`;
+    out.push(`${sel} { content: ""; position: absolute; z-index: 0; pointer-events: none; width: ${w.toFixed(2)}mm; height: ${h.toFixed(2)}mm; top: ${(mt - g - t).toFixed(2)}mm; left: ${(mi - g - t).toFixed(2)}mm; background: url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}") no-repeat; background-size: 100% 100%; }`);
+    out.push(`.pagedjs_page.pagedjs_left_page[data-frame="${id}"] .pagedjs_pagebox::before { left: ${(mo - g - t).toFixed(2)}mm; }`);
+  });
+  return out.join('\n');
+}
+
 // Divide o corpo do capítulo nas páginas de imagem sangrada
 function splitFullBleed(html) {
   const parts = [];
@@ -613,7 +635,8 @@ function buildHtml(project, ctx) {
       if (k === 0) {
         const imId = periodical ? null : immersionFor(project, c, i, ctx);
         const cls = `chapter${i === 0 ? ' first-chapter' : ''}${hasOpening ? ' after-opening' : ''}${imId ? ' has-immersion' : ''}${periodical ? ' article' + (c.newPage === false ? ' flow' : '') : ''}`;
-        push(`<section class="${cls}" id="${esc(c.id)}" data-chapter="${i}" data-cols="${cols}">
+        const frameAttr = !periodical && c.frame && PageFrames.FRAMES[c.frame] ? ` data-frame="${esc(c.frame)}"` : '';
+        push(`<section class="${cls}" id="${esc(c.id)}" data-chapter="${i}" data-cols="${cols}"${frameAttr}>
           ${masthead}${imId ? `<div class="immersion${project.immersion.fade !== false ? ' fade' : ''}" data-asset="${esc(imId)}"><div class="im-img" style="background-image:url('${ctx.assets[imId].dataUrl}')"></div></div>` : ''}
           <header class="chapter-head">
             ${c.kicker ? `<div class="kicker">${esc(c.kicker)}</div>` : ''}
@@ -627,7 +650,7 @@ function buildHtml(project, ctx) {
         </section>`);
         masthead = '';
       } else if (seg.html.replace(/<[^>]+>/g, '').trim() || /<img|<figure|<table/.test(seg.html)) {
-        push(`<section class="chapter chapter-cont" data-chapter="${i}" data-cols="${cols}"><div class="chapter-body">${seg.html}</div></section>`);
+        push(`<section class="chapter chapter-cont" data-chapter="${i}" data-cols="${cols}"${!periodical && c.frame && PageFrames.FRAMES[c.frame] ? ` data-frame="${esc(c.frame)}"` : ''}><div class="chapter-body">${seg.html}</div></section>`);
       }
     });
   });
@@ -1064,6 +1087,7 @@ ${Object.entries(project.pageStyles || {}).map(([n, ps]) => {
 .masthead + .chapter { break-before: avoid; }
 
 ${chapterOverrides}
+${frameCss(project, ctx)}
 .book .chapter-body blockquote.fn-host, .book .chapter-body div.box.fn-host, .book .chapter-body p.fn-host.fn-host { break-inside: auto; }
 `;
 }

@@ -651,6 +651,7 @@
           style: Object.assign({}, c.style || {}),
           separator: c.separator || 'default',
           openingImage: c.openingImage || null,
+          frame: c.frame || '',
           kicker: c.kicker || '', lead: c.lead || '', byline: c.byline || '',
           columns: c.columns || 0, newPage: c.newPage !== false,
           summary: c.summary || ''

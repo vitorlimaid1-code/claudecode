@@ -13,7 +13,7 @@
     const x = p.immersion;
     const def = { mode: 'off', single: null, height: 36, fade: true, numberedOnly: false };
     Object.keys(def).forEach(k => { if (x[k] === undefined) x[k] = def[k]; });
-    x.lib = x.lib || {}; x.uploads = x.uploads || []; x.pool = x.pool || []; x.assign = x.assign || {};
+    x.lib = x.lib || {}; x.uploads = x.uploads || []; x.groups = x.groups || {}; x.pool = x.pool || []; x.assign = x.assign || {};
     return x;
   };
   async function loadManifest() {
@@ -57,16 +57,68 @@
     render();
   }
 
-  async function upload() {
+  const CATS = GROUPS.filter(([k]) => k !== 'all' && k !== 'mine');
+  const catName = k => (CATS.find(c => c[0] === k) || [k, 'Sem categoria'])[1].split(' · ')[0];
+
+  // envio do computador (botão ou arrastar para a galeria / para uma aba): pergunta a categoria de cada imagem
+  async function upload(preset) {
     const l = await api.pickImages({ title: 'Imagens para a abertura dos capítulos (horizontais, de preferência)', multiple: true });
-    if (!l || !l.length) return;
-    const x = im();
-    for (const a of l) { const id = await App.addAsset(a); if (!x.uploads.includes(id)) x.uploads.push(id); if (!x.pool.includes(id)) x.pool.push(id); }
-    if (x.mode === 'single' || x.mode === 'off') { x.single = x.uploads[x.uploads.length - 1]; if (x.mode === 'off') x.mode = 'single'; }
-    filter = 'mine';
-    App.changed(`${l.length} imagem(ns) de imersão enviada(s)`);
-    render();
+    if (l && l.length) await addUploads(l, preset);
   }
+  async function addUploads(l, preset) {
+    const x = im();
+    const ids = [];
+    for (const a of l) { const id = await App.addAsset(a); ids.push(id); if (!x.uploads.includes(id)) x.uploads.push(id); if (!x.pool.includes(id)) x.pool.push(id); }
+    if (!ids.length) return;
+    if (x.mode === 'single' || x.mode === 'off') { x.single = ids[ids.length - 1]; if (x.mode === 'off') x.mode = 'single'; }
+    const def = preset || (CATS.some(c => c[0] === filter) ? filter : '');
+    ids.forEach(id => { if (def) x.groups[id] = def; });
+    App.changed(`${ids.length} imagem(ns) de imersão enviada(s)`);
+    catalog(ids, def);
+  }
+  // diálogo de catalogação: uma linha por imagem, com as categorias do sistema em botões
+  function catalog(ids, def) {
+    const x = im();
+    const rows = [];
+    const chips = (cur, onPick) => el('div', { class: 'im-chips' }, CATS.concat([['', 'Sem categoria']]).map(([k]) => el('button', {
+      class: 'im-chip' + (cur() === k ? ' on' : ''), 'data-k': k, text: k ? catName(k) : 'Sem categoria',
+      onclick: e => { onPick(k); e.currentTarget.parentNode.querySelectorAll('.im-chip').forEach(b => b.classList.toggle('on', b.dataset.k === k)); }
+    })));
+    const setAll = k => { ids.forEach(id => { if (k) x.groups[id] = k; else delete x.groups[id]; }); rows.forEach(r => r.querySelectorAll('.im-chip').forEach(b => b.classList.toggle('on', b.dataset.k === k))); };
+    ids.forEach(id => rows.push(el('div', { class: 'im-catrow' }, [
+      el('img', { src: App.assetUrl(id) }),
+      el('div', {}, [el('b', { class: 'small', text: App.project.assets[id].name || 'Imagem' }), chips(() => x.groups[id] || '', k => { if (k) x.groups[id] = k; else delete x.groups[id]; })])
+    ])));
+    App.modal({
+      title: 'Catalogar imagens enviadas',
+      wide: true,
+      body: el('div', {}, [
+        el('p', { class: 'muted small', text: 'Escolha a categoria de cada imagem — ela passa a aparecer na aba da categoria (e em “Minhas imagens”). Dá para mudar depois, no seletor abaixo de cada imagem.' }),
+        ids.length > 1 ? el('div', { class: 'im-catall' }, [el('span', { class: 'flabel', text: 'Todas de uma vez' }), chips(() => (ids.every(id => x.groups[id] === x.groups[ids[0]]) ? x.groups[ids[0]] || '' : null), setAll)]) : null,
+        el('div', { class: 'im-catlist' }, rows)
+      ]),
+      buttons: [{ label: 'Concluir', primary: true }],
+      onClose: () => {
+        const gs = [...new Set(ids.map(id => x.groups[id] || ''))];
+        filter = gs.length === 1 && gs[0] ? gs[0] : 'mine';
+        App.changed(null, { preview: false });
+        render();
+      }
+    });
+  }
+  async function dropUpload(e, preset) {
+    e.preventDefault(); e.stopPropagation();
+    e.currentTarget.classList.remove('over');
+    const paths = Array.from(e.dataTransfer.files || []).map(f => api.pathForFile(f)).filter(p => /\.(png|jpe?g|gif|webp|bmp)$/i.test(p));
+    if (!paths.length) return App.toast('Arraste arquivos de imagem (JPG, PNG, WEBP…).');
+    await addUploads(await api.imagesFromPaths(paths), preset);
+  }
+  const dropZone = (node, preset) => {
+    node.addEventListener('dragover', e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); e.stopPropagation(); node.classList.add('over'); } });
+    node.addEventListener('dragleave', () => node.classList.remove('over'));
+    node.addEventListener('drop', e => dropUpload(e, preset));
+    return node;
+  };
 
   async function onTile(item, assetId) {
     const x = im();
@@ -93,15 +145,22 @@
     const random = x.mode === 'random';
     const tile = (src, title, id, item) => {
       const on = random ? pool.includes(id) : (x.mode === 'single' && x.single === id);
-      return el('button', { class: 'im-tile' + (on ? ' on' : ''), title, onclick: () => onTile(item, id) }, [
+      // imagens enviadas: seletor de categoria logo abaixo (não dispara a escolha da imagem)
+      const cat = item ? null : el('select', { class: 'im-cat', title: 'Categoria desta imagem', onclick: e => e.stopPropagation(), onchange: e => { if (e.target.value) x.groups[id] = e.target.value; else delete x.groups[id]; App.changed(`Imagem catalogada em “${catName(e.target.value)}”`, { preview: false }); render(); } },
+        CATS.concat([['', 'Sem categoria']]).map(([k]) => el('option', { value: k, text: k ? catName(k) : 'Sem categoria', selected: (x.groups[id] || '') === k })));
+      return el('div', { class: 'im-tile' + (on ? ' on' : ''), role: 'button', tabindex: 0, title, onclick: () => onTile(item, id) }, [
         el('img', { src, loading: 'lazy' }),
         el('span', { class: 'im-name', text: title }),
+        cat,
         on ? el('span', { class: 'im-check', text: random ? '✓' : '●' }) : null
       ]);
     };
     const tiles = [];
+    const ups = x.uploads.filter(id => App.project.assets[id]);
     if (filter !== 'mine') items.filter(it => filter === 'all' || it.group === filter).forEach(it => tiles.push(tile('app://local/assets/' + it.file, it.name, x.lib[it.id] && App.project.assets[x.lib[it.id]] ? x.lib[it.id] : null, it)));
-    if (filter === 'mine' || filter === 'all') x.uploads.filter(id => App.project.assets[id]).forEach(id => tiles.push(tile(App.assetUrl(id), App.project.assets[id].name, id, null)));
+    ups.filter(id => filter === 'mine' || filter === 'all' || x.groups[id] === filter).forEach(id => tiles.push(tile(App.assetUrl(id), App.project.assets[id].name, id, null)));
+    const count = k => k === 'all' ? items.length + ups.length : k === 'mine' ? ups.length : items.filter(it => it.group === k).length + ups.filter(id => x.groups[id] === k).length;
+    const loose = ups.filter(id => !x.groups[id]);
     const need = Math.max(0, chs.length - pool.length);
     const h = el('input', { type: 'range', min: 15, max: 60, step: 1, value: x.height || 36 });
     const hOut = el('span', { class: 'val', text: (x.height || 36) + '%' });
@@ -131,10 +190,14 @@
           el('label', { class: 'chk' }, [numbered, ' Só capítulos numerados'])
         ])
       ]),
-      el('div', { class: 'im-tabs' }, GROUPS.map(([k, label]) => el('button', { class: 'im-tab' + (filter === k ? ' on' : ''), text: label, onclick: () => { filter = k; render(); } }))
-        .concat([el('button', { class: 'im-upload', text: '＋ Enviar do computador', onclick: upload })])),
+      el('div', { class: 'im-tabs' }, GROUPS.map(([k, label]) => {
+        const b = el('button', { class: 'im-tab' + (filter === k ? ' on' : ''), title: CATS.some(c => c[0] === k) ? `Arraste imagens para esta aba para catalogá-las em “${catName(k)}”` : '', onclick: () => { filter = k; render(); } }, [label + ' ', el('span', { class: 'im-count', text: String(count(k)) })]);
+        return CATS.some(c => c[0] === k) ? dropZone(b, k) : dropZone(b, '');
+      }).concat([el('button', { class: 'im-upload', text: CATS.some(c => c[0] === filter) ? `＋ Enviar para “${catName(filter)}”` : '＋ Enviar do computador', onclick: () => upload() })])),
+      loose.length ? el('div', { class: 'im-loose' }, [el('span', { text: `${loose.length} imagem(ns) enviada(s) sem categoria.` }), el('button', { text: 'Catalogar agora', onclick: () => catalog(loose, '') })]) : null,
       el('p', { class: 'small muted', text: random ? 'Clique nas imagens para incluir ou tirar do sorteio; depois, “Randomizar”.' : 'Clique numa imagem para aplicá-la acima do título de todos os capítulos.' }),
-      el('div', { class: 'im-grid' }, tiles),
+      dropZone(el('div', { class: 'im-grid' }, tiles.length ? tiles : [el('p', { class: 'muted small', text: 'Nenhuma imagem nesta categoria ainda — envie do computador ou arraste arquivos para cá.' })]), ''),
+      framesCard(),
       random && Object.keys(x.assign).length ? el('div', { class: 'card' }, [
         el('h3', { text: 'Distribuição atual' }),
         el('div', { class: 'im-assign' }, chs.map((c, i) => { const id = x.assign[c.id] || pool[i % (pool.length || 1)]; return el('div', { class: 'im-as' }, [id && App.project.assets[id] ? el('img', { src: App.assetUrl(id) }) : el('span', { class: 'muted', text: '—' }), el('span', { text: `${i + 1}. ${c.title || 'Sem título'}` })]); }))
@@ -142,6 +205,38 @@
     ]));
   }
 
+  // ---------------------------------------------------------------- molduras (preto e branco)
+  function framesCard() {
+    if (!window.PageFrames) return null;
+    const cur = App.chapter();
+    const usedBy = id => App.project.chapters.filter(c => c.frame === id).length;
+    const apply = (id, all) => {
+      const list = all ? App.project.chapters : (cur ? [cur] : []);
+      if (!list.length) return App.toast('Abra um capítulo (lista à esquerda) para aplicar só nele.');
+      list.forEach(c => { if (!c.locked) c.frame = id; });
+      App.changed(id ? `Moldura “${PageFrames.FRAMES[id].name}” ${all ? 'em todos os capítulos' : 'em “' + cur.title + '”'}` : 'Moldura removida');
+      render();
+    };
+    const prev = id => 'data:image/svg+xml;utf8,' + encodeURIComponent(PageFrames.svg(id, 100, 150, 7).replace('<svg ', '<svg style="background:#fff" '));
+    return el('div', { class: 'card' }, [
+      el('h3', { text: 'Molduras' }),
+      el('p', { class: 'small muted', text: 'Em preto e branco, na margem, em volta do texto (com folga): o texto continua no centro. Valem para todas as páginas do capítulo.' + (cur ? ` Capítulo aberto: “${cur.title}”.` : '') }),
+      el('div', { class: 'fr-grid' }, PageFrames.list().map(fr => el('div', { class: 'fr-tile' + (cur && cur.frame === fr.id ? ' on' : '') }, [
+        el('img', { src: prev(fr.id), alt: fr.name }),
+        el('b', { text: fr.name }),
+        el('span', { class: 'small muted', text: usedBy(fr.id) ? `em ${usedBy(fr.id)} capítulo(s)` : ' ' }),
+        el('div', { class: 'fr-btns' }, [
+          el('button', { class: 'primary', text: 'Aplicar à página', title: 'Aplica nas páginas do capítulo aberto', onclick: () => apply(fr.id, false) }),
+          el('button', { text: 'Em todos', title: 'Aplica nas páginas de todos os capítulos', onclick: () => apply(fr.id, true) })
+        ])
+      ]))),
+      App.project.chapters.some(c => c.frame) ? el('div', { class: 'inline wrap' }, [
+        el('button', { text: 'Remover do capítulo aberto', onclick: () => apply('', false) }),
+        el('button', { class: 'danger', text: 'Remover de todos', onclick: () => apply('', true) })
+      ]) : null
+    ]);
+  }
+
   App.hooks.viewRender.immersion = render;
-  App.immersion = { render, distribute, randomize };
+  App.immersion = { render, distribute, randomize, addUploads, catalog };
 })();

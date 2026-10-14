@@ -103,6 +103,8 @@
     // trecho (capítulo) paginado numa janela de trabalho: numeração, camadas e guias são do livro inteiro
     // e ficam para a prévia que junta os trechos
     const offset = options.segment ? (restoreIds(), 0) : fixPageNumbers(book.typo || {});
+    // páginas com moldura: a página recebe a marca do capítulo emoldurado
+    document.querySelectorAll('.pagedjs_page').forEach(pg => { const sc = pg.querySelector('section[data-frame]'); if (sc) pg.dataset.frame = sc.dataset.frame; else pg.removeAttribute('data-frame'); });
     if (!options.segment) {
       if ((book.typo || {}).notesMode === 'side') placeSidenotes(book.page);
       renderOverlays(book.overlays || []);
@@ -591,7 +593,7 @@
         const data = cx.getImageData(0, 0, W, H).data;
         const right = cs.float === 'right';
         const bands = Math.max(12, Math.min(90, Math.round(H / 4)));
-        const pts = [];
+        const edges = [];
         for (let k = 0; k < bands; k++) {
           const y0 = Math.floor(k * H / bands), y1 = Math.max(y0 + 1, Math.floor((k + 1) * H / bands));
           let edge = right ? W : 0;
@@ -600,9 +602,26 @@
             if (right) { for (let x = 0; x < edge; x++) if (data[row + x * 4 + 3] > 40) { edge = x; break; } }
             else { for (let x = W - 1; x >= edge; x--) if (data[row + x * 4 + 3] > 40) { edge = x + 1; break; } }
           }
-          const px = (edge / W * 100).toFixed(2);
-          pts.push(`${px}% ${(y0 / H * 100).toFixed(2)}%`, `${px}% ${(y1 / H * 100).toFixed(2)}%`);
+          edges.push({ y0, y1, edge });
         }
+        // folga mínima entre o texto e o desenho (a maior entre a distância escolhida e 3,5 mm), também
+        // acima e abaixo das partes salientes: o texto nunca encosta na figura
+        const pad = Math.max(parseFloat(cs.shapeMargin) || 0, 3.5 * 96 / 25.4);
+        const bandH = H / bands;
+        const reach = Math.ceil(pad / bandH);
+        const pts = [];
+        edges.forEach((b, k) => {
+          let e = b.edge;
+          for (let j = Math.max(0, k - reach); j <= Math.min(bands - 1, k + reach); j++) {
+            const has = right ? edges[j].edge < W : edges[j].edge > 0;
+            if (!has) continue;
+            e = right ? Math.min(e, edges[j].edge - pad) : Math.max(e, edges[j].edge + pad);
+          }
+          e = Math.max(0, Math.min(W, e));
+          const px = (e / W * 100).toFixed(2);
+          pts.push(`${px}% ${(b.y0 / H * 100).toFixed(2)}%`, `${px}% ${(b.y1 / H * 100).toFixed(2)}%`);
+        });
+        orig.style.shapeMargin = '0px';
         const poly = right ? ['100% 0%'].concat(pts, ['100% 100%']) : ['0% 0%'].concat(pts, ['0% 100%']);
         orig.style.shapeOutside = `polygon(${poly.join(', ')}) margin-box`;
       });
