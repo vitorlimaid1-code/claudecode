@@ -209,7 +209,8 @@
       title: 'Como usar', wide: true,
       body: el('div', { class: 'help' }, [
         el('ol', {}, [
-          ['Importar', 'traga o manuscrito (DOCX, DOC, EPUB, PDF, ODT, TXT, Markdown). Títulos viram capítulos e as notas de rodapé são preservadas. A paginação é automática.'],
+          ['Editar nas páginas', 'clique em qualquer parágrafo do livro e digite: o texto é editado na própria página, e o capítulo se repagina sozinho logo depois. A barra acima das páginas (títulos, negrito, notas, imagens…) age onde está o cursor. Selecione um trecho para colocá-lo numa caixa de texto ou de citação (▢ Caixa ▾ / ❝ Citação ▾).'],
+          ['Importar', 'traga o manuscrito (DOCX, DOC, EPUB, PDF, ODT, TXT, Markdown). Capítulos são reconhecidos por “CAPÍTULO 1”, “Capítulo IV” ou números/romanos em sequência; as notas de rodapé são preservadas. Confira em Livro › Revisar títulos.'],
           ['Formato e diagramação', 'o padrão é o modelo CEDET (15,5 × 23, 13,7 × 21 ou 11,5 × 17,5 cm, margem de segurança de 20 mm, sangria de 5 mm e marcas de corte; exporte com o perfil “CEDET — miolo”); escolha outro tamanho, margens espelhadas, sangria, capitulares, cabeçalhos e uma configuração pronta por gênero. “★ Salvar como meu padrão” guarda suas escolhas para os próximos livros.'],
           ['Estilos de texto', 'ajuste fonte, tamanho, cor e espaçamentos do texto, dos títulos (T1, T2, T3), citações, poesias, referências, notas e legendas.'],
           ['Capítulos', 'clique para editar; ☑ seleciona vários para editar cor da página, fontes e títulos de uma vez; 🔒 bloqueia contra edição e exclusão.'],

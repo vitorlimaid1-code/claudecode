@@ -31,7 +31,7 @@ function createPool(pageUrl) {
       await w.win.loadURL(pageUrl);
       return w.win.webContents.executeJavaScript(`window.renderSegment(${JSON.stringify(book)}, ${JSON.stringify(o)})`, true);
     };
-    const better = (a, b) => !b || (a.complete && !b.complete) || (a.complete === b.complete && a.clippedNotes.length < b.clippedNotes.length);
+    const better = (a, b) => !b || (a.complete && !b.complete) || (a.complete === b.complete && (a.clippedNotes.length < b.clippedNotes.length || (!a.complete && a.clippedNotes.length === b.clippedNotes.length && a.pageWords > b.pageWords + 2)));
     const base = Object.assign({ segment: true }, options);
     let info = await run(Object.assign({}, base, { notePolicy: 'line' }));
     let best = info, bestO = Object.assign({}, base, { notePolicy: 'line' }), lastO = bestO;

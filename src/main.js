@@ -464,7 +464,48 @@ async function withRenderWindow(fn, opts) {
   }
 }
 
+// Exportação rápida: cada trecho (capítulo) é paginado em paralelo nas janelas de paginação — com as
+// mesmas tentativas para notas e o ajuste de última página — e o livro é montado na janela de exportação.
+async function renderBookSegmented(win, project, options) {
+  if (process.env.EXPORT_FULL === '1') return null;
+  const book = await bookPayload(project);
+  const segs = book.segments || [];
+  if (segs.length < 2) return null;
+  const adjustAll = LayoutPasses.savedAdjust(normalizeProject(project));
+  const meta = Object.assign({}, book, { html: '', segments: undefined, overlays: [] });
+  const tag = 'export' + (++buildSeq) + ':';
+  const t0 = Date.now();
+  const results = await Promise.all(segs.map(s => {
+    const chId = s.key.startsWith('ch:') ? s.key.slice(3) : null;
+    const adjust = chId && adjustAll[chId] ? { [chId]: adjustAll[chId] } : {};
+    return pool().layout(Object.assign({}, meta, { html: s.html }), { adjust }, tag + s.key, 5000).catch(err => ({ error: String(err) }));
+  }));
+  if (results.some(r => !r || r.error || r.superseded || !r.pagesHtml)) { console.error('exportação por trechos falhou; paginando o livro inteiro'); return null; }
+  // um trecho incompleto: o livro inteiro é paginado de uma vez (com as tentativas da exportação)
+  if (results.some(r => !r.complete)) { console.error('trecho incompleto (' + segs.filter((s, i) => !results[i].complete).map(s => s.key).join(', ') + '); paginando o livro inteiro'); return null; }
+  const add = {};
+  segs.forEach((s, i) => { add[s.key] = { pagesHtml: results[i].pagesHtml, css: results[i].css }; });
+  const stageBook = Object.assign({}, book, { html: '', segments: undefined });
+  const fin = await win.webContents.executeJavaScript(`window.stageExport(${JSON.stringify(segs.map(s => s.key))}, ${JSON.stringify(add)}, ${JSON.stringify(stageBook)}, ${JSON.stringify(options || {})})`, true);
+  // espera fontes e imagens antes de imprimir
+  await win.webContents.executeJavaScript('Promise.all([document.fonts.ready, ...Array.from(document.images).filter(i => !i.complete).map(i => new Promise(r => { i.onload = i.onerror = r; }))]).then(() => true)', true);
+  const sum = f => results.reduce((a, r) => a + (Number(r[f]) || 0), 0);
+  const info = Object.assign({}, fin, {
+    complete: results.every(r => r.complete),
+    clippedNotes: [], lostNotes: [],
+    revealedNotes: [].concat(...results.map(r => r.revealedNotes || [])),
+    shortEnds: [].concat(...results.map(r => r.shortEnds || [])),
+    sourceWords: sum('sourceWords'), pageWords: sum('pageWords'),
+    ms: Date.now() - t0, segmented: true
+  });
+  if (process.env.DEBUG_TIMING) console.log('TIMING paginação por trechos', info.ms, 'ms', segs.length, 'trechos');
+  return { book, info };
+}
+
 async function renderBookIn(win, project, options) {
+  const seg = await renderBookSegmented(win, project, options).catch(err => { console.error('exportação por trechos:', err); return null; });
+  if (seg) return seg;
+  if (seg === null) await win.loadURL(win.webContents.getURL());
   const book = await bookPayload(project);
   options = options || {};
   const url = win.webContents.getURL();
@@ -473,7 +514,7 @@ async function renderBookIn(win, project, options) {
   // Notas de rodapé: a nota fica inteira na página da chamada (o texto desce). O Paged.js às vezes
   // falha com notas grandes; então tenta regras alternativas e fica com a primeira paginação completa
   // (todas as palavras visíveis) e sem notas cortadas/divididas — nunca com uma que perca texto.
-  const better = (a, b) => !b || (a.complete && !b.complete) || (a.complete === b.complete && a.clippedNotes.length < b.clippedNotes.length);
+  const better = (a, b) => !b || (a.complete && !b.complete) || (a.complete === b.complete && (a.clippedNotes.length < b.clippedNotes.length || (!a.complete && a.clippedNotes.length === b.clippedNotes.length && a.pageWords > b.pageWords + 2)));
   let info = null, best = null, bestOpts = null, lastOpts = null;
   // ajustes de última página calculados na prévia (mesmo capítulo, mesma diagramação)
   const adjust = LayoutPasses.savedAdjust(normalizeProject(project));

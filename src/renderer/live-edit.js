@@ -619,9 +619,12 @@
   }
 
   function undo(redo) {
-    App.flush();
-    const btn = $(redo ? '#btnRedo' : '#btnUndo');
-    if (btn && !btn.disabled) { state = null; beginLock(null); btn.click(); }
+    const caret = stageSelection();
+    state = null;
+    App._liveNoScroll = true;
+    try { if (redo) App.redo(); else App.undo(); } finally { App._liveNoScroll = false; }
+    // o cursor volta para perto de onde estava
+    if (caret) beginLock([caret[0], caret[0]]);
   }
 
   // formatação de trecho (negrito, itálico…): aplicada na página e no modelo ao mesmo tempo

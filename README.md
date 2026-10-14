@@ -1,6 +1,6 @@
-# Diagramador de Livros
+# Casa Vertigem Hub
 
-Aplicativo para **diagramar livros no computador** e gerar o miolo e a capa prontos para gráfica, impressão sob demanda (Amazon KDP, Clube de Autores, UICLAP…) ou leitura digital (EPUB/PDF).
+Aplicativo para **diagramar livros no computador** (antes chamado Diagramador de Livros) e gerar o miolo e a capa prontos para gráfica, impressão sob demanda (Amazon KDP, Clube de Autores, UICLAP…) ou leitura digital (EPUB/PDF).
 
 - **100% local e offline**: o app bloqueia qualquer acesso à rede. Textos, imagens, fontes e configurações ficam só no seu computador.
 - Projetos são arquivos **`.livro`** (com imagens embutidas), com salvamento automático de recuperação e cópia de segurança `.bak` a cada salvamento.
@@ -11,16 +11,30 @@ Três opções, todas geradas automaticamente pelo GitHub Actions (aba **Actions
 
 | Arquivo | Uso |
 | --- | --- |
-| `Diagramador-de-Livros-Setup-<versão>.exe` | Instalador (atalhos na Área de Trabalho e no Menu Iniciar, associação de arquivos `.livro`). |
-| `Diagramador-de-Livros-Portatil-<versão>.exe` | **Portátil, sem instalação**: um único arquivo — basta clicar no ícone. Guarda as configurações e bibliotecas na pasta `DiagramadorDeLivros-dados`, ao lado do `.exe` (funciona em pen drive). |
-| `Diagramador-de-Livros-<versão>-x64.zip` | Pasta portátil: descompacte e abra `DiagramadorDeLivros.exe`. Para guardar os dados dentro da pasta, crie nela um arquivo vazio chamado `portable.txt`. |
+| `Casa-Vertigem-Hub-Setup-<versão>.exe` | Instalador (atalhos na Área de Trabalho e no Menu Iniciar, associação de arquivos `.livro`). |
+| `Casa-Vertigem-Hub-Portatil-<versão>.exe` | **Portátil, sem instalação**: um único arquivo — basta clicar no ícone. Guarda as configurações e bibliotecas na pasta `CasaVertigemHub-dados`, ao lado do `.exe` (funciona em pen drive; uma pasta `DiagramadorDeLivros-dados` de versões anteriores continua sendo usada). |
+| `Casa-Vertigem-Hub-<versão>-x64.zip` | Pasta portátil: descompacte e abra `CasaVertigemHub.exe`. Para guardar os dados dentro da pasta, crie nela um arquivo vazio chamado `portable.txt`. |
+
+Ao instalar por cima de uma versão anterior (Diagramador de Livros), configurações, bibliotecas e padrões são copiados automaticamente na primeira abertura; os arquivos `.livro` continuam compatíveis.
 
 Como os executáveis não têm assinatura digital, o Windows SmartScreen pode avisar: **Mais informações → Executar assim mesmo**.
 
 ## Recursos
 
+### Edição direta nas páginas
+- O texto é **editado na própria página**: clique em qualquer parágrafo do livro e digite. Não há caixa de texto separada — o que aparece na tela é o livro paginado, com fontes, margens, notas e números de página reais.
+- Digitação, Enter, apagar, colar, negrito/itálico (Ctrl+B/I/U), desfazer (Ctrl+Z) e todos os botões da barra (títulos, citações, notas, imagens, tabelas, ligações) funcionam direto na página. O capítulo é **repaginado em segundo plano** logo depois de parar de digitar, e o cursor continua no mesmo ponto.
+- O título do capítulo também pode ser editado clicando nele na página.
+- **Caixa de texto e caixa de citação**: selecione o texto na página e escolha na barra flutuante **▢ Caixa** (contorno, fundo cinza, barra lateral, filetes, fundo escuro) ou **❝ Citação** (recuada, aspas grandes, barra lateral, destaque centralizado). “Sem caixa” desfaz.
+- Para quem prefere, o botão **Texto em coluna** mostra também o texto corrido numa coluna à parte (modo clássico).
+
+### Paginação rápida
+- O livro é paginado **por capítulos, em paralelo**, em processos separados: a janela nunca trava e as primeiras páginas aparecem em cerca de um segundo. Ao editar, só o capítulo alterado é paginado de novo. A exportação usa o mesmo caminho (mesmo resultado da tela).
+- Páginas fora da tela não são redesenhadas: livros de centenas de páginas rolam sem travar.
+
 ### Manuscrito
-- Importação de **DOCX, DOC, EPUB, PDF, ODT, TXT, Markdown, HTML e RTF**, inclusive arrastando o arquivo para a janela. Títulos viram capítulos (“Capítulo 3 — Nome” vira “Nome”, numerado automaticamente).
+- Importação de **DOCX, DOC, EPUB, PDF, ODT, TXT, Markdown, HTML e RTF**, inclusive arrastando o arquivo para a janela. **Capítulos identificados pelos marcadores do texto**: “CAPÍTULO 1”, “Capítulo IV — Nome”, “Cap. 2” ou só números/romanos em sequência (1, 2, 3 ou I, II, III), com o nome do capítulo na linha seguinte; Prefácio, Introdução, Epílogo etc. viram seções sem número. A numeração do livro pode seguir o estilo do manuscrito (romanos ou arábicos).
+- **Revisar títulos** (menu Livro ou botão **Aa** na lista de capítulos): todos os capítulos e títulos internos numa lista; cada linha pode virar capítulo, título de seção, subtítulo, intertítulo ou texto normal, com sugestão automática pelo padrão “CAPÍTULO N”. O sumário automático segue o resultado.
 - **Notas de rodapé preservadas** (Word, EPUB, ODT, DOC, Markdown e, por reconstrução, PDF). Painel **Notas de rodapé**: ocultar todas sem apagar, remover todas ou só as escolhidas; no editor, clique numa nota para removê-la ou transformá-la em texto.
 - O texto importado é **padronizado** com os estilos do livro (fontes, tamanhos, espaçamentos, títulos e subtítulos do manuscrito são trocados pela configuração escolhida). Na importação dá para escolher o **gênero do livro** e remover o sumário que já vinha no manuscrito (o livro gera o seu, com as páginas certas).
 - Todo o texto é **justificado** (exceto poesia, alinhada à esquerda); o botão **Gênero do livro**, na barra superior, aplica fontes, títulos e alinhamento de uma vez.
@@ -94,7 +108,8 @@ Todo livro novo nasce no padrão do **Manual de Preparação de Arquivos do Cede
 - **Word (.docx)**: imagens, **gráficos nativos do Word** (recriados como gráficos editáveis), notas de rodapé, **comentários de revisão** (ficam no editor como 💬 e na Revisão do texto, nunca no livro), listas, tabelas, legendas ligadas à figura/tabela/gráfico e “Fonte:” — tudo no estilo definido do livro e indexado nas listas.
 
 ### Aparência do sistema
-- **Modo noturno** (botão 🌙 no topo), claro ou automático (segue o Windows) e **nove cores** do sistema (Terracota, Azul-marinho, Verde-floresta, Vinho, Roxo, Petróleo, Âmbar, Rosa, Grafite). As páginas do livro continuam brancas na prévia; restaurável em Restaurar padrões.
+- Visual claro e limpo: navegação à esquerda, páginas do livro no centro e os ajustes abrindo ao lado das páginas (a prévia acompanha cada mudança).
+- **Modo noturno** (botão 🌙 no topo), claro ou automático (segue o Windows) e **dez cores** do sistema (Carvão — padrão —, Terracota, Azul-marinho, Verde-floresta, Vinho, Roxo, Petróleo, Âmbar, Rosa, Grafite). As páginas do livro continuam brancas na prévia; restaurável em Restaurar padrões.
 
 ### Tipografia e paginação (acabamento automático)
 - **Grade de linha de base**: títulos, imagens, tabelas, citações e caixas ocupam um número inteiro de linhas e os espaços entre blocos são múltiplos da entrelinha — as linhas das páginas opostas ficam na mesma altura, mesmo com títulos e imagens.

@@ -128,7 +128,7 @@
         r.selectNodeContents(n);
         const rects = Array.from(r.getClientRects()).filter(rc => rc.width >= 1);
         if (!rects.length) continue;
-        const vis = rects.filter(rc => rc.top >= ar.top - 2 && rc.bottom <= ar.bottom + 2 && rc.left >= ar.left - 2 && rc.right <= ar.right + 2).length;
+        const vis = rects.filter(rc => rc.top >= ar.top - Math.max(2, rc.height * 0.75) && rc.bottom <= ar.bottom + 2 && rc.left >= ar.left - 2 && rc.right <= ar.right + 2).length;
         pageWords += w * vis / rects.length;
       }
     });
@@ -253,6 +253,16 @@
       pages: pages.length, chapterPages: chapterStartPages(), targetPages: targetPages(offset), indexPages,
       pageInfo: pages.map(pg => ({ n: Number(pg.dataset.pageNumber), side: pg.classList.contains('pagedjs_left_page') ? 'L' : 'R', blank: pg.classList.contains('pagedjs_blank_page'), text: (pg.querySelector('.pagedjs_page_content') || pg).textContent.trim().slice(0, 30) }))
     };
+  };
+
+  // exportação: monta o livro inteiro a partir dos trechos paginados em paralelo (mesmo resultado da prévia)
+  window.stageExport = function (order, add, book, options) {
+    options = options || {};
+    const fin = window.stageApply(order, add, book);
+    document.body.classList.remove('stage');
+    if (options.spreadsPrint) enablePrintSpreads(book.page);
+    if (options.pageRange) hidePagesOutside(options.pageRange);
+    return fin;
   };
 
   // O Paged.js 0.5 troca id por data-id quando divide um elemento entre páginas: procura os dois
@@ -432,7 +442,7 @@
         r.selectNodeContents(n);
         const rects = Array.from(r.getClientRects()).filter(rc => rc.width >= 1);
         if (!rects.length) continue;
-        const vis = rects.filter(rc => rc.top >= ar.top - 2 && rc.bottom <= ar.bottom + 2 && rc.left >= ar.left - 2 && rc.right <= ar.right + 2).length;
+        const vis = rects.filter(rc => rc.top >= ar.top - Math.max(2, rc.height * 0.75) && rc.bottom <= ar.bottom + 2 && rc.left >= ar.left - 2 && rc.right <= ar.right + 2).length;
         seen[k] = (seen[k] || 0) + w * vis / rects.length;
       }
     });
