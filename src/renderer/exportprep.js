@@ -3,6 +3,7 @@
 (function () {
   const D = App.D;
 
+  let curCharStyles = [];
   function runs(node, fmt) {
     fmt = fmt || {};
     const out = [];
@@ -21,6 +22,11 @@
       if (t === 'SUP') f.sup = true;
       if (t === 'SUB') f.sub = true;
       if (n.classList && n.classList.contains('smallcaps')) f.sc = true;
+      // estilo de caractere: as marcas que os formatos editáveis entendem (itálico, negrito, versalete, sublinhado)
+      if (t === 'SPAN' && n.dataset && n.dataset.cs) {
+        const cs = (curCharStyles || []).find(x => x.id === n.dataset.cs);
+        if (cs) { if (cs.italic) f.i = true; if (cs.bold) f.b = true; if (cs.smallcaps) f.sc = true; if (cs.underline) f.u = true; }
+      }
       out.push(...runs(n, f));
     });
     return out;
@@ -54,6 +60,7 @@
 
   function buildDoc(project) {
     const s = project.settings;
+    curCharStyles = s.charStyles || [];
     let n = 0;
     const chapters = project.chapters.map(c => {
       let label = '';
@@ -166,7 +173,9 @@
   function epubCss(s) {
     const st = s.styles;
     const fam = f => `"${f || st.body.font}", Georgia, serif`;
-    return `body { font-family: ${fam(st.body.font)}; line-height: ${st.body.lineHeight}; margin: 0 4%; }
+    const cs = D.charStylesCss(s.charStyles);
+    return `${cs}
+body { font-family: ${fam(st.body.font)}; line-height: ${st.body.lineHeight}; margin: 0 4%; }
 p { margin: 0; text-indent: ${st.body.indent}em; text-align: ${st.body.align}; widows: 2; orphans: 2; }
 h1 + p, h2 + p, h3 + p, h4 + p, figure + p, .scene + p, blockquote + p, p.no-indent { text-indent: 0; }
 h1 { font-family: ${fam(st.chapterTitle.font)}; text-align: ${st.chapterTitle.align}; font-weight: ${st.chapterTitle.bold ? 700 : 400}; font-size: 1.7em; margin: 2.5em 0 1.5em; page-break-before: always; ${st.chapterTitle.uppercase ? 'text-transform: uppercase;' : ''}}
@@ -209,6 +218,7 @@ aside p { text-indent: 0; }
 
   async function buildEpub(project, opts) {
     const s = project.settings;
+    curCharStyles = s.charStyles || [];
     let n = 0;
     const ctr = { fig: 0, graf: 0, tab: 0, quad: 0, refs: {} };
     const escX = App.escape;

@@ -178,9 +178,35 @@
       compact ? null : b('▢ Caixa ▾', 'Colocar o trecho selecionado numa caixa de texto', e => styleMenu(e.currentTarget, 'box', run)),
       compact ? null : b('❝ Citação ▾', 'Colocar o trecho selecionado numa caixa de citação', e => styleMenu(e.currentTarget, 'quote', run)),
       compact ? null : el('span', { class: 'qs-sep' }),
+      b('Aa Estilo ▾', 'Estilo de caractere no trecho selecionado (Ênfase, Versalete, Termo estrangeiro…): mudar o estilo muda todos os trechos marcados', e => charMenu(e.currentTarget)),
       compact ? null : b('N', 'Negrito', () => fmt('bold'), 'qs-b'),
       compact ? null : b('I', 'Itálico', () => fmt('italic'), 'qs-i')
     ].filter(Boolean);
+  }
+  // menu dos estilos de caractere do livro
+  function charMenu(anchor) {
+    const list = (App.project.settings.charStyles || []);
+    const css = cs => App.D.charStyleDecl(cs);
+    const apply = id => {
+      if (locked()) return;
+      let ok = false;
+      if (onStage && App.live) ok = App.live.charStyle(id);
+      else if (App.live && App.live.applyCharStyle) { ok = App.live.applyCharStyle(window.getSelection(), id); if (ok) editor().dispatchEvent(new Event('input', { bubbles: true })); }
+      if (!ok) return App.toast('Selecione o trecho no texto primeiro.');
+      App.commit(id ? 'Estilo de caractere: ' + ((list.find(x => x.id === id) || {}).name || id) : 'Estilo de caractere removido');
+      hide();
+    };
+    const item = (kids, fn) => el('button', { class: 'bx-tile cs-tile', onmousedown: e => e.preventDefault(), onclick: () => { menu.remove(); fn(); } }, kids);
+    const menu = el('div', { class: 'qs-menu' }, [el('div', { class: 'qs-menu-title', text: 'Estilo de caractere' })]
+      .concat(list.map(cs => item([el('span', { class: 'cs-prev', style: { cssText: css(cs) }, text: cs.name })], () => apply(cs.id))))
+      .concat([item([el('span', { class: 'bx-name' }, ['Sem estilo de caractere', el('small', { text: 'Tira o estilo do trecho' })])], () => apply('')),
+        item([el('span', { class: 'bx-name' }, ['Editar estilos…', el('small', { text: 'Mudar um estilo muda todos os trechos marcados' })])], () => { hide(); App.setView('styles'); setTimeout(() => { const c = document.querySelector('#charStylesCard'); if (c) c.scrollIntoView({ block: 'start' }); }, 250); })]));
+    document.body.appendChild(menu);
+    const r = anchor.getBoundingClientRect();
+    menu.style.left = Math.max(8, Math.min(window.innerWidth - 270, r.left)) + 'px';
+    menu.style.top = Math.min(window.innerHeight - menu.offsetHeight - 8, r.bottom + 4) + 'px';
+    const close = e => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('mousedown', close, true); } };
+    setTimeout(() => document.addEventListener('mousedown', close, true), 0);
   }
   function fmt(cmd) {
     if (onStage && App.live && App.live.exec(cmd)) return;

@@ -77,10 +77,40 @@
       el('div', { class: 'inline wrap', id: 'typesetRow' }, [el('span', { class: 'muted', text: 'Carregando…' })]),
       el('p', { class: 'muted small', text: 'Salve todos os estilos atuais com um nome para reaplicar em outros livros. Ficam guardados neste computador.' })
     ]);
+    // estilos de caractere: trechos dentro do parágrafo (Ênfase, Versalete, Termo estrangeiro…)
+    if (!Array.isArray(s.charStyles)) s.charStyles = JSON.parse(JSON.stringify(D.DEFAULT_CHAR_STYLES));
+    const csUsage = id => App.project.chapters.reduce((n, c) => n + (String(c.html).match(new RegExp(`data-cs="${id}"`, 'g')) || []).length, 0);
+    const charCard = el('div', { class: 'card span-all', id: 'charStylesCard' }, [
+      el('h3', { text: 'Estilos de caractere' }),
+      el('p', { class: 'muted small', text: 'Para trechos dentro do parágrafo. Selecione o texto na página e use “Aa Estilo ▾” na barra que aparece. Mudar um estilo aqui muda, de uma vez, todos os trechos marcados com ele no livro (e no EPUB e no DOCX).' })
+    ].concat(s.charStyles.map((cs, i) => {
+      const sample = el('div', { class: 'cs-sample', html: `Um trecho com o estilo <span style="${D.charStyleDecl(cs)}">${App.escape(cs.name)}</span> no meio do texto.` });
+      const upd = () => { sample.querySelector('span').style.cssText = D.charStyleDecl(cs); sample.querySelector('span').textContent = cs.name; App.ensureFonts([cs.font]); };
+      const chk = (k, label) => el('label', { class: 'chk' }, [bind(cs, k, 'checkbox', { onChange: upd, label: 'Estilo de caractere: ' + cs.name }), ' ' + label]);
+      return el('div', { class: 'cs-row' }, [
+        sample,
+        field('Nome', bind(cs, 'name', 'text', { onChange: upd })),
+        field('Fonte', bind(cs, 'font', 'select', { options: App.fontOptions(true), onChange: upd, label: 'Estilo de caractere: ' + cs.name })),
+        field('Tamanho %', bind(cs, 'sizePct', 'number', { step: 1, min: 50, max: 200, onChange: upd })),
+        field('Espaço letras', bind(cs, 'letterSpacing', 'number', { step: 0.01, min: -0.1, max: 0.5, onChange: upd })),
+        el('button', { class: 'ghost small-btn', text: '✕', title: csUsage(cs.id) ? `Excluir (os ${csUsage(cs.id)} trecho(s) marcados voltam ao texto normal)` : 'Excluir', onclick: () => {
+          const id = cs.id;
+          App.project.chapters.forEach(c => { if (String(c.html).includes(`data-cs="${id}"`)) c.html = String(c.html).replace(new RegExp(`<span data-cs="${id}">([\\s\\S]*?)</span>`, 'g'), '$1'); });
+          s.charStyles.splice(i, 1); App.changed('Estilo de caractere excluído: ' + cs.name); rerender();
+        } }),
+        el('div', { class: 'cs-flags' }, [chk('italic', 'Itálico'), chk('bold', 'Negrito'), chk('smallcaps', 'Versalete'), chk('uppercase', 'Maiúsculas'), chk('underline', 'Sublinhado'),
+          el('label', { class: 'chk' }, ['Cor ', bind(cs, 'color', 'color', { onChange: upd, fallback: '#000000' })]),
+          el('span', { class: 'small muted', text: csUsage(cs.id) ? `usado em ${csUsage(cs.id)} trecho(s)` : 'ainda não usado' })])
+      ]);
+    })).concat([el('div', { class: 'inline' }, [
+      el('button', { text: '+ Novo estilo de caractere', onclick: async () => { const name = await App.prompt('Novo estilo de caractere', 'Nome', 'Meu estilo'); if (!name) return; s.charStyles.push({ id: 'cs' + Date.now().toString(36), name, font: '', sizePct: 100, color: '', italic: false, bold: false, smallcaps: false, uppercase: false, underline: false, letterSpacing: 0, background: '' }); App.changed('Novo estilo de caractere: ' + name); rerender(); } }),
+      el('button', { class: 'ghost small-btn', text: '↺ Estilos de caractere padrão', onclick: () => { const used = new Set(s.charStyles.map(x => x.id)); D.DEFAULT_CHAR_STYLES.forEach(d => { const k = s.charStyles.findIndex(x => x.id === d.id); if (k >= 0) s.charStyles[k] = JSON.parse(JSON.stringify(d)); else if (!used.has(d.id)) s.charStyles.push(JSON.parse(JSON.stringify(d))); }); App.changed('Estilos de caractere padrão'); rerender(); } })
+    ])]));
     v.appendChild(el('div', { class: 'form-wrap' }, [
       el('h2', { text: 'Estilos de texto' }),
       el('p', { class: 'muted', text: 'Hierarquia: Título do capítulo → T1 (seção) → T2 (subtítulo) → T3 (intertítulo). No editor, escolha o estilo na caixa “Texto principal”. Fontes diferentes podem ser usadas para texto, títulos, citações, poesias, notas, legendas, cabeçalhos, sumário e referências.' }),
       typesetBar,
+      charCard,
       // galeria de estilos de legenda: o escolhido vale para o livro todo (cada legenda pode ter o seu no editor)
       el('div', { class: 'card span-all' }, [
         el('h3', { text: 'Estilo das legendas (figuras, gráficos e tabelas)' }),

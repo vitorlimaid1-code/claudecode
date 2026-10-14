@@ -659,6 +659,51 @@
     return false;
   };
 
+  // estilo de caractere no trecho selecionado nas páginas (id vazio = tira o estilo)
+  L.charStyle = function (id) {
+    const c = App.chapter();
+    if (!c || c.locked || !ensureState(c.id)) return false;
+    const ss = stageSelection();
+    if (!ss || ss[0] === ss[1]) return false;
+    setEditorSelection(ss[0], ss[1]);
+    const ok = applyCharStyle(window.getSelection(), id);
+    if (ok) {
+      state.S = modelV();
+      App.editSeq++;
+      $('#editor').dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    return ok;
+  };
+  // envolve cada pedaço de texto da seleção num span[data-cs] (sem aninhar estilos; entre parágrafos também)
+  function applyCharStyle(sel, id) {
+    if (!sel || !sel.rangeCount) return false;
+    const r = sel.getRangeAt(0);
+    if (r.collapsed) return false;
+    const root = r.commonAncestorContainer.nodeType === 1 ? r.commonAncestorContainer : r.commonAncestorContainer.parentNode;
+    const doc = root.ownerDocument;
+    // estilos já aplicados que tocam a seleção: saem (o novo substitui)
+    Array.from((root.closest('[data-cs]') ? [root.closest('[data-cs]')] : []).concat(Array.from(root.querySelectorAll('span[data-cs]')))).forEach(sp => {
+      if (r.intersectsNode(sp)) sp.replaceWith(...Array.from(sp.childNodes));
+    });
+    if (!id) return true;
+    const texts = [];
+    const tw = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let t;
+    while ((t = tw.nextNode())) if (r.intersectsNode(t) && t.nodeValue.trim() && !t.parentElement.closest('.footnote, figure')) texts.push(t);
+    const sc = r.startContainer, so = r.startOffset, ec = r.endContainer, eo = r.endOffset;
+    texts.forEach(node => {
+      let n = node;
+      if (n === ec && eo < n.nodeValue.length) n.splitText(eo);
+      if (n === sc && so > 0) n = n.splitText(so);
+      const sp = doc.createElement('span');
+      sp.setAttribute('data-cs', id);
+      n.replaceWith(sp);
+      sp.appendChild(n);
+    });
+    return texts.length > 0;
+  }
+  L.applyCharStyle = applyCharStyle;
+
   // ---------------------------------------------------------------- integração com a prévia
   L.attach = function (d) {
     stageDoc = d;

@@ -297,6 +297,33 @@
     { key: 'toc', label: 'Sumário', fields: ['font', 'size', 'color', 'lineHeight'] }
   ];
 
+  // Estilos de caractere (trechos dentro do parágrafo): aplicados pela barra de seleção; mudar o estilo
+  // muda todos os trechos marcados com ele no livro. sizePct: % do tamanho do texto ao redor.
+  const DEFAULT_CHAR_STYLES = [
+    { id: 'enfase', name: 'Ênfase', font: '', sizePct: 100, color: '', italic: true, bold: false, smallcaps: false, uppercase: false, underline: false, letterSpacing: 0, background: '' },
+    { id: 'forte', name: 'Destaque forte', font: '', sizePct: 100, color: '', italic: false, bold: true, smallcaps: false, uppercase: false, underline: false, letterSpacing: 0, background: '' },
+    { id: 'versalete', name: 'Versalete', font: '', sizePct: 100, color: '', italic: false, bold: false, smallcaps: true, uppercase: false, underline: false, letterSpacing: 0.04, background: '' },
+    { id: 'estrangeiro', name: 'Termo estrangeiro', font: '', sizePct: 100, color: '', italic: true, bold: false, smallcaps: false, uppercase: false, underline: false, letterSpacing: 0, background: '' },
+    { id: 'obra', name: 'Título de obra', font: '', sizePct: 100, color: '', italic: true, bold: false, smallcaps: false, uppercase: false, underline: false, letterSpacing: 0, background: '' },
+    { id: 'sigla', name: 'Sigla', font: '', sizePct: 92, color: '', italic: false, bold: false, smallcaps: false, uppercase: true, underline: false, letterSpacing: 0.05, background: '' }
+  ];
+  // declarações CSS de um estilo de caractere
+  function charStyleDecl(cs) {
+    const d = [];
+    if (cs.font) d.push(`font-family: "${String(cs.font).replace(/"/g, '')}", Georgia, serif`);
+    if (cs.sizePct && Number(cs.sizePct) !== 100) d.push(`font-size: ${Number(cs.sizePct) / 100}em`);
+    if (cs.color) d.push(`color: ${cs.color}`);
+    d.push(`font-style: ${cs.italic ? 'italic' : 'normal'}`);
+    d.push(`font-weight: ${cs.bold ? 700 : 'inherit'}`);
+    if (cs.smallcaps) d.push('font-variant: small-caps');
+    if (cs.uppercase) d.push('text-transform: uppercase');
+    if (cs.underline) d.push('text-decoration: underline');
+    if (Number(cs.letterSpacing)) d.push(`letter-spacing: ${Number(cs.letterSpacing)}em`);
+    if (cs.background) d.push(`background: ${cs.background}`, 'padding: 0 0.1em');
+    return d.join('; ');
+  }
+  const charStylesCss = list => (list || []).filter(cs => cs && cs.id).map(cs => `span[data-cs="${String(cs.id).replace(/"/g, '')}"] { ${charStyleDecl(cs)}; }`).join('\n');
+
   const DEFAULT_STYLES = {
     body: { font: 'EB Garamond', size: 11.5, lineHeight: 1.4, color: '#000000', letterSpacing: 0, wordSpacing: 0, indent: 1.5, spaceAfter: 0, align: 'justify' },
     chapterTitle: { font: '', size: 22, color: '#000000', align: 'center', italic: false, bold: false, uppercase: false, letterSpacing: 0, spaceBefore: 35, spaceAfter: 6 },
@@ -368,6 +395,7 @@
     // legendas numeradas: Figura N, Gráfico N, Tabela N (com listas opcionais nas páginas iniciais)
     captionNumbering: true,
     captionStyle: 'classica',
+    charStyles: JSON.parse(JSON.stringify(DEFAULT_CHAR_STYLES)),
     footnotesVisible: true,
     footnoteNumbering: 'book',
 
@@ -712,7 +740,7 @@
 
   return {
     PAGE_FORMATS, FORMAT_GROUPS, DEFAULT_FORMAT_ID, BUNDLED_FONTS, SYSTEM_FONTS,
-    STYLE_DEFS, DEFAULT_STYLES, DEFAULT_SETTINGS, GENRE_PRESETS,
+    STYLE_DEFS, DEFAULT_STYLES, DEFAULT_CHAR_STYLES, charStyleDecl, charStylesCss, DEFAULT_SETTINGS, GENRE_PRESETS,
     uid, newProject, normalizeProject, mergeSettings, applyGenrePreset, emptyCatalog,
     toUnit, fromUnit, MM, KDP, autoBleed, OUTPUT_SHEETS, outputSheetSize, markGeometry, CEDET, isCedet, applyCedet, CAPTION_STYLES, TOC_STYLES,
     FREE_LAYOUT, applyFreeLayout, applyFormatOverrides

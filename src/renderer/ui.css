@@ -455,3 +455,15 @@ body[data-view="cover"] .layout { grid-template-columns: 290px 1fr 0 0; }
 .tr-cfg input, .tr-cfg select { width: 100%; box-sizing: border-box; min-width: 0; }
 .tr-cfg-2 > *, .tr-cfg-row { min-width: 0; }
 .tr-cfg .chk input { width: auto; }
+/* estilos de caractere */
+.cs-tile { justify-content: flex-start; }
+.cs-prev { font-family: "EB Garamond", Georgia, serif; font-size: 16px; padding: 2px 4px; }
+.cs-row { display: grid; grid-template-columns: 1.2fr 1fr 70px 70px auto; gap: 8px; align-items: end; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.cs-row .cs-sample { grid-column: 1 / -1; font-family: "EB Garamond", Georgia, serif; font-size: 17px; }
+.cs-flags { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+/* barra do topo em janelas menores: os botões secundários ficam só com o ícone (o nome aparece ao passar o mouse) */
+@media (max-width: 1560px) {
+  .topbar button[data-cmd="enhance"] span, .topbar button[data-cmd="translate"] span, .topbar button[data-cmd="new"] span, .topbar button[data-cmd="open"] span { display: none; }
+  .topbar button[data-cmd="enhance"], .topbar button[data-cmd="translate"], .topbar button[data-cmd="new"], .topbar button[data-cmd="open"] { padding: 6px 8px; }
+}
+@media (max-width: 1180px) { .topbar button[data-cmd="save"] span, .topbar button[data-cmd="import"] span { display: none; } }

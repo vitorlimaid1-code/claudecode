@@ -1,5 +1,5 @@
 // Monta o HTML e o CSS paginável (Paged.js) a partir de um projeto de livro.
-const { normalizeProject, BUNDLED_FONTS, autoBleed, CEDET } = require('./shared/defaults');
+const { normalizeProject, BUNDLED_FONTS, autoBleed, CEDET, charStylesCss } = require('./shared/defaults');
 const CatalogParse = require('./shared/catalog-parse');
 const X = require('./book-extras');
 const PageFrames = require('./shared/frames');
@@ -1145,6 +1145,8 @@ ${Object.entries(project.pageStyles || {}).map(([n, ps]) => {
 
 ${chapterOverrides}
 ${frameCss(project, ctx)}
+/* estilos de caractere (trechos marcados): mudar o estilo muda todos os trechos */
+${charStylesCss(s.charStyles)}
 .book .chapter-body blockquote.fn-host, .book .chapter-body div.box.fn-host, .book .chapter-body p.fn-host.fn-host { break-inside: auto; }
 `;
 }
@@ -1174,6 +1176,7 @@ async function buildBook(rawProject, opts) {
 
   const fams = new Set();
   Object.values(s.styles).forEach(st => { if (st && st.font) fams.add(st.font); });
+  (s.charStyles || []).forEach(cs => { if (cs && cs.font) fams.add(cs.font); });
   project.chapters.forEach(c => { if (c.style.font) fams.add(c.style.font); if (c.style.titleFont) fams.add(c.style.titleFont); });
   (project.overlays || []).forEach(o => { if (o.font) fams.add(o.font); });
 

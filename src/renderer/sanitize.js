@@ -111,6 +111,12 @@
       if (node.getAttribute('data-ixsub')) x.setAttribute('data-ixsub', node.getAttribute('data-ixsub'));
       return children(node, doc, x);
     }
+    // estilo de caractere (trecho marcado): fica, com o nome do estilo
+    if (outTag === 'span' && node.getAttribute('data-cs')) {
+      const x = doc.createElement('span');
+      x.setAttribute('data-cs', node.getAttribute('data-cs'));
+      return children(node, doc, x);
+    }
     if (outTag === 'span' && cls.contains('comment')) {
       // comentário de revisão (Word/ODT): anotação no editor, não sai no livro
       const c = doc.createElement('span');
