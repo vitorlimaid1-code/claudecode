@@ -166,6 +166,7 @@
     App.preview.resetMode();
     App.preview.schedule(true);
     setTimeout(() => App.fontsUi.checkMissing(false), 1500);
+    if (App.workspace) App.workspace.mark();
   }
   App.loadProject = loadProject;
 
@@ -234,7 +235,10 @@
           ['Tipografia e paginação', 'acabamento automático: grade de linha de base (linhas alinhadas nas páginas opostas), justificação fina, exceções de hifenização, índice remissivo (📇 Índice no editor), referências cruzadas (↪ Referência: “ver Figura 3, p. 41”), notas de fim ou laterais, romanos nas pré-textuais, normas ABNT (ABNT ▾) e modelos de sumário.'],
           ['Capa e lombada', 'no padrão CEDET, gera o código de barras do ISBN (EAN-13 preto, vetorial) na contracapa, marcas de corte e de dobra e orelhas de 6, 7 ou 8 cm; monte a capa com imagens prontas (sempre sem bordas brancas, com correção de cor e nitidez) e veja o livro em 3D, girando para todos os lados, com opção de salvar em PNG transparente; as medidas vêm do livro (ou de um manuscrito, ou digitadas). Saída em PDF CMYK para gráfica (PDF/X-1a, perfil ICC), com sangria automática ou manual.'],
           ['Amazon KDP', 'brochura (16 tamanhos) e capa dura (5 tamanhos): confere páginas, margens e sangria e envia as medidas para a capa.'],
-          ['Revista e jornal', 'em “Novo”, escolha Revista ou Jornal: colunas fixas (2 ou 3), nome da publicação, chapéu, linha fina e assinatura.'],
+          ['Revista e jornal', 'use o seletor Livro | Revista e jornal no topo: é uma mesa separada, com projeto, formato e exportação próprios. Colunas fixas (2 ou 3), nome da publicação, chapéu, linha fina e assinatura.'],
+          ['Blocos e páginas sangradas', 'blocos de imagem cinza (horizontal ou vertical) com legenda de teste: no preview, “+” escolhe a imagem, “Legenda” liga/desliga e ✕ remove. Páginas sangradas opcionais antes/depois de cada matéria ou capítulo, em página dupla, com box de legenda ou texto informativo.'],
+          ['Estilos de título', 'título em caixa preta fina (letra branca), caixa branca fina (letra preta) ou só contorno, à esquerda, centro ou direita — para todos ou por capítulo.'],
+          ['Caixas de texto', 'em Blocos e páginas sangradas, “Caixa de texto”: só o texto aparece. Clique nela no preview para pôr na lateral (o texto segue pela margem), no centro (contorno dos dois lados) ou em faixa, mudar largura e estilo.'],
           ['Exportar', 'perfis prontos (gráfica, KDP, impressão sob demanda, PDF digital, prova, EPUB). A verificação de pré-impressão aponta problemas e leva você à página.']
         ].map(([t, d]) => el('li', {}, [el('b', { text: t + ': ' }), d]))),
         el('p', { class: 'muted', text: 'Tudo é processado e salvo no seu computador — o aplicativo não acessa a internet. Projetos são arquivos .livro; há salvamento automático de recuperação e cópia de segurança (.bak) a cada salvamento.' })

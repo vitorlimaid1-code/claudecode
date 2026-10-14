@@ -331,10 +331,36 @@ function listsHtml(project, ctx) {
   return out;
 }
 
-function fullBleedHtml(assetId, fit, ctx, extraClass) {
+function fullBleedHtml(assetId, fit, ctx, extraClass, box) {
   const asset = ctx.assets[assetId];
   if (!asset) { ctx.missing.push(assetId); return ''; }
-  return `<section class="fullbleed ${extraClass || ''}" data-asset="${esc(assetId)}"><div class="fb-img" style="background-image:url('${asset.dataUrl}'); background-size:${fit === 'contain' ? 'contain' : 'cover'};"></div></section>`;
+  // box com legenda ou texto informativo sobre a imagem (canto ou faixa, escuro ou claro)
+  const boxHtml = box && String(box.text || '').trim() ? `<div class="fb-box fb-pos-${esc(box.pos || 'bl')} fb-look-${esc(box.look || 'dark')}">${box.title ? `<div class="fb-box-title">${esc(box.title)}</div>` : ''}${String(box.text).split(/\n{2,}/).map(t => `<p>${multiline(t.trim())}</p>`).join('')}</div>` : '';
+  return `<section class="fullbleed ${extraClass || ''}" data-asset="${esc(assetId)}"><div class="fb-img" style="background-image:url('${asset.dataUrl}'); background-size:${fit === 'contain' ? 'contain' : 'cover'};"></div>${boxHtml}</section>`;
+}
+
+// Blocos de imagem (cinza, à espera da imagem) e caixas de texto à parte
+function blocksHtml(html, ctx) {
+  // bloco de imagem: horizontal (largura total) ou vertical, com legenda de teste
+  html = html.replace(/<div\b([^>]*class="[^"]*\bph-block\b[^"]*"[^>]*)>([\s\S]*?)<\/div>/gi, (m, attrs, inner) => {
+    const a = parseAttrs(attrs);
+    const v = a['data-ph'] === 'v';
+    const cap = a['data-cap'] !== '0';
+    const capText = inner.replace(/<[^>]+>/g, '').trim() || 'Legenda de teste: descreva a imagem aqui.';
+    const src = a['data-src'] !== undefined ? ` data-src="${esc(a['data-src'])}"` : '';
+    const tools = ctx.markBlocks ? `<button class="ph-plus" title="Escolher a imagem que ilustra a matéria">+</button><span class="ph-tools" contenteditable="false"><button class="ph-cap" title="${cap ? 'Tirar a legenda' : 'Pôr legenda'}">${cap ? 'Legenda ✓' : 'Legenda ✕'}</button><button class="ph-del" title="Remover o bloco">✕</button></span>` : '';
+    return `<figure class="ph ph-${v ? 'v' : 'h'}"${src} contenteditable="false"><div class="ph-box"><span class="ph-label">${v ? 'Imagem vertical' : 'Imagem horizontal'}</span>${tools}</div>${cap ? `<figcaption>${esc(capText)}</figcaption>` : ''}</figure>`;
+  });
+  // caixa de texto à parte: só o texto aparece (a caixa só delimita o espaço)
+  html = html.replace(/<div\b([^>]*class="[^"]*\btframe\b[^"]*"[^>]*)>/gi, (m, attrs) => {
+    const a = parseAttrs(attrs);
+    const pos = ['left', 'right', 'center', 'band'].includes(a['data-pos']) ? a['data-pos'] : 'right';
+    const w = Math.max(20, Math.min(pos === 'band' ? 100 : 60, num(a['data-width'], 40)));
+    const look = ['pull', 'plain', 'quote'].includes(a['data-look']) ? a['data-look'] : 'pull';
+    const src = a['data-src'] !== undefined ? ` data-src="${esc(a['data-src'])}"` : '';
+    return `<div class="tframe tf-${pos} tf-${look}${pos === 'center' ? ' fig-both' : ''}"${src} data-pos="${pos}" style="width:${w}%"${ctx.markBlocks ? ' data-guide="1"' : ''}>`;
+  });
+  return html;
 }
 
 function processBody(html, ctx) {
@@ -345,6 +371,7 @@ function processBody(html, ctx) {
   html = X.collectIndex(html, ctx);
   if (!ctx.settings.footnotesVisible) html = stripFootnotes(html);
   html = html.replace(/<figure\b([^>]*class="[^"]*\bimg\b[^"]*"[^>]*)>([\s\S]*?)<\/figure>/gi, (m, attrs, inner) => figureHtml(parseAttrs(attrs), inner, ctx));
+  html = blocksHtml(html, ctx);
   // imagens soltas com data-asset (ex.: dentro de tabelas/caixas)
   html = html.replace(/<img\b([^>]*?)\bdata-asset="([^"]+)"([^>]*)>/gi, (m, a, id, b) => {
     if (/\bsrc="data:/.test(m)) return m;
@@ -640,6 +667,9 @@ function buildHtml(project, ctx) {
     tocItems.push({ id: c.id, label, title: c.title, level: 1, summary: c.summary || '' });
     const hasOpening = !!(c.openingImage && c.openingImage.asset && ctx.assets[c.openingImage.asset]);
     if (hasOpening) push(fullBleedHtml(c.openingImage.asset, c.openingImage.fit, ctx));
+    // página de imagem sangrada antes do capítulo/matéria (em página dupla: a imagem fica na página da esquerda)
+    const bl = c.bleed || {};
+    if (bl.before && bl.before.asset && ctx.assets[bl.before.asset]) push(fullBleedHtml(bl.before.asset, bl.before.fit, ctx, 'fb-chapter' + (bl.spread !== false ? ' fb-spread' : ''), bl.before.box));
     const heads = [];
     let body = markLongBoxes(markShortTables(numberTables(processBody(anchorHeadings(ctx.markBlocks ? markBlocks(c.html) : c.html, c.id, heads), ctx), ctx)));
     heads.forEach(h => tocItems.push({ id: h.id, label: '', title: h.title, level: h.level }));
@@ -658,7 +688,10 @@ function buildHtml(project, ctx) {
       const cols = periodical ? (Number(c.columns) || Number(settings.columns) || 1) : (Number(c.columns) || 1);
       if (k === 0) {
         const imId = periodical ? null : immersionFor(project, c, i, ctx);
-        const cls = `chapter${i === 0 ? ' first-chapter' : ''}${hasOpening ? ' after-opening' : ''}${imId ? ' has-immersion' : ''}${periodical ? ' article' + (c.newPage === false ? ' flow' : '') : ''}`;
+        const tb = Object.assign({}, settings.titleBox || {}, c.titleBox && c.titleBox.style ? c.titleBox : {});
+        const tbCls = tb.style && tb.style !== 'none' ? ` tb-${tb.style}` : '';
+        const tbAl = tb.align ? ` tb-al-${tb.align}` : '';
+        const cls = `chapter${i === 0 ? ' first-chapter' : ''}${hasOpening ? ' after-opening' : ''}${imId ? ' has-immersion' : ''}${periodical ? ' article' + (c.newPage === false ? ' flow' : '') : ''}${tbCls}${tbAl}`;
         const frameAttr = !periodical && frameOk(c.frame, ctx) ? ` data-frame="${esc(c.frame)}"` : '';
         push(`<section class="${cls}" id="${esc(c.id)}" data-chapter="${i}" data-cols="${cols}"${frameAttr}>
           ${masthead}${imId ? `<div class="immersion${project.immersion.fade !== false ? ' fade' : ''}" data-asset="${esc(imId)}"><div class="im-img" style="background-image:url('${ctx.assets[imId].dataUrl}')"></div></div>` : ''}
@@ -677,6 +710,7 @@ function buildHtml(project, ctx) {
         push(`<section class="chapter chapter-cont" data-chapter="${i}" data-cols="${cols}"${!periodical && frameOk(c.frame, ctx) ? ` data-frame="${esc(c.frame)}"` : ''}><div class="chapter-body">${seg.html}</div></section>`);
       }
     });
+    if (bl.after && bl.after.asset && ctx.assets[bl.after.asset]) push(fullBleedHtml(bl.after.asset, bl.after.fit, ctx, 'fb-chapter fb-after', bl.after.box));
   });
 
   segKey = 'back';
@@ -911,6 +945,44 @@ ${pageNames}
 
 /* ---------- imagem de página inteira (sangrada) ---------- */
 .fullbleed { page: fullbleed; break-before: page; break-after: page; height: ${num(s.pageHeight, 210) - 0.5}mm; position: relative; }
+.fullbleed.fb-spread { break-before: left; }
+.fb-box { position: absolute; z-index: 2; max-width: 62%; padding: 4mm 5mm; font-size: 0.86em; line-height: 1.4; text-align: left; }
+.fb-box p { margin: 0 0 1.5mm; text-indent: 0; } .fb-box p:last-child { margin-bottom: 0; }
+.fb-box-title { font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.82em; margin-bottom: 1.5mm; }
+.fb-look-dark { background: rgba(0, 0, 0, 0.72); color: #fff; } .fb-look-light { background: rgba(255, 255, 255, 0.9); color: #111; } .fb-look-line { background: transparent; color: #fff; border-left: 0.8mm solid #fff; text-shadow: 0 0 3mm rgba(0,0,0,.6); }
+.fb-pos-tl { top: ${mm(num(s.marginTop, 20))}; left: ${mm(num(s.marginOuter, 16))}; } .fb-pos-tr { top: ${mm(num(s.marginTop, 20))}; right: ${mm(num(s.marginOuter, 16))}; }
+.fb-pos-bl { bottom: ${mm(num(s.marginBottom, 22))}; left: ${mm(num(s.marginOuter, 16))}; } .fb-pos-br { bottom: ${mm(num(s.marginBottom, 22))}; right: ${mm(num(s.marginOuter, 16))}; }
+.fb-pos-band { left: 0; right: 0; bottom: ${mm(num(s.marginBottom, 22) * 0.6)}; max-width: none; padding: 5mm ${mm(num(s.marginOuter, 16))}; }
+/* blocos de imagem (à espera da imagem) */
+.chapter-body figure.ph { margin: 3mm 0; break-inside: avoid; }
+.chapter-body figure.ph .ph-box { position: relative; background: #d9d9de; display: flex; align-items: center; justify-content: center; }
+.chapter-body figure.ph-h { column-span: all; width: 100%; } .chapter-body figure.ph-h .ph-box { aspect-ratio: 16 / 9; }
+.chapter-body figure.ph-v .ph-box { aspect-ratio: 3 / 4; }
+.chapter:not([data-cols="2"]):not([data-cols="3"]) .chapter-body figure.ph-v { float: right; width: 42%; margin: 0.3em 0 3mm 5mm; }
+.ph-label { font: 600 8pt/1 system-ui, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: #8d8d96; }
+.chapter-body figure.ph figcaption { font-style: italic; color: #555; }
+.ph-tools { position: absolute; inset: auto 2mm 2mm auto; display: flex; gap: 1.5mm; }
+.ph-tools button { font: 600 8pt system-ui, sans-serif; border: 0; border-radius: 99px; padding: 1.2mm 2.6mm; background: #fff; color: #333; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+.ph-box .ph-plus { position: absolute; left: 50%; top: 50%; transform: translate(-50%, 30%); width: 11mm; height: 11mm; border-radius: 50%; font-size: 18pt; line-height: 1; background: linear-gradient(135deg, #6d28d9, #c026d3); color: #fff; padding: 0; }
+/* caixas de texto à parte: a caixa só delimita o espaço; o texto segue o recuo da mancha */
+.chapter-body .tframe { margin: 1mm 0 3mm; break-inside: avoid; }
+.chapter-body .tframe > p { text-indent: 0; margin: 0; }
+.chapter-body .tframe.tf-right { float: right; margin-left: 6mm; clear: right; }
+.chapter-body .tframe.tf-left { float: left; margin-right: 6mm; clear: left; }
+.chapter-body .tframe.tf-band { column-span: all; margin: 4mm auto; }
+.chapter-body .tframe.tf-center { margin-left: auto; margin-right: auto; }
+.chapter-body .tframe.tf-pull > p { font-family: ${fontStack(S.chapterTitle.font || body.font)}; font-size: 1.75em; line-height: 1.12; text-align: left; hyphens: none; color: #3a3a40; }
+.chapter-body .tframe.tf-pull b, .chapter-body .tframe.tf-pull strong { color: #000; }
+.chapter-body .tframe.tf-quote > p { font-style: italic; font-size: 1.22em; line-height: 1.3; text-align: left; hyphens: none; }
+.chapter-body .tframe.tf-quote > p:first-child::before { content: "“"; font-size: 2.2em; line-height: 0; vertical-align: -0.45em; margin-right: 0.08em; }
+.chapter-body .tframe[data-guide] { outline: 0.35mm dashed rgba(124, 58, 237, 0.45); outline-offset: 1.2mm; }
+/* estilos de título: caixa preta, caixa branca ou só contorno (à esquerda, ao centro ou à direita) */
+.chapter[class*=" tb-"] .chapter-title { display: inline-block; padding: 1.8mm 4.5mm 2.1mm; line-height: 1.12; }
+.chapter.tb-black .chapter-title { background: #000; color: #fff !important; }
+.chapter.tb-white .chapter-title { background: #fff; color: #000 !important; border: 0.25pt solid #000; box-shadow: 0 0 0 1.2mm #fff; }
+.chapter.tb-outline .chapter-title { border: 0.6pt solid currentColor; }
+.chapter.tb-black .chapter-sep, .chapter.tb-white .chapter-sep, .chapter.tb-outline .chapter-sep { display: none; }
+.chapter.tb-al-left .chapter-head { text-align: left; } .chapter.tb-al-center .chapter-head { text-align: center; } .chapter.tb-al-right .chapter-head { text-align: right; }
 .fullbleed .fb-img { position: absolute; left: -${mm(bleed)}; top: -${mm(bleed)}; width: calc(100% + ${(2 * bleed).toFixed(2)}mm); height: calc(100% + ${(2 * bleed + 0.5).toFixed(2)}mm); background-position: center; background-repeat: no-repeat; }
 
 /* ---------- capítulos ---------- */

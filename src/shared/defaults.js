@@ -396,6 +396,8 @@
     captionNumbering: true,
     captionStyle: 'classica',
     charStyles: JSON.parse(JSON.stringify(DEFAULT_CHAR_STYLES)),
+    // estilo do título dos capítulos/matérias: 'none' | 'black' (caixa preta, letra branca) | 'white' (caixa branca) | 'outline' (só contorno)
+    titleBox: { style: 'none', align: '' },
     footnotesVisible: true,
     footnoteNumbering: 'book',
 
@@ -682,7 +684,9 @@
           frame: c.frame || '',
           kicker: c.kicker || '', lead: c.lead || '', byline: c.byline || '',
           columns: c.columns || 0, newPage: c.newPage !== false,
-          summary: c.summary || ''
+          summary: c.summary || '',
+          bleed: c.bleed && typeof c.bleed === 'object' ? c.bleed : null,
+          titleBox: c.titleBox && typeof c.titleBox === 'object' ? c.titleBox : null
         }))
       : base.chapters;
     const catalog = Object.assign(emptyCatalog(), p.catalog || {});

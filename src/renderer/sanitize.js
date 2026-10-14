@@ -6,7 +6,7 @@
   const DROP = new Set(['SCRIPT', 'STYLE', 'META', 'LINK', 'TITLE', 'HEAD', 'IFRAME', 'OBJECT', 'EMBED', 'SVG', 'MATH', 'TEMPLATE', 'NOSCRIPT', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA', 'FORM', 'NAV', 'COL', 'COLGROUP']);
   const RENAME = { STRONG: 'b', EM: 'i', H1: 'h2', H5: 'h4', H6: 'h4', DEL: 's', STRIKE: 's', INS: 'u', CITE: 'i', DFN: 'i', VAR: 'i', ASIDE: 'div', DT: 'p', DD: 'p' };
   const P_CLASSES = new Set(['no-indent', 'phrase', 'reference', 'epigraph-inline', 'table-source', 'caption-text']);
-  const DIV_CLASSES = ['page-break', 'poem', 'box', 'fullbleed'];
+  const DIV_CLASSES = ['page-break', 'poem', 'box', 'fullbleed', 'tframe', 'ph-block'];
   const FIG_ATTRS = ['data-asset', 'data-align', 'data-wrap', 'data-width', 'data-gap', 'data-rot', 'data-flipx', 'data-flipy', 'data-opacity', 'data-crop', 'data-ratio', 'data-fit', 'data-ref', 'data-bleed'];
 
   function children(node, doc, parent) {
@@ -47,6 +47,23 @@
         const d = doc.createElement('div');
         d.className = 'fullbleed';
         ['data-asset', 'data-fit'].forEach(a => { if (node.getAttribute(a)) d.setAttribute(a, node.getAttribute(a)); });
+        return d;
+      }
+      // bloco de imagem (cinza, à espera da imagem) e caixa de texto à parte
+      if (special === 'ph-block') {
+        const d = doc.createElement('div');
+        d.className = 'ph-block';
+        ['data-ph', 'data-cap', 'data-width', 'data-align'].forEach(a => { if (node.getAttribute(a) != null) d.setAttribute(a, node.getAttribute(a)); });
+        d.textContent = node.textContent.replace(/[­​]/g, '').trim();
+        return d;
+      }
+      if (special === 'tframe') {
+        const d = doc.createElement('div');
+        d.className = 'tframe';
+        ['data-pos', 'data-width', 'data-look'].forEach(a => { if (/^[a-z0-9.-]{1,12}$/.test(node.getAttribute(a) || '')) d.setAttribute(a, node.getAttribute(a)); });
+        const inner = doc.createElement('div');
+        children(node, doc, inner);
+        d.innerHTML = normalizeBlocks(inner, doc, true);
         return d;
       }
       if (special === 'poem' || special === 'box') {

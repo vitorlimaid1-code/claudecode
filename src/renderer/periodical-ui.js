@@ -64,7 +64,7 @@
     v.appendChild(el('div', { class: 'form-wrap' }, [
       el('h2', { text: 'Revista e jornal' }),
       el('p', { class: 'muted', text: 'Diagrame revistas, jornais, informativos e boletins com colunas fixas. Cada capítulo da lista é uma matéria.' }),
-      card('Tipo de publicação', [seg(Object.entries(KINDS), p.kind, chooseKind)], periodical ? '' : 'Este projeto é um livro. Escolha Revista ou Jornal para ativar colunas, nome da publicação e matérias.', 'span-all'),
+      card('Tipo de publicação', [seg(Object.entries(KINDS).filter(([k]) => k !== 'book'), p.kind, chooseKind)], periodical ? 'Revista e jornal têm a sua própria mesa de trabalho (botão no alto, ao lado do nome do sistema), separada da do livro: formato, colunas e exportação próprios.' : 'Este projeto é um livro. Use a mesa “Revista e jornal”, no alto, para diagramar uma publicação.', 'span-all'),
       periodical ? card('Colunas (fixas)', [
         seg([[2, '2 colunas'], [3, '3 colunas']], s.columns, n => { s.columns = n; App.changed(n + ' colunas'); rer(); }),
         field('Espaço entre colunas (mm)', bind(s, 'columnGap', 'number', { step: 0.5, min: 2, max: 15 })),
@@ -99,7 +99,7 @@
             field('Linha fina (subtítulo)', bind(c, 'lead', 'textarea', { rows: 2, label: 'Linha fina' }), '', 'wide')
           ])
         ]))),
-        el('button', { text: '+ Nova matéria', onclick: () => App.chapters.add('Nova matéria', '<p><br></p>', false) })
+        el('button', { text: '+ Nova matéria', onclick: () => App.chapters.add('Nova matéria', '<p>Texto da matéria.</p>' + App.blocks.phHtml(false) + '<p><br></p>', false) })
       ], 'Desmarque “Começa em página nova” para a matéria continuar logo abaixo da anterior, separada por um fio.', 'span-all') : null
     ]));
   }

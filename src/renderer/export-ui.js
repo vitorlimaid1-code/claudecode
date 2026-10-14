@@ -92,6 +92,8 @@
     Object.values(proj.assets).forEach(a => {
       if (a.info && a.info.colorSpace === 'CMYK' && o.kind !== 'cover') issues.push({ level: 'warn', type: 'color', msg: `“${a.name}” está em CMYK: no miolo ela é mostrada pelo navegador em RGB e convertida de novo na saída; as cores podem mudar. Prefira imagens RGB com perfil (ou use-a na capa, onde o CMYK é preservado).` });
     });
+    const phs = (proj.chapters || []).filter(c => /class="[^"]*\bph-block\b/.test(c.html || ''));
+    if (phs.length && o.kind !== 'cover') issues.push({ level: 'warn', type: 'missing', msg: `Há blocos de imagem cinza ainda sem imagem em: ${phs.map(c => '“' + (c.title || 'sem título') + '”').join(', ')}. Eles saem como áreas cinza com a legenda de teste — clique no “+” de cada bloco para escolher a imagem, ou remova-o.` });
     const hasAlpha = Object.values(proj.assets).some(a => a.info && a.info.hasAlpha);
     if (o.purpose === 'print') {
       const col = o.color || 'rgb';

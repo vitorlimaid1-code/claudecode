@@ -183,8 +183,17 @@ O layout padrão é o de **livro**. Em **Outros módulos** (barra lateral) ficam
 ### Poesia
 - Estilo de poesia (versos à esquerda, sem hifenização, estrofes que não se partem) e conversão de capítulos em poemas, preservando os versos.
 
-### Revista e jornal
-- Em **Novo**, escolha Livro, **Revista** ou **Jornal**. Colunas fixas (**2 ou 3**), espaço e fio entre colunas, nome da publicação com logotipo, edição e data (também no cabeçalho), e por matéria: **chapéu**, **linha fina**, **assinatura**, colunas próprias e “começa em página nova” ou continua na mesma página.
+### Revista e jornal (mesa de trabalho própria)
+- **Livro** e **Revista e jornal** são mesas separadas (seletor no topo, ao lado do nome): cada uma tem o seu projeto, formato, colunas, margens, arquivo, histórico e exportação. Trocar de mesa guarda a atual; na primeira vez abre uma revista de exemplo. Cada mesa mostra só as telas que lhe pertencem.
+- Colunas fixas (**2 ou 3**), espaço e fio entre colunas, nome da publicação com logotipo, edição e data (também no cabeçalho), e por matéria: **chapéu**, **linha fina**, **assinatura**, colunas próprias e “começa em página nova” ou continua na mesma página.
+- **Blocos de imagem** (tela *Blocos e páginas sangradas*): áreas cinza, horizontais (largura toda) ou verticais (ao lado do texto), com legenda de teste. No preview, o **+** do bloco escolhe a imagem (ou arraste uma imagem para dentro dele); “Legenda ✓/✕” liga/desliga a legenda e ✕ remove o bloco. “Distribuir” coloca os blocos em pontos estratégicos das matérias. Na exportação, o verificador avisa se algum bloco ficou sem imagem.
+- **Páginas sangradas (full bleed)**, opcionais, antes e/ou depois de cada matéria (ou capítulo, no livro): imagem cobrindo a página inteira; com “página dupla” a imagem fica na página par e a matéria abre na ímpar ao lado. Um **box** opcional com título e texto informativo (escuro, claro ou só contorno; nos cantos ou em faixa).
+
+### Estilos de título
+- Tela *Estilos de título*: título dentro de **caixa preta fina com letra branca**, **caixa branca fina com letra preta** ou **só contorno preto fino**, alinhado à esquerda, ao centro ou à direita. Vale para todos os capítulos/matérias ou só para um (estilo próprio).
+
+### Caixas de texto (livro e revista)
+- Caixa invisível que só delimita o espaço: aparece apenas o texto (no preview há um tracejado de guia que não sai na exportação). Clique na caixa para o menu: **lateral esquerda/direita** (o texto ao lado segue reto pela margem), **centro** (o texto contorna dos dois lados), **faixa** (acima/abaixo, com o texto ajustado ao fluxo); largura −/+; estilo destaque grande, citação ou texto normal; remover.
 
 ### Capa e lombada
 - **Prévia 3D**: o livro montado (capa, lombada, contracapa e folhas), girando para todos os lados — frente, verso, lombada, lateral das folhas, cima e baixo — e **salvando em PNG com fundo transparente** em alta resolução.

@@ -195,6 +195,7 @@
   function wire(d) {
     if (d.__imgWired) return;
     d.__imgWired = true;
+    if (App.blocks) App.blocks.wire(d);
     const st = d.createElement('style');
     st.textContent = `
       .chapter-body figure.fig { cursor: grab; }
@@ -554,5 +555,5 @@
     setTimeout(redraw, 30);
   }
 
-  App.images = { wire, dropTarget, insertAt, moveFigure, removeBackground, cutBackground, shapeAsset };
+  App.images = { wire, dropTarget, insertAt, moveFigure, removeBackground, cutBackground, shapeAsset, withChapterDom };
 })();

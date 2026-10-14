@@ -564,7 +564,7 @@
   // aparece (com a legenda como área cheia), e o texto corre colado à forma do desenho.
   async function shapePass(tpl, book, options) {
     const figs = Array.from(tpl.content.querySelectorAll('figure.fig-contour'));
-    const both = Array.from(tpl.content.querySelectorAll('.chapter-body > figure.fig-both'));
+    const both = Array.from(tpl.content.querySelectorAll('.chapter-body > .fig-both'));
     if (!figs.length && !both.length) return;
     const t = book.typo || {};
     const st = document.createElement('style');
@@ -636,7 +636,7 @@
         orig.style.shapeOutside = `polygon(${poly.join(', ')}) margin-box`;
       });
       // no centro: o texto contorna a figura dos dois lados (linhas montadas aqui, com o texto medido)
-      const cb = Array.from(root.querySelectorAll('.chapter-body > figure.fig-both'));
+      const cb = Array.from(root.querySelectorAll('.chapter-body > .fig-both'));
       await Promise.all(cb.map(f => { const im = f.querySelector('img'); return im && im.decode ? im.decode().catch(() => null) : null; }));
       // de trás para frente: cada montagem só mexe na própria figura e no parágrafo seguinte
       const leads = (options && options.wbLead) || {};
@@ -653,7 +653,8 @@
   // seguinte) e o resto continua normalmente abaixo da figura.
   function wrapBoth(f, orig, k, lead, forceBreak) {
     const body = f.parentElement;
-    const img = f.querySelector('img');
+    const frame = f.matches('.tframe'); // caixa de texto: retângulo cheio (sem imagem)
+    const img = frame ? null : f.querySelector('img');
     const fr = f.getBoundingClientRect(), br = body.getBoundingClientRect();
     // parágrafos logo depois da figura: o texto que vai ao redor dela
     const ps = [], ops = [];
@@ -663,14 +664,16 @@
     const L = parseFloat(cs.lineHeight) || fs * 1.35;
     // sem texto depois (fim do capítulo, título em seguida…): a figura fica no centro, com uma linha de folga
     const bail = () => { orig.style.marginTop = L.toFixed(3) + 'px'; orig.style.marginBottom = L.toFixed(3) + 'px'; };
-    if (!ps.length || !fr.width || !fr.height || !img || !img.naturalWidth) return bail();
+    if (!ps.length || !fr.width || !fr.height || (!frame && (!img || !img.naturalWidth))) return bail();
     const pad = 3.5 * 96 / 25.4;
     const W = Math.max(1, Math.round(fr.width)), H = Math.max(1, Math.round(fr.height));
     // perfil da forma em faixas: onde começa e termina o desenho em cada altura
     const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
     const cx = cv.getContext('2d');
-    const ir = img.getBoundingClientRect();
-    cx.drawImage(img, ir.left - fr.left, ir.top - fr.top, ir.width, ir.height);
+    if (frame) { cx.fillStyle = '#000'; cx.fillRect(0, 0, W, H); } else {
+      const ir = img.getBoundingClientRect();
+      cx.drawImage(img, ir.left - fr.left, ir.top - fr.top, ir.width, ir.height);
+    }
     const cap = f.querySelector('figcaption');
     if (cap) { const r = cap.getBoundingClientRect(); cx.fillStyle = '#000'; cx.fillRect(r.left - fr.left, r.top - fr.top, r.width, r.height); }
     const data = cx.getImageData(0, 0, W, H).data;
@@ -962,8 +965,10 @@
           it.o.style.marginBottom = (pad + gap).toFixed(3) + 'px';
         } else {
           const pad = Math.max(0, Math.ceil(it.h / L - 0.03) * L - it.h);
-          it.o.style.marginTop = '0px';
-          it.o.style.marginBottom = (pad + gap).toFixed(3) + 'px';
+          // caixa de texto em faixa: a folga fica dividida acima e abaixo (o texto dela fica no meio do espaço)
+          const half = it.o.classList && it.o.classList.contains('tframe') ? pad / 2 : 0;
+          it.o.style.marginTop = half.toFixed(3) + 'px';
+          it.o.style.marginBottom = (pad - half + gap).toFixed(3) + 'px';
           it.o.dataset.ggap = gap.toFixed(3); // para o pedaço de um bloco dividido entre páginas
         }
         report.gridded += 1;

@@ -467,3 +467,39 @@ body[data-view="cover"] .layout { grid-template-columns: 290px 1fr 0 0; }
   .topbar button[data-cmd="enhance"], .topbar button[data-cmd="translate"], .topbar button[data-cmd="new"], .topbar button[data-cmd="open"] { padding: 6px 8px; }
 }
 @media (max-width: 1180px) { .topbar button[data-cmd="save"] span, .topbar button[data-cmd="import"] span { display: none; } }
+/* mesas de trabalho: Livro × Revista e jornal */
+.ws-switch { display: inline-flex; gap: 2px; margin-left: 14px; padding: 3px; border-radius: 12px; background: var(--hover); }
+.topbar .ws-switch button { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 9px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.topbar .ws-switch button.on { background: var(--panel); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+.topbar .ws-switch button svg.i { width: 16px; height: 16px; }
+body.ws-periodical .topbar .ws-switch button.on { background: var(--grad); color: #fff; }
+body.ws-periodical .nav-item[data-ws="book"], body.ws-periodical .nav-toggle[data-ws="book"], body.ws-periodical #modulesList { display: none !important; }
+body.ws-book .nav-item[data-ws="periodical"] { display: none !important; }
+@media (max-width: 1400px) { .ws-switch .ws-l { display: none; } }
+/* blocos e páginas sangradas */
+.blk-btn { display: inline-flex; align-items: center; gap: 8px; }
+.blk-ic { display: inline-block; background: #d1d1d8; border-radius: 2px; } .blk-ic.h { width: 22px; height: 13px; } .blk-ic.v { width: 12px; height: 17px; }
+.bl-list { display: grid; gap: 12px; }
+.bl-row { padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+.bl-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.bl-slots { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.bl-slot { display: grid; grid-template-columns: 90px 1fr; gap: 10px; padding: 8px; border-radius: 12px; background: var(--hover); }
+.bl-slot.empty { display: flex; align-items: center; justify-content: center; min-height: 70px; border: 1.5px dashed var(--accent-line); background: transparent; }
+.bl-slot img { width: 90px; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 6px; }
+.bl-fields { display: grid; gap: 6px; } .bl-fields input, .bl-fields textarea, .bl-fields select { width: 100%; box-sizing: border-box; }
+/* menu da caixa de texto (nas páginas) */
+.tfm { position: fixed; z-index: 80; display: flex; align-items: center; gap: 3px; padding: 5px 7px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+.tfm-l { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 6px 0 2px; }
+.tfm-btn { min-width: 30px; padding: 4px 7px; border-radius: 8px; font-size: 13px; }
+.tfm-btn.on { background: var(--grad); color: #fff; border-color: transparent; }
+.tfm-sep { width: 1px; height: 20px; background: var(--line); margin: 0 3px; }
+.tfm-w { font-size: 12px; min-width: 34px; text-align: center; }
+/* estilos de título */
+.tbp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.tbp { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--panel); text-align: left; }
+.tbp.on { border-color: transparent; background: linear-gradient(var(--panel), var(--panel)) padding-box, var(--grad) border-box; box-shadow: var(--glow); }
+.tbp-page { background: #f4f2ee; border-radius: 6px; padding: 16px 12px 12px; height: 120px; }
+.tbp-head { margin-bottom: 10px; }
+.tbp-title { display: inline-block; font-size: 17px; color: #111; }
+.tbp-black { background: #000; color: #fff; padding: 3px 9px; } .tbp-white { background: #fff; color: #000; border: 1px solid #000; padding: 3px 9px; } .tbp-outline { border: 1px solid #000; padding: 3px 9px; }
+.tbp-lines { height: 50px; background: repeating-linear-gradient(#c9c6c0 0 2px, transparent 2px 9px); opacity: .7; }

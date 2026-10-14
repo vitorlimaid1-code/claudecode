@@ -40,16 +40,19 @@
 <div class="layout">
   <aside class="sidebar">
     <nav class="nav">
-      <div class="nav-group">Livro</div>
-      <button class="nav-item" data-view="frontimages"><span class="ic">▣</span>Capa e imagens iniciais</button>
+      <div class="nav-group" data-ws-label>Livro</div>
+      <button class="nav-item" data-view="periodical" data-ws="periodical"><span class="ic">▥</span>Publicação e matérias</button>
+      <button class="nav-item" data-view="frontimages" data-ws="book"><span class="ic">▣</span>Capa e imagens iniciais</button>
       <button class="nav-item" data-view="book"><span class="ic">ℹ</span>Dados e páginas iniciais</button>
-      <button class="nav-item" data-view="catalog"><span class="ic">▦</span>Créditos e ficha</button>
+      <button class="nav-item" data-view="catalog" data-ws="book"><span class="ic">▦</span>Créditos e ficha</button>
       <button class="nav-item" data-view="back"><span class="ic">✎</span>Páginas finais</button>
       <button class="nav-item" id="navTitles" title="Corrigir capítulos e títulos identificados errado"><span class="ic">Aa</span>Revisar títulos</button>
       <div class="nav-group">Design</div>
       <button class="nav-item" data-view="layout"><span class="ic">▤</span>Formato e diagramação</button>
-      <button class="nav-item" data-view="immersion"><span class="ic">✦</span>Imersão</button>
+      <button class="nav-item" data-view="immersion" data-ws="book"><span class="ic">✦</span>Imersão</button>
       <button class="nav-item" data-view="typo"><span class="ic">ﬁ</span>Tipografia e paginação</button>
+      <button class="nav-item" data-view="titles"><span class="ic">▣</span>Estilos de título</button>
+      <button class="nav-item" data-view="blocks"><span class="ic">◫</span>Blocos e páginas sangradas</button>
       <button class="nav-item" data-view="stylelib"><span class="ic">❦</span>Biblioteca de estilos</button>
       <button class="nav-item" data-view="styles"><span class="ic">¶</span>Estilos de texto</button>
       <button class="nav-item" data-view="fonts"><span class="ic">A</span>Fontes</button>
@@ -58,12 +61,11 @@
       <div class="nav-group">Produção</div>
       <button class="nav-item" data-view="notes"><span class="ic">¹</span>Notas de rodapé</button>
       <button class="nav-item" data-view="tools"><span class="ic">✓</span>Revisão do texto</button>
-      <button class="nav-item" data-view="cover"><span class="ic">▭</span>Capa e lombada</button>
+      <button class="nav-item" data-view="cover" data-ws="book"><span class="ic">▭</span>Capa e lombada</button>
       <button class="nav-item" data-view="export"><span class="ic">⇩</span>Exportar</button>
-      <button class="nav-group nav-toggle" id="modulesToggle" title="Módulos opcionais: o padrão é o livro">Outros módulos <span class="caret">▸</span></button>
+      <button class="nav-group nav-toggle" data-ws="book" id="modulesToggle" title="Módulos opcionais: o padrão é o livro">Outros módulos <span class="caret">▸</span></button>
       <div id="modulesList" class="nav-modules">
         <button class="nav-item" data-view="poetry"><span class="ic">✒</span>Poesia</button>
-        <button class="nav-item" data-view="periodical"><span class="ic">▥</span>Revista e jornal</button>
         <button class="nav-item" data-view="kdp"><span class="ic">a</span>Amazon KDP</button>
       </div>
       <div class="nav-group">Sistema</div>
@@ -102,6 +104,8 @@
     <section id="view-cover" class="view"></section>
     <section id="view-kdp" class="view"></section>
     <section id="view-periodical" class="view"></section>
+    <section id="view-blocks" class="view"></section>
+    <section id="view-titles" class="view"></section>
     <section id="view-poetry" class="view"></section>
     <section id="view-stylelib" class="view"></section>
     <section id="view-export" class="view"></section>
@@ -236,6 +240,8 @@
 <script src="cover-ui.js"></script>
 <script src="kdp-ui.js"></script>
 <script src="periodical-ui.js"></script>
+<script src="blocks-ui.js"></script>
+<script src="workspace.js"></script>
 <script src="poetry-ui.js"></script>
 <script src="stylelib-ui.js"></script>
 <script src="reset-ui.js"></script>
