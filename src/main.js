@@ -598,6 +598,13 @@ async function renderBookIn(win, project, options) {
     const r = await LayoutPasses.lastPageAdjust(info, Object.assign({}, bestOpts), async o => { await win.loadURL(url); const i = await run(o); dbg('ajuste', i); return i; }, better);
     info = r.info;
   }
+  for (let k = 0; k < 2 && info.wbLead && info.complete; k++) {
+    await win.loadURL(url);
+    const o = Object.assign({}, bestOpts, { wbLead: info.wbLead });
+    const i2 = await run(o);
+    if (!i2.complete) { await win.loadURL(url); info = await run(bestOpts); break; }
+    info = i2; bestOpts = o;
+  }
   if (!info.complete) console.error('AVISO: a paginação não chegou ao fim do livro');
   return { book, info };
 }

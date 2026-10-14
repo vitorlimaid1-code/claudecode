@@ -71,7 +71,7 @@
     // acabamento antes da paginação: justificação fina e grade de linha de base
     const tPre = performance.now();
     const typoReport = typoPrepass(tpl, book);
-    await shapePass(tpl, book);
+    await shapePass(tpl, book, options);
     typoReport.ms = Math.round(performance.now() - tPre);
 
     if (!window.__fnPolicyHandler && tpl.content.querySelector('[data-fn-policy]')) {
@@ -155,7 +155,8 @@
     document.querySelectorAll('.ix-pages[data-ixkey]').forEach(x => { indexPages[x.dataset.ixkey] = x.textContent; });
     const lp = (book.typo || {}).lastPage || {};
     const shortEnds = lp.enabled ? shortChapterEnds(book.chapterIds || [], lp.minLines || 3) : [];
-    return { clippedNotes, complete, sourceWords, pageWords, pages: flow.total, ms: Math.round(flow.performance), pageInfo, chapterPages: chapterStartPages(), targetPages: targetPages(offset), shortEnds, adjust, typo: typoReport, indexPages, lostNotes, keepNotes: options.keepNotes || [], sidenotes: window.__sidenoteReport || null };
+    const wbLead = wrapBothLeads(options);
+    return { wbLead, clippedNotes, complete, sourceWords, pageWords, pages: flow.total, ms: Math.round(flow.performance), pageInfo, chapterPages: chapterStartPages(), targetPages: targetPages(offset), shortEnds, adjust, typo: typoReport, indexPages, lostNotes, keepNotes: options.keepNotes || [], sidenotes: window.__sidenoteReport || null };
   };
 
   // ---------- trecho paginado numa janela de trabalho (processo separado) ----------
@@ -561,7 +562,7 @@
   // Texto no contorno da figura: o navegador usa a imagem do shape-outside no tamanho natural dela (não no
   // tamanho da figura na página). Aqui cada figura com contorno ganha uma máscara do tamanho exato em que
   // aparece (com a legenda como área cheia), e o texto corre colado à forma do desenho.
-  async function shapePass(tpl, book) {
+  async function shapePass(tpl, book, options) {
     const figs = Array.from(tpl.content.querySelectorAll('figure.fig-contour'));
     const both = Array.from(tpl.content.querySelectorAll('.chapter-body > figure.fig-both'));
     if (!figs.length && !both.length) return;
@@ -638,7 +639,8 @@
       const cb = Array.from(root.querySelectorAll('.chapter-body > figure.fig-both'));
       await Promise.all(cb.map(f => { const im = f.querySelector('img'); return im && im.decode ? im.decode().catch(() => null) : null; }));
       // de trás para frente: cada montagem só mexe na própria figura e no parágrafo seguinte
-      for (let i = cb.length - 1; i >= 0; i--) { try { wrapBoth(cb[i], both[i]); } catch (e) { console.error('texto dos dois lados', e); } }
+      const leads = (options && options.wbLead) || {};
+      for (let i = cb.length - 1; i >= 0; i--) { try { wrapBoth(cb[i], both[i], i, Number(leads[i]) || 0, leads[i] !== undefined); } catch (e) { console.error('texto dos dois lados', e); } }
     } catch (e) { console.error('contorno das figuras', e); }
     root.remove();
     st.remove();
@@ -649,15 +651,19 @@
   // quanto cabe à esquerda e à direita da forma (o contorno das áreas transparentes, com folga), linha a
   // linha; o começo do parágrafo seguinte preenche essas linhas na ordem de leitura (esquerda, direita, linha
   // seguinte) e o resto continua normalmente abaixo da figura.
-  function wrapBoth(f, orig) {
-    const body = f.parentElement, p2 = f.nextElementSibling;
-    if (!orig || !body || !p2 || p2.tagName !== 'P' || !orig.nextElementSibling || orig.nextElementSibling.tagName !== 'P') return;
+  function wrapBoth(f, orig, k, lead, forceBreak) {
+    const body = f.parentElement;
     const img = f.querySelector('img');
     const fr = f.getBoundingClientRect(), br = body.getBoundingClientRect();
-    if (!fr.width || !fr.height || !img || !img.naturalWidth) return;
-    const cs = getComputedStyle(p2);
+    // parágrafos logo depois da figura: o texto que vai ao redor dela
+    const ps = [], ops = [];
+    for (let a = f.nextElementSibling, b = orig.nextElementSibling; a && b && a.tagName === 'P' && b.tagName === 'P' && ps.length < 12; a = a.nextElementSibling, b = b.nextElementSibling) { ps.push(a); ops.push(b); }
+    const cs = getComputedStyle(ps[0] || body);
     const fs = parseFloat(cs.fontSize) || 14;
     const L = parseFloat(cs.lineHeight) || fs * 1.35;
+    // sem texto depois (fim do capítulo, título em seguida…): a figura fica no centro, com uma linha de folga
+    const bail = () => { orig.style.marginTop = L.toFixed(3) + 'px'; orig.style.marginBottom = L.toFixed(3) + 'px'; };
+    if (!ps.length || !fr.width || !fr.height || !img || !img.naturalWidth) return bail();
     const pad = 3.5 * 96 / 25.4;
     const W = Math.max(1, Math.round(fr.width)), H = Math.max(1, Math.round(fr.height));
     // perfil da forma em faixas: onde começa e termina o desenho em cada altura
@@ -670,8 +676,8 @@
     const data = cx.getImageData(0, 0, W, H).data;
     const bands = Math.max(8, Math.min(120, Math.round(H / 3)));
     const prof = [];
-    for (let k = 0; k < bands; k++) {
-      const y0 = Math.floor(k * H / bands), y1 = Math.max(y0 + 1, Math.floor((k + 1) * H / bands));
+    for (let q = 0; q < bands; q++) {
+      const y0 = Math.floor(q * H / bands), y1 = Math.max(y0 + 1, Math.floor((q + 1) * H / bands));
       let lo = W, hi = -1;
       for (let y = y0; y < y1; y++) {
         const row = y * W * 4;
@@ -680,21 +686,22 @@
       }
       prof.push({ y0, y1, lo, hi });
     }
+    // linhas inteiras: a figura fica centrada na altura delas, com folga acima e abaixo dentro das linhas
     const n = Math.max(1, Math.ceil((H + pad * 0.6) / L));
-    const off = (n * L - H) / 2; // a figura fica centrada na altura das linhas
+    const off = (n * L - H) / 2;
     const fx = fr.left - br.left, bw = br.width, minSeg = fs * 2.6;
     const rows = [];
+    for (let r = 0; r < lead; r++) rows.push({ full: bw, lead: true });
     for (let r = 0; r < n; r++) {
       const a = r * L - off - pad, b = (r + 1) * L - off + pad;
       let lo = Infinity, hi = -Infinity;
       prof.forEach(q => { if (q.hi >= 0 && q.y1 > a && q.y0 < b) { lo = Math.min(lo, q.lo); hi = Math.max(hi, q.hi); } });
       if (hi < 0) { rows.push({ full: bw }); continue; }
-      let lw = fx + lo - pad, rs = fx + hi + 1 + pad;
-      lw = lw >= minSeg ? lw : 0;
-      let rw = bw - rs; rw = rw >= minSeg ? rw : 0;
+      let lw = fx + lo - pad; lw = lw >= minSeg ? lw : 0;
+      let rw = bw - (fx + hi + 1 + pad); rw = rw >= minSeg ? rw : 0;
       rows.push({ lw, rw });
     }
-    // pontos de quebra (início de cada palavra) em posições de texto, iguais no clone medido e no original
+    // pontos de quebra (início de cada palavra), iguais no clone medido e no original
     const textNodes = el => { const out = []; const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, { acceptNode: t => t.parentElement.closest('.footnote, .sidenote') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT }); let t; while ((t = w.nextNode())) out.push(t); return out; };
     const breaksOf = el => {
       const nodes = textNodes(el), pts = [];
@@ -703,68 +710,125 @@
       const last = nodes[nodes.length - 1];
       return { pts, end: last ? [last, last.data.length] : [el, el.childNodes.length] };
     };
-    const B = breaksOf(p2);
-    if (B.pts.length < 6) return;
-    const probe = p2.cloneNode(false);
-    probe.removeAttribute('id');
-    probe.style.cssText = 'position:absolute; left:0; top:0; visibility:hidden; white-space:nowrap; display:inline-block; width:auto; text-indent:0; margin:0; padding:0;';
-    body.appendChild(probe);
-    const at = k => (k < B.pts.length ? B.pts[k] : B.end);
-    const frag = (el, pts, end, i, j) => { const rg = document.createRange(); const s0 = i < pts.length ? pts[i] : end, e0 = j < pts.length ? pts[j] : end; rg.setStart(s0[0], s0[1]); rg.setEnd(e0[0], e0[1]); return rg; };
-    const widthOf = (i, j) => { probe.replaceChildren(frag(p2, B.pts, B.end, i, j).cloneContents()); return probe.getBoundingClientRect().width; };
-    // quantas palavras cabem a partir de i na largura w (todas inteiras; nunca quebra palavra)
-    const fit = (i, w) => {
-      if (!w || i >= B.pts.length) return i;
-      let j = i;
-      while (j < B.pts.length && widthOf(i, j + 1) <= w - 1) j++;
-      return j;
+    const SB = ps.map(breaksOf), OB = ops.map(breaksOf);
+    if (SB.some((b, i) => b.pts.length !== OB[i].pts.length)) return bail();
+    const range = (B, i, j) => { const rg = document.createRange(); const s0 = i < B.pts.length ? B.pts[i] : B.end, e0 = j < B.pts.length ? B.pts[j] : B.end; rg.setStart(s0[0], s0[1]); rg.setEnd(e0[0], e0[1]); return rg; };
+    const indents = ps.map(p => (p.classList.contains('no-indent') ? 0 : parseFloat(getComputedStyle(p).textIndent) || 0));
+    const probes = ps.map(p => { const pr = p.cloneNode(false); pr.removeAttribute('id'); pr.style.cssText = 'position:absolute; left:0; top:0; visibility:hidden; white-space:nowrap; display:inline-block; width:auto; text-indent:0; margin:0; padding:0;'; body.appendChild(pr); return pr; });
+    const widthOf = (pi, i, j) => { probes[pi].replaceChildren(range(SB[pi], i, j).cloneContents()); return probes[pi].getBoundingClientRect().width; };
+    // cursor no texto: parágrafo pi, palavra wi; um trecho nunca junta dois parágrafos nem quebra palavra
+    let pi = 0, wi = 0;
+    const take = w => {
+      while (pi < ps.length && wi >= SB[pi].pts.length) { pi++; wi = 0; }
+      if (!w || pi >= ps.length) return null;
+      const ind = wi === 0 ? indents[pi] : 0;
+      let j = wi;
+      while (j < SB[pi].pts.length && ind + widthOf(pi, wi, j + 1) <= w - 1) j++;
+      if (j === wi) return null;
+      const seg = { pi, i: wi, j, w, ind, ends: j >= SB[pi].pts.length };
+      wi = j;
+      return seg;
     };
-    let k = 0;
-    const segs = [];
-    rows.forEach(r => {
-      if (r.full) { const j = fit(k, r.full); segs.push({ full: [k, j, r.full] }); k = j; return; }
-      const j1 = fit(k, r.lw); const L1 = [k, j1, r.lw]; k = j1;
-      const j2 = fit(k, r.rw); const R1 = [k, j2, r.rw]; k = j2;
-      segs.push({ L: L1, R: R1 });
-    });
-    probe.remove();
-    if (!k) return;
-    // monta no original: linhas com a figura no meio; o resto do parágrafo continua depois
-    const op = orig.nextElementSibling;
-    const OB = breaksOf(op);
-    if (OB.pts.length !== B.pts.length) return;
-    const last = k;
-    const seg = ([i, j, w], align) => {
+    const segs = rows.map(r => r.full ? { full: take(r.full), lead: r.lead } : { L: take(r.lw), lw: r.lw, R: take(r.rw), rw: r.rw });
+    probes.forEach(pr => pr.remove());
+    if (!segs.some(s2 => s2.full || s2.L || s2.R)) return bail();
+    // monta no original
+    const mkSeg = (sg, w) => {
       const sp = document.createElement('span');
       sp.className = 'wb-seg';
-      const ends = j >= B.pts.length;
-      sp.style.cssText = `display:block; flex:none; width:${w.toFixed(2)}px; white-space:nowrap; overflow:hidden; text-indent:0; text-align:${align}; text-align-last:${ends || j === i ? 'left' : 'justify'};`;
-      if (j > i) sp.appendChild(frag(op, OB.pts, OB.end, i, j).cloneContents());
+      sp.style.cssText = `display:block; flex:none; width:${w.toFixed(2)}px; white-space:nowrap; overflow:hidden; text-indent:${sg && sg.ind ? sg.ind.toFixed(2) + 'px' : '0'}; text-align:justify; text-align-last:${!sg || sg.ends ? 'left' : 'justify'};`;
+      if (sg) sp.appendChild(range(OB[sg.pi], sg.i, sg.j).cloneContents());
       return sp;
     };
-    const wrap = document.createElement('div');
-    wrap.className = 'wrap-both';
-    wrap.setAttribute('contenteditable', 'false');
-    wrap.style.cssText = `position:relative; height:${(n * L).toFixed(2)}px; margin:${(pad * 0.5).toFixed(2)}px 0; break-inside:avoid; page-break-inside:avoid;`;
-    segs.forEach(s2 => {
+    const mkRow = s2 => {
       const row = document.createElement('span');
       row.className = 'wb-row';
       row.style.cssText = `display:flex; height:${L.toFixed(3)}px; line-height:${L.toFixed(3)}px; white-space:nowrap;`;
-      if (s2.full) row.appendChild(seg(s2.full, 'justify'));
-      else { row.appendChild(seg(s2.L, 'justify')); const g = document.createElement('span'); g.style.cssText = 'flex:1 1 auto;'; row.appendChild(g); row.appendChild(seg(s2.R, 'justify')); }
-      wrap.appendChild(row);
-    });
-    // texto das linhas sai do parágrafo; o que sobrou continua como o mesmo parágrafo
-    const rg = frag(op, OB.pts, OB.end, 0, last);
-    rg.setStart(op, 0);
-    rg.deleteContents();
-    if (op.textContent.trim()) { op.classList.add('no-indent'); op.setAttribute('data-wb-cont', '1'); } else op.remove();
-    orig.style.position = 'absolute';
-    orig.style.left = fx.toFixed(2) + 'px';
-    orig.style.top = off.toFixed(2) + 'px';
-    orig.style.margin = '0';
+      if ('full' in s2) row.appendChild(mkSeg(s2.full, bw));
+      else { row.appendChild(mkSeg(s2.L, s2.lw || 0)); const g = document.createElement('span'); g.style.cssText = 'flex:1 1 auto;'; row.appendChild(g); row.appendChild(mkSeg(s2.R, s2.rw || 0)); }
+      return row;
+    };
+    const block = (list, cls, avoid) => {
+      const d = document.createElement('div');
+      d.className = cls;
+      d.setAttribute('contenteditable', 'false');
+      d.dataset.wb = String(k);
+      d.style.cssText = `position:relative; height:${(list.length * L).toFixed(3)}px; margin:0;${avoid ? ' break-inside:avoid; page-break-inside:avoid;' : ''}`;
+      list.forEach(s2 => d.appendChild(mkRow(s2)));
+      return d;
+    };
+    const leadRows = segs.filter(s2 => s2.lead), figRows = segs.filter(s2 => !s2.lead);
+    const wrap = block(figRows, 'wrap-both', true);
+    let lp = null;
+    if (leadRows.length) {
+      // parágrafo comum (o paginador divide/mede bem), com as quebras de linha já decididas e cada linha justificada
+      lp = document.createElement('p');
+      lp.className = 'wb-lead no-indent';
+      lp.setAttribute('contenteditable', 'false');
+      const first = leadRows[0].full;
+      lp.style.cssText = `white-space:nowrap; text-align:justify; text-align-last:justify; margin:0; text-indent:${first && first.ind ? first.ind.toFixed(2) + 'px' : '0'};`;
+      leadRows.forEach((s2, i) => {
+        if (i) lp.appendChild(document.createElement('br'));
+        if (s2.full) lp.appendChild(range(OB[s2.full.pi], s2.full.i, s2.full.j).cloneContents());
+      });
+      if (leadRows.some(s2 => s2.full && s2.full.ends)) lp.style.textAlignLast = 'left';
+    }
+    // texto das linhas sai dos parágrafos; o que sobrar do último usado continua como o mesmo parágrafo
+    for (let q = ops.length - 1; q >= 0; q--) {
+      if (q > pi) continue;
+      const used = q < pi ? OB[q].pts.length : wi;
+      if (!used) continue;
+      if (used >= OB[q].pts.length) { ops[q].remove(); continue; }
+      const rg = range(OB[q], 0, used);
+      rg.setStart(ops[q], 0);
+      rg.deleteContents();
+      ops[q].classList.add('no-indent');
+      ops[q].setAttribute('data-wb-cont', '1');
+    }
+    // no fluxo (o paginador leva junto ao mudar de página), mas sem ocupar altura: as linhas passam ao lado
+    // (depois das linhas, puxada para cima: como primeiro elemento de um bloco no alto da página o paginador a descartava)
+    const tot = figRows.length * L;
+    orig.style.position = 'relative';
+    orig.style.margin = `${(-(tot - off)).toFixed(2)}px 0 ${(tot - off - H).toFixed(2)}px ${fx.toFixed(2)}px`;
+    orig.style.zIndex = '0';
     orig.replaceWith(wrap);
-    wrap.insertBefore(orig, wrap.firstChild);
+    wrap.appendChild(orig);
+    // linhas puxadas para antes da figura (enchem o fim da página quando ela não cabe ali)
+    if (lp) wrap.before(lp);
+    // a figura começa a página seguinte por quebra explícita (montada inteira lá, nunca como sobra da anterior)
+    if (forceBreak) { wrap.style.breakBefore = 'page'; wrap.style.pageBreakBefore = 'always'; }
+  }
+
+  // depois da paginação: figura no centro que não coube e foi para a página seguinte deixando o pé da
+  // página anterior em branco -> quantas linhas de texto devem vir antes dela para encher esse espaço
+  function wrapBothLeads(options) {
+    const out = Object.assign({}, options.wbLead || {});
+    let changed = false;
+    document.querySelectorAll('.pagedjs_page .wrap-both').forEach(w => {
+      const pg = w.closest('.pagedjs_page'), body = w.closest('.chapter-body');
+      if (!pg || !body) return;
+      const prevBlock = w.previousElementSibling;
+      if (prevBlock) return; // não está no alto da página
+      const k0 = w.dataset.wb;
+      if ((options.wbLead || {})[k0] !== undefined) return; // já tratada (quebra explícita)
+      const prev = pg.previousElementSibling;
+      if (!prev || !prev.classList.contains('pagedjs_page')) return;
+      const sec = w.closest('section[data-chapter]');
+      const psec = prev.querySelector(`section[data-chapter="${sec && sec.dataset.chapter}"] .chapter-body`);
+      if (!psec) return;
+      const area = prev.querySelector('.pagedjs_page_content').getBoundingClientRect();
+      let bottom = area.top;
+      psec.querySelectorAll(':scope > *').forEach(e => { const r = e.getBoundingClientRect(); if (r.height) bottom = Math.max(bottom, r.bottom + (parseFloat(getComputedStyle(e).marginBottom) || 0)); });
+      const fa = prev.querySelector('.pagedjs_footnote_area');
+      const limit = fa && fa.getBoundingClientRect().height > 1 ? fa.getBoundingClientRect().top : area.bottom;
+      const row = w.querySelector('.wb-row');
+      const L = row ? row.getBoundingClientRect().height : 0;
+      if (!(L > 2)) return;
+      const free = Math.max(0, Math.floor((limit - bottom) / L - 0.05));
+      out[k0] = free;
+      changed = true;
+    });
+    return changed ? out : null;
   }
 
   function typoPrepass(tpl, book) {

@@ -57,6 +57,14 @@ function createPool(pageUrl) {
       info = r.info;
       info.adjust = r.opts.adjust || {};
     }
+    // figura no centro empurrada para a página seguinte: algumas linhas do texto vêm antes dela e enchem o pé
+    // da página (sem espaço em branco); no máximo duas novas passadas
+    for (let k = 0; k < 2 && info.wbLead && info.complete; k++) {
+      const o = Object.assign({}, lastO, { wbLead: info.wbLead }, info.adjust ? { adjust: info.adjust } : {});
+      const i2 = await run(o);
+      if (!i2.complete) break;
+      i2.adjust = info.adjust; info = i2; lastO = o;
+    }
     info.jobMs = Date.now() - t0;
     info.waitMs = t0 - job.t;
     return info;

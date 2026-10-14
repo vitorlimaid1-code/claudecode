@@ -173,6 +173,9 @@ function figureHtml(attrs, inner, ctx) {
     figStyle.push(floatSide === 'left' ? `margin: 0.25em ${gap}mm ${(gap * 0.6).toFixed(2)}mm ${out ? -out.toFixed(2) + 'mm' : 0}` : `margin: 0.25em ${out ? -out.toFixed(2) + 'mm' : 0} ${(gap * 0.6).toFixed(2)}mm ${gap}mm`);
   } else if (wrap === 'behind') {
     figStyle.push('height: 0', 'position: relative', 'overflow: visible', 'margin-top: 0', 'margin-bottom: 0');
+  } else if (wrap === 'both' && align !== 'full') {
+    // no centro com texto dos dois lados: sem margem acima/abaixo (a folga fica nas linhas ao redor)
+    figStyle.push('margin-top: 0', 'margin-bottom: 0');
   } else {
     figStyle.push(`margin-top: ${gap}mm`, `margin-bottom: ${gap}mm`);
   }
