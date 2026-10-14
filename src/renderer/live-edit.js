@@ -682,6 +682,9 @@
     if (!App.editorChapterId || key !== 'ch:' + App.editorChapterId) return true;
     return seq === App.editSeq;
   };
+  // seleção nas páginas: barra flutuante de estilos (caixa, citação, título…)
+  let selT = null;
+  L.onSelection = sel => { clearTimeout(selT); selT = setTimeout(() => { if (App.quickStyle) App.quickStyle.showStage(stageDoc.getSelection()); }, 180); };
   L.focusedOnStage = () => lastFocus === 'stage';
   L.noteEditorFocus = () => { lastFocus = 'editor'; };
   L.selectionPos = () => stageSelection();

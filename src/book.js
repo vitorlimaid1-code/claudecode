@@ -856,6 +856,17 @@ ${s.keepHeadingsWithNext ? '.chapter-body h2, .chapter-body h3, .chapter-body h4
 .chapter-body p.reference { ${styleDecl(S.reference, body, { noSpace: true })} margin: 0 0 ${mm(S.reference.spaceAfter)} 0; padding-left: ${Math.abs(num(S.reference.indent, -1.5))}em; text-indent: ${num(S.reference.indent, -1.5)}em; }
 .chapter-body div.box { ${styleDecl(S.box, body, { noSpace: true })} margin: ${mm(S.box.spaceBefore)} 0 ${mm(S.box.spaceAfter)}; border: 0.6pt solid ${color(S.box.borderColor, '#999')}; padding: 3mm 4mm; break-inside: avoid; }
 .chapter-body div.box p { text-indent: 0; margin: 0 0 0.4em; }
+/* estilos de caixa de texto e de citação (escolhidos ao selecionar o texto) */
+.book .chapter-body div.box[data-style="fundo"] { border: 0; background: #ededeb; padding: 3.5mm 4.5mm; }
+.book .chapter-body div.box[data-style="lateral"] { border: 0; border-left: 2.2pt solid ${color(S.box.borderColor, '#999')}; padding: 0.5mm 0 0.5mm 4mm; }
+.book .chapter-body div.box[data-style="filete"] { border: 0; border-top: 1pt solid currentColor; border-bottom: 1pt solid currentColor; padding: 3mm 0; }
+.book .chapter-body div.box[data-style="escuro"] { border: 0; background: #1d1d1f; color: #fff; padding: 4mm 5mm; }
+.book .chapter-body blockquote[data-style] { font-size: 1em; }
+.book .chapter-body blockquote[data-style="aspas"] { position: relative; margin: 1.2em 6mm; padding-left: 9mm; font-style: italic; }
+.book .chapter-body blockquote[data-style="aspas"]::before { content: "\u201C"; position: absolute; left: 0; top: -0.12em; font-size: 3.4em; line-height: 1; opacity: .3; font-style: normal; }
+.book .chapter-body blockquote[data-style="lateral"] { margin: 1em 0; padding-left: 4.5mm; border-left: 1.6pt solid currentColor; }
+.book .chapter-body blockquote[data-style="destaque"] { margin: 1.4em 8mm; padding: 3mm 4mm; border-top: 0.6pt solid currentColor; border-bottom: 0.6pt solid currentColor; text-align: center; font-size: 1.22em; font-style: italic; line-height: 1.3; break-inside: avoid; }
+.book .chapter-body blockquote[data-style="destaque"] p { text-align: center; }
 .chapter-body ul, .chapter-body ol { margin: 0.5em 0 0.5em 1.6em; padding: 0; }
 /* listas, tabelas e citações começam abaixo da letra capitular (não ficam ao lado dela) */
 .chapter-body > ul, .chapter-body > ol, .chapter-body > table, .chapter-body > blockquote, .chapter-body > div.box, .chapter-body > div.poem { clear: left; }

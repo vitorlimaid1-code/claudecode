@@ -52,6 +52,7 @@
       if (special === 'poem' || special === 'box') {
         const d = doc.createElement('div');
         d.className = special;
+        if (special === 'box' && /^[a-z-]{1,20}$/.test(node.getAttribute('data-style') || '')) d.setAttribute('data-style', node.getAttribute('data-style'));
         const inner = doc.createElement('div');
         children(node, doc, inner);
         d.innerHTML = normalizeBlocks(inner, doc, true);
@@ -139,6 +140,7 @@
     if (outTag === 'p') cls.forEach(c => { if (P_CLASSES.has(c)) e.classList.add(c); });
     if (outTag === 'table') { cls.forEach(c => { if (/^tb-(zebra|compact|quadro)$/.test(c)) e.classList.add(c); }); if (node.getAttribute('data-ref')) e.setAttribute('data-ref', node.getAttribute('data-ref')); }
     if (outTag === 'td' && cls.contains('num')) e.classList.add('num');
+    if (outTag === 'blockquote' && /^[a-z-]{1,20}$/.test(node.getAttribute('data-style') || '')) e.setAttribute('data-style', node.getAttribute('data-style'));
     if (outTag === 'p' && (cls.contains('caption') || cls.contains('legenda'))) e.classList.add('caption-import');
     if ((tag === 'TD' || tag === 'TH') && node.getAttribute('colspan')) e.setAttribute('colspan', node.getAttribute('colspan'));
     if ((tag === 'TD' || tag === 'TH') && node.getAttribute('rowspan')) e.setAttribute('rowspan', node.getAttribute('rowspan'));

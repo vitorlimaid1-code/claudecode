@@ -82,8 +82,77 @@
     hide();
   }
 
+  // ---------------------------------------------------------------- caixas de texto e citações
+  const BOX_STYLES = [
+    ['', 'Contorno', 'Filete fino em volta', 'box-contorno'], ['fundo', 'Fundo cinza', 'Fundo claro, sem borda', 'box-fundo'],
+    ['lateral', 'Barra lateral', 'Filete grosso à esquerda', 'box-lateral'], ['filete', 'Filetes', 'Linhas acima e abaixo', 'box-filete'],
+    ['escuro', 'Fundo escuro', 'Texto branco sobre preto', 'box-escuro']
+  ];
+  const QUOTE_STYLES = [
+    ['', 'Recuada', 'Citação longa do livro (ou ABNT)', 'q-recuo'], ['aspas', 'Aspas grandes', 'Itálico com aspas decorativas', 'q-aspas'],
+    ['lateral', 'Barra lateral', 'Filete à esquerda', 'q-lateral'], ['destaque', 'Destaque', 'Frase centralizada entre filetes', 'q-destaque']
+  ];
+  // blocos do primeiro nível tocados pela seleção
+  function selectedTops() {
+    const sel = window.getSelection();
+    if (!sel.rangeCount || !editor().contains(sel.anchorNode)) return [];
+    const r = sel.getRangeAt(0);
+    const a = topBlock(r.startContainer), b = topBlock(r.endContainer);
+    if (!a) return [];
+    const out = [a];
+    let n = a;
+    while (b && n !== b && n.nextElementSibling) { n = n.nextElementSibling; out.push(n); }
+    return out;
+  }
+  // envolve os parágrafos selecionados numa caixa (div.box) ou citação (blockquote) com o estilo escolhido
+  function wrap(kind, style) {
+    if (locked()) return;
+    const tops = selectedTops();
+    if (!tops.length) return App.toast('Selecione o texto que vai para a caixa.');
+    const isW = x => (kind === 'box' ? x.matches('div.box') : x.tagName === 'BLOCKQUOTE');
+    if (style === 'remove') {
+      tops.filter(t => t.matches('div.box, blockquote')).forEach(t => {
+        while (t.firstChild) {
+          const c = t.firstChild;
+          if (c.nodeType === 3 && c.nodeValue.trim()) { const p = document.createElement('p'); p.appendChild(c); t.before(p); } else t.before(c);
+        }
+        t.remove();
+      });
+    } else if (tops.length === 1 && isW(tops[0])) {
+      if (style) tops[0].dataset.style = style; else delete tops[0].dataset.style;
+    } else {
+      const w = document.createElement(kind === 'box' ? 'div' : 'blockquote');
+      if (kind === 'box') w.className = 'box';
+      if (style) w.dataset.style = style;
+      tops[0].before(w);
+      tops.forEach(t => {
+        if (t.matches('div.box, blockquote')) { while (t.firstChild) w.appendChild(t.firstChild); t.remove(); }
+        else if (t.matches('p.phrase')) { t.classList.remove('phrase'); w.appendChild(t); }
+        else w.appendChild(t);
+      });
+      if (!w.querySelector('p, h2, h3, h4, ul, ol, table, figure')) { const p = document.createElement('p'); while (w.firstChild) p.appendChild(w.firstChild); w.appendChild(p); }
+    }
+    editor().dispatchEvent(new Event('input', { bubbles: true }));
+    done(style === 'remove' ? 'Caixa removida' : kind === 'box' ? 'Caixa de texto' : 'Caixa de citação');
+  }
+  function styleMenu(anchor, kind, run) {
+    const list = kind === 'box' ? BOX_STYLES : QUOTE_STYLES;
+    const menu = el('div', { class: 'qs-menu' }, [el('div', { class: 'qs-menu-title', text: kind === 'box' ? 'Caixa de texto' : 'Caixa de citação' })]
+      .concat(list.map(([k, label, desc, cls]) => el('button', { class: 'bx-tile', onmousedown: e => e.preventDefault(), onclick: () => { menu.remove(); run(() => wrap(kind, k)); } }, [el('span', { class: 'bx-prev ' + cls }), el('span', { class: 'bx-name' }, [label, el('small', { text: desc })])])))
+      .concat([el('button', { class: 'bx-tile', onmousedown: e => e.preventDefault(), onclick: () => { menu.remove(); run(() => wrap(kind, 'remove')); } }, [el('span', { class: 'bx-prev' }), el('span', { class: 'bx-name' }, ['Sem caixa', el('small', { text: 'Volta a ser texto corrido' })])])]));
+    document.body.appendChild(menu);
+    const r = anchor.getBoundingClientRect();
+    menu.style.left = Math.max(8, Math.min(window.innerWidth - 270, r.left)) + 'px';
+    menu.style.top = Math.min(window.innerHeight - menu.offsetHeight - 8, r.bottom + 4) + 'px';
+    const close = e => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('mousedown', close, true); } };
+    setTimeout(() => document.addEventListener('mousedown', close, true), 0);
+  }
+
   // ---------------------------------------------------------------- barra flutuante
   let bar = null;
+  let onStage = false; // a seleção está nas páginas (edição direta)
+  // ações a partir das páginas: o cursor é levado para o mesmo ponto do texto do capítulo antes
+  const run = fn => (onStage && App.live ? App.live.runOnModel(fn) : fn());
   function capMenu(anchor) {
     const cur = App.project.settings.captionStyle || 'classica';
     const menu = el('div', { class: 'qs-menu' }, [el('div', { class: 'qs-menu-title', text: 'Estilo da legenda' })].concat(D.CAPTION_STYLES.map(s => el('button', {
@@ -99,23 +168,54 @@
     setTimeout(() => document.addEventListener('mousedown', close, true), 0);
   }
   function buttons(compact) {
-    const b = (text, title, fn, cls) => el('button', { class: 'qs-btn' + (cls ? ' ' + cls : ''), title, text, onmousedown: e => e.preventDefault(), onclick: e => fn(e) });
+    const b = (text, title, fn, cls) => el('button', { class: 'qs-btn' + (cls ? ' ' + cls : ''), title, text, onmousedown: e => e.preventDefault(), onclick: e => (/▾/.test(text) ? fn(e) : run(() => fn(e))) });
     return [
       b('Título', 'Título de seção (T1) — Ctrl+1', () => block('h2'), 'qs-t'),
       b('Subtítulo', 'Subtítulo (T2) — Ctrl+2', () => block('h3'), 'qs-s'),
       b('Corpo', 'Texto principal — Ctrl+0', () => block('p')),
       b('Legenda ▾', 'Transformar em legenda da figura/tabela vizinha e escolher o estilo — Ctrl+9', e => capMenu(e.currentTarget)),
-      compact ? null : b('Citação', 'Citação longa', () => block('blockquote')),
-      compact ? null : b('Destaque', 'Frase em destaque', () => block('phrase'))
+      compact ? null : el('span', { class: 'qs-sep' }),
+      compact ? null : b('▢ Caixa ▾', 'Colocar o trecho selecionado numa caixa de texto', e => styleMenu(e.currentTarget, 'box', run)),
+      compact ? null : b('❝ Citação ▾', 'Colocar o trecho selecionado numa caixa de citação', e => styleMenu(e.currentTarget, 'quote', run)),
+      compact ? null : el('span', { class: 'qs-sep' }),
+      compact ? null : b('N', 'Negrito', () => fmt('bold'), 'qs-b'),
+      compact ? null : b('I', 'Itálico', () => fmt('italic'), 'qs-i')
     ].filter(Boolean);
+  }
+  function fmt(cmd) {
+    if (onStage && App.live && App.live.exec(cmd)) return;
+    editor().focus();
+    document.execCommand(cmd, false, null);
+    editor().dispatchEvent(new Event('input', { bubbles: true }));
   }
   function show() {
     const sel = window.getSelection();
     if (!sel.rangeCount || sel.isCollapsed || App.view !== 'chapter') return hide();
     const ed = editor();
     if (!ed || !ed.contains(sel.anchorNode) || !ed.contains(sel.focusNode)) return hide();
+    // com a edição nas páginas, o editor fica fora da tela: a barra só aparece no modo de texto em coluna
+    if (!document.body.classList.contains('classic-editor')) return;
+    onStage = false;
     const r = sel.getRangeAt(0).getBoundingClientRect();
     if (!r.width && !r.height) return hide();
+    place(r);
+  }
+  // seleção nas páginas: posição convertida para a janela principal
+  function showStage(sel) {
+    const frame = document.querySelector('#previewFrames iframe');
+    if (!frame || !sel || !sel.rangeCount || sel.isCollapsed || App.view !== 'chapter') return hide();
+    const r0 = sel.getRangeAt(0).getBoundingClientRect();
+    if (!r0.width && !r0.height) return hide();
+    const fr = frame.getBoundingClientRect();
+    const d = frame.contentDocument;
+    const k = fr.width / (d.documentElement.clientWidth || fr.width) || 1;
+    const r = { left: fr.left + r0.left * k, top: fr.top + r0.top * k, width: r0.width * k, height: r0.height * k };
+    if (r.top < fr.top || r.top > fr.bottom) return hide();
+    onStage = true;
+    place(r);
+    if (!d.__qsWired) { d.__qsWired = true; d.addEventListener('scroll', hide, true); d.addEventListener('mousedown', e => { if (!e.shiftKey) hide(); }); }
+  }
+  function place(r) {
     if (!bar) { bar = el('div', { class: 'qs-bar' }, buttons(false)); document.body.appendChild(bar); }
     bar.style.display = 'flex';
     const w = bar.offsetWidth;
@@ -149,5 +249,5 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountToolbar); else mountToolbar();
 
-  App.quickStyle = { makeCaption, block };
+  App.quickStyle = { makeCaption, block, wrap, showStage, hide };
 })();

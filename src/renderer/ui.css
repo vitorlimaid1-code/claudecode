@@ -136,3 +136,34 @@ body[data-view="chapter"] .stage-head { display: block; }
 /* ---------- edição direta nas páginas ---------- */
 .stage-toggle { font-size: 12px; }
 .topbar select#genreSelect { background: var(--input); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; max-width: 180px; }
+
+/* caixas e citações com estilo (editor clássico) */
+.editor div.box[data-style="fundo"] { border: 0; background: #ededeb; }
+.editor div.box[data-style="lateral"] { border: 0; border-left: 3px solid #999; background: transparent; }
+.editor div.box[data-style="filete"] { border: 0; border-top: 1.5px solid #333; border-bottom: 1.5px solid #333; background: transparent; }
+.editor div.box[data-style="escuro"] { border: 0; background: #1d1d1f; color: #fff; }
+.editor blockquote[data-style="aspas"] { font-style: italic; }
+.editor blockquote[data-style="lateral"] { border-left: 2px solid #333; padding-left: 10px; margin-left: 0; }
+.editor blockquote[data-style="destaque"] { text-align: center; font-style: italic; font-size: 1.15em; border-top: 1px solid #333; border-bottom: 1px solid #333; padding: 6px; }
+
+/* barra flutuante de estilos (seleção no texto ou nas páginas) */
+.qs-bar { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-md); padding: 4px; gap: 2px; }
+.qs-bar .qs-btn { border: 0; background: transparent; border-radius: 8px; padding: 5px 9px; }
+.qs-bar .qs-btn:hover { background: var(--hover); }
+.qs-bar .qs-sep { width: 1px; background: var(--line); margin: 4px 3px; }
+.qs-menu { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-md); padding: 6px; }
+.bx-tile { display: grid; grid-template-columns: 74px 1fr; gap: 10px; align-items: center; width: 100%; text-align: left; border: 0; background: transparent; border-radius: 8px; padding: 6px 8px; }
+.bx-tile:hover { background: var(--hover); }
+.bx-prev { height: 40px; border-radius: 4px; background: #fff; position: relative; font: italic 9px Georgia, serif; color: #333; display: grid; place-items: center; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line); }
+.bx-prev::after { content: "Aa bb cc dd"; }
+.bx-prev.box-contorno { box-shadow: inset 0 0 0 1.5px #999; }
+.bx-prev.box-fundo { background: #e9e9e6; }
+.bx-prev.box-lateral { box-shadow: inset 3px 0 0 #888; }
+.bx-prev.box-filete { box-shadow: inset 0 1.5px 0 #222, inset 0 -1.5px 0 #222; }
+.bx-prev.box-escuro { background: #1d1d1f; color: #fff; }
+.bx-prev.q-recuo::after { content: "   Aa bb cc"; }
+.bx-prev.q-aspas::before { content: "\201C"; position: absolute; left: 6px; top: -4px; font-size: 26px; opacity: .35; }
+.bx-prev.q-lateral { box-shadow: inset 2px 0 0 #333; }
+.bx-prev.q-destaque { box-shadow: inset 0 1px 0 #333, inset 0 -1px 0 #333; font-size: 11px; }
+.bx-name { font-size: 12.5px; }
+.bx-name small { display: block; color: var(--muted); font-size: 11px; }
