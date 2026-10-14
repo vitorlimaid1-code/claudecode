@@ -264,13 +264,24 @@
       })()]),
       el('div', { class: 'fp-row' }, [el('label', { text: 'Alinhamento' }), seg('data-align', [['left', '⯇', 'Esquerda'], ['center', '≡', 'Centro'], ['right', '⯈', 'Direita'], ['full', '↔', 'Largura total']])]),
       el('div', { class: 'fp-row' }, [el('label', { text: 'Texto ao redor' }), (() => {
-        const s = el('select', { onchange: e => setFig('data-wrap', e.target.value, 'Contorno do texto') }, [
+        const s = el('select', { onchange: async e => {
+          const v = e.target.value;
+          // contorno da forma numa imagem sem transparência: o fundo liso é removido (cópia; a original fica no projeto)
+          const a0 = App.project.assets[fig.dataset.asset];
+          if (v === 'contour' && a0 && App.images) {
+            const id = await App.images.shapeAsset(fig.dataset.asset);
+            if (id && id !== fig.dataset.asset) { fig.setAttribute('data-asset', id); const im = fig.querySelector('img'); if (im) im.setAttribute('data-asset', id); App.toast('Fundo liso removido para o texto contornar a forma (a original continua no projeto).', 4000); }
+            else if (!id) App.toast('Esta imagem não tem fundo liso: use “Remover fundo…” para ajustar, ou o texto contorna o retângulo.', 5000);
+          }
+          setFig('data-wrap', v, 'Contorno do texto');
+        } }, [
           ['none', 'Acima e abaixo (sem texto ao lado)'], ['square', 'Quadrado — texto ao lado'], ['contour', 'Contorno da imagem (áreas transparentes)'],
           ['left', 'Texto somente à esquerda'], ['right', 'Texto somente à direita'], ['behind', 'Atrás do texto (marca d’água)']
         ].map(([v, l]) => el('option', { value: v, text: l })));
         s.value = fig.dataset.wrap;
         return s;
       })()]),
+      ['square', 'contour', 'left', 'right'].includes(fig.dataset.wrap) && fig.dataset.align !== 'full' ? el('label', { class: 'chk small', title: 'A figura sai da mancha pelo lado e avança sobre a margem, como nas ilustrações clássicas' }, [el('input', { type: 'checkbox', checked: fig.dataset.bleed === '1', onchange: e => setFig('data-bleed', e.target.checked ? '1' : '0', 'Avançar sobre a margem') }), ' Avançar sobre a margem']) : null,
       el('div', { class: 'fp-row' }, [el('label', { text: 'Distância do texto (mm)' }), slider('data-gap', 0, 15, 0.5, ' mm', 'Distância do texto')]),
       el('div', { class: 'fp-row' }, [el('label', { text: 'Proporção e ajuste' }), el('div', { class: 'inline' }, [
         (() => { const s = el('select', { onchange: e => setFig('data-ratio', e.target.value) }, [['', 'Original'], ['1:1', '1:1'], ['4:3', '4:3'], ['3:4', '3:4'], ['3:2', '3:2'], ['2:3', '2:3'], ['16:9', '16:9']].map(([v, l]) => el('option', { value: v, text: l }))); s.value = fig.dataset.ratio || ''; return s; })(),

@@ -7,7 +7,7 @@
   const RENAME = { STRONG: 'b', EM: 'i', H1: 'h2', H5: 'h4', H6: 'h4', DEL: 's', STRIKE: 's', INS: 'u', CITE: 'i', DFN: 'i', VAR: 'i', ASIDE: 'div', DT: 'p', DD: 'p' };
   const P_CLASSES = new Set(['no-indent', 'phrase', 'reference', 'epigraph-inline', 'table-source', 'caption-text']);
   const DIV_CLASSES = ['page-break', 'poem', 'box', 'fullbleed'];
-  const FIG_ATTRS = ['data-asset', 'data-align', 'data-wrap', 'data-width', 'data-gap', 'data-rot', 'data-flipx', 'data-flipy', 'data-opacity', 'data-crop', 'data-ratio', 'data-fit', 'data-ref'];
+  const FIG_ATTRS = ['data-asset', 'data-align', 'data-wrap', 'data-width', 'data-gap', 'data-rot', 'data-flipx', 'data-flipy', 'data-opacity', 'data-crop', 'data-ratio', 'data-fit', 'data-ref', 'data-bleed'];
 
   function children(node, doc, parent) {
     node.childNodes.forEach(ch => { const c = cleanNode(ch, doc); if (c) parent.appendChild(c); });

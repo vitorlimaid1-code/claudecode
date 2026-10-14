@@ -160,11 +160,14 @@ function figureHtml(attrs, inner, ctx) {
 
   // com texto ao redor, a imagem ocupa no máximo 50% da mancha: sobra coluna de texto suficiente
   // para a justificação não abrir buracos nem quebrar linhas de forma desproporcional
-  if (floatSide) width = Math.min(width, 50);
-  const figStyle = [`width: ${width.toFixed(2)}%`];
+  // (com contorno da forma, o texto encosta na figura: ela pode ocupar até 65%)
+  if (floatSide) width = Math.min(width, wrap === 'contour' ? 65 : 50);
+  // avançar sobre a margem (como nas ilustrações de livros antigos): a figura sai da mancha pelo lado
+  const out = floatSide && attrs['data-bleed'] === '1' ? Math.max(0, Math.min(num(ctx.settings.marginInner, 20), num(ctx.settings.marginOuter, 16)) - 3) : 0;
+  const figStyle = [out ? `width: calc(${width.toFixed(2)}% + ${out.toFixed(2)}mm)` : `width: ${width.toFixed(2)}%`];
   if (floatSide) {
     figStyle.push(`float: ${floatSide}`);
-    figStyle.push(floatSide === 'left' ? `margin: 0.25em ${gap}mm ${(gap * 0.6).toFixed(2)}mm 0` : `margin: 0.25em 0 ${(gap * 0.6).toFixed(2)}mm ${gap}mm`);
+    figStyle.push(floatSide === 'left' ? `margin: 0.25em ${gap}mm ${(gap * 0.6).toFixed(2)}mm ${out ? -out.toFixed(2) + 'mm' : 0}` : `margin: 0.25em ${out ? -out.toFixed(2) + 'mm' : 0} ${(gap * 0.6).toFixed(2)}mm ${gap}mm`);
   } else if (wrap === 'behind') {
     figStyle.push('height: 0', 'position: relative', 'overflow: visible', 'margin-top: 0', 'margin-bottom: 0');
   } else {
@@ -176,7 +179,7 @@ function figureHtml(attrs, inner, ctx) {
     else figStyle.push('margin-left: auto', 'margin-right: auto');
   }
   const simple = !ratio && rot === 0 && !flipx && !flipy && ct + cr + cb + cl === 0;
-  if (wrap === 'contour' && simple && !caption) {
+  if (wrap === 'contour' && simple) {
     figStyle.push(`shape-outside: url("${asset.dataUrl}")`, 'shape-image-threshold: 0.25', `shape-margin: ${gap}mm`);
   }
 

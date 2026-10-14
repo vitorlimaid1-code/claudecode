@@ -111,10 +111,10 @@
       fig.remove();
     });
     if (!html) return false;
-    // lado escolhido ao soltar
+    // lado escolhido ao soltar (o contorno da forma é mantido nas laterais)
     opts = zoneOpts(to.zone);
     html.setAttribute('data-align', opts.align);
-    html.setAttribute('data-wrap', opts.wrap);
+    html.setAttribute('data-wrap', to.zone !== 'center' && html.dataset.wrap === 'contour' ? 'contour' : opts.wrap);
     if (opts.width && Number(html.dataset.width) > 50) html.setAttribute('data-width', String(opts.width));
     let idx = to.idx;
     if (from.ch === to.ch && from.idx < to.idx) idx -= 1;
@@ -142,25 +142,35 @@
       clearSelection(d);
     });
     // dragover/drop: antes do tratamento da prévia (que cria camadas fora do texto)
+    // arrastar sem travar: o ponto de inserção é recalculado no máximo uma vez por quadro
+    let lastT = null, pending = false, lastXY = null;
     d.addEventListener('dragover', e => {
       if (App.view === 'layers') return;
       const types = Array.from(e.dataTransfer.types);
       if (!types.some(t => /x-dl-move|x-dl-library|x-dl-asset|Files/.test(t))) { hideIndicator(d); return; }
-      const t = dropTarget(d, e.clientX, e.clientY);
-      if (!t) { hideIndicator(d); return; }
       e.preventDefault();
       e.stopImmediatePropagation();
-      d.querySelectorAll('.drop-ghost').forEach(g => g.remove());
       e.dataTransfer.dropEffect = types.includes(MOVE) ? 'move' : 'copy';
-      showIndicator(d, t);
+      lastXY = [e.clientX, e.clientY];
+      if (pending) return;
+      pending = true;
+      d.defaultView.requestAnimationFrame(() => {
+        pending = false;
+        const t = dropTarget(d, lastXY[0], lastXY[1]);
+        if (lastT && t && lastT.blk === t.blk && lastT.before === t.before && lastT.zone === t.zone) return;
+        lastT = t;
+        d.querySelectorAll('.drop-ghost').forEach(g => g.remove());
+        if (t) showIndicator(d, t); else hideIndicator(d);
+      });
     }, true);
-    d.addEventListener('dragleave', e => { if (!e.relatedTarget) hideIndicator(d); }, true);
+    d.addEventListener('dragleave', e => { if (!e.relatedTarget) { hideIndicator(d); lastT = null; } }, true);
     d.addEventListener('drop', async e => {
       if (App.view === 'layers') return;
       const types = Array.from(e.dataTransfer.types);
       if (!types.some(t => /x-dl-move|x-dl-library|x-dl-asset|Files/.test(t))) return;
       const t = dropTarget(d, e.clientX, e.clientY);
       hideIndicator(d);
+      lastT = null;
       if (!t) return;
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -179,10 +189,21 @@
       const ids = await App.editor.assetsFromDrop(e.dataTransfer, 'corpo');
       if (ids && ids.manuscript) return App.importer.fromPath(ids.manuscript);
       if (!ids || !ids.length) return;
-      const html = ids.map(id => App.editor.figureHtml(id, zoneOpts(t.zone))).join('');
+      // nas laterais o texto contorna a forma: imagem com transparência ou com fundo liso (removido aqui)
+      const parts = [];
+      for (const id0 of ids) {
+        let id = id0;
+        const o = zoneOpts(t.zone);
+        if (t.zone !== 'center') {
+          const shaped = await shapeAsset(id0);
+          if (shaped) { id = shaped; o.wrap = 'contour'; o.width = 45; }
+        }
+        parts.push(App.editor.figureHtml(id, o));
+      }
+      const html = parts.join('');
       if (insertAt(t.ch, t.idx, t.before, html)) {
         App.changed(`Imagem inserida em “${t.ch.title}”`);
-        App.toast(t.zone === 'center' ? 'Imagem inserida: o texto continua acima e abaixo.' : `Imagem inserida à ${t.zone === 'left' ? 'esquerda' : 'direita'}: o texto corre ao lado.`, 3500);
+        App.toast(t.zone === 'center' ? 'Imagem inserida: o texto continua acima e abaixo.' : `Imagem inserida à ${t.zone === 'left' ? 'esquerda' : 'direita'}: ${/data-wrap="contour"/.test(html) ? 'o texto contorna a forma do desenho' : 'o texto corre ao lado'}.`, 3500);
       }
     }, true);
 
@@ -265,6 +286,34 @@
     };
     d.addEventListener('mousemove', move);
     d.addEventListener('mouseup', up);
+  }
+
+  // imagem pronta para o contorno: com transparência (usa a própria) ou com fundo liso (cria uma cópia sem fundo)
+  async function shapeAsset(id) {
+    const a = App.project.assets[id];
+    if (!a) return null;
+    try {
+      const img = await loadImage(a.dataUrl);
+      // transparência de verdade nas bordas (PNG “com canal alfa” pode ser todo opaco)
+      if (a.info && a.info.hasAlpha && borderTransparency(img) > 0.3) return id;
+      const r = cutBackground(img, 16, true, 2400);
+      if (r.removed < 0.06 || r.removed > 0.9) return null;
+      return await App.addAsset({ dataUrl: r.canvas.toDataURL('image/png'), name: (a.name || 'imagem') + ' (sem fundo)', width: r.canvas.width, height: r.canvas.height, info: Object.assign({}, a.info || {}, { hasAlpha: true, format: 'PNG' }) });
+    } catch (e) { return null; }
+  }
+
+  function borderTransparency(img) {
+    const s = Math.min(1, 400 / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(2, Math.round(img.naturalWidth * s)), h = Math.max(2, Math.round(img.naturalHeight * s));
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0, w, h);
+    const d = g.getImageData(0, 0, w, h).data;
+    let n = 0, t = 0;
+    const at = (x, y) => { n++; if (d[(y * w + x) * 4 + 3] < 20) t++; };
+    for (let x = 0; x < w; x++) { at(x, 0); at(x, h - 1); }
+    for (let y = 0; y < h; y++) { at(0, y); at(w - 1, y); }
+    return t / n;
   }
 
   // ---------------------------------------------------------------- remover o fundo (local)
@@ -375,5 +424,5 @@
     setTimeout(redraw, 30);
   }
 
-  App.images = { wire, dropTarget, insertAt, moveFigure, removeBackground, cutBackground };
+  App.images = { wire, dropTarget, insertAt, moveFigure, removeBackground, cutBackground, shapeAsset };
 })();

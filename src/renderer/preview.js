@@ -71,6 +71,7 @@
     // acabamento antes da paginação: justificação fina e grade de linha de base
     const tPre = performance.now();
     const typoReport = typoPrepass(tpl, book);
+    await shapePass(tpl, book);
     typoReport.ms = Math.round(performance.now() - tPre);
 
     if (!window.__fnPolicyHandler && tpl.content.querySelector('[data-fn-policy]')) {
@@ -547,6 +548,69 @@
   //    espaço entre palavras (o que menos deixar buracos e "rios"); 2) grade de linha de base: títulos,
   //    imagens, tabelas e caixas ocupam um número inteiro de linhas, e as linhas das páginas opostas
   //    ficam na mesma altura.
+  // Texto no contorno da figura: o navegador usa a imagem do shape-outside no tamanho natural dela (não no
+  // tamanho da figura na página). Aqui cada figura com contorno ganha uma máscara do tamanho exato em que
+  // aparece (com a legenda como área cheia), e o texto corre colado à forma do desenho.
+  async function shapePass(tpl, book) {
+    const figs = Array.from(tpl.content.querySelectorAll('figure.fig-contour'));
+    if (!figs.length) return;
+    const t = book.typo || {};
+    const st = document.createElement('style');
+    st.textContent = book.css + '\n.dl-shape .footnote, .dl-shape .sidenote { display: none !important; }';
+    document.head.appendChild(st);
+    const root = document.createElement('div');
+    root.className = 'dl-shape';
+    root.style.cssText = `position:absolute; left:-200000px; top:0; width:${t.colW || 110}mm; visibility:hidden; zoom:1;`;
+    const copy = tpl.content.cloneNode(true);
+    root.appendChild(copy);
+    document.body.appendChild(root);
+    try {
+      const cf = Array.from(root.querySelectorAll('figure.fig-contour'));
+      await Promise.all(cf.map(f => { const im = f.querySelector('img'); return im && im.decode ? im.decode().catch(() => null) : null; }));
+      cf.forEach((f, i) => {
+        const orig = figs[i];
+        if (!orig) return;
+        const cs = getComputedStyle(f);
+        const b = f.getBoundingClientRect();
+        if (!b.width || !b.height) return;
+        const ml = parseFloat(cs.marginLeft) || 0, mr = parseFloat(cs.marginRight) || 0, mt = parseFloat(cs.marginTop) || 0, mb = parseFloat(cs.marginBottom) || 0;
+        const W = Math.max(1, Math.round(b.width + ml + mr)), H = Math.max(1, Math.round(b.height + mt + mb));
+        const ox = b.left - ml, oy = b.top - mt;
+        const cv = document.createElement('canvas');
+        cv.width = W; cv.height = H;
+        const cx = cv.getContext('2d');
+        const img = f.querySelector('img');
+        if (img && img.complete && img.naturalWidth) {
+          const r = img.getBoundingClientRect();
+          cx.drawImage(img, r.left - ox, r.top - oy, r.width, r.height);
+        } else return;
+        // a legenda é área cheia: o texto não entra nela
+        const cap = f.querySelector('figcaption');
+        if (cap) { const r = cap.getBoundingClientRect(); cx.fillStyle = '#000'; cx.fillRect(r.left - ox - 2, r.top - oy - 2, r.width + 4, r.height + 4); }
+        // perfil da forma em faixas horizontais -> polígono em % da caixa (vale em qualquer zoom e na impressão)
+        const data = cx.getImageData(0, 0, W, H).data;
+        const right = cs.float === 'right';
+        const bands = Math.max(12, Math.min(90, Math.round(H / 4)));
+        const pts = [];
+        for (let k = 0; k < bands; k++) {
+          const y0 = Math.floor(k * H / bands), y1 = Math.max(y0 + 1, Math.floor((k + 1) * H / bands));
+          let edge = right ? W : 0;
+          for (let y = y0; y < y1; y++) {
+            const row = y * W * 4;
+            if (right) { for (let x = 0; x < edge; x++) if (data[row + x * 4 + 3] > 40) { edge = x; break; } }
+            else { for (let x = W - 1; x >= edge; x--) if (data[row + x * 4 + 3] > 40) { edge = x + 1; break; } }
+          }
+          const px = (edge / W * 100).toFixed(2);
+          pts.push(`${px}% ${(y0 / H * 100).toFixed(2)}%`, `${px}% ${(y1 / H * 100).toFixed(2)}%`);
+        }
+        const poly = right ? ['100% 0%'].concat(pts, ['100% 100%']) : ['0% 0%'].concat(pts, ['0% 100%']);
+        orig.style.shapeOutside = `polygon(${poly.join(', ')}) margin-box`;
+      });
+    } catch (e) { console.error('contorno das figuras', e); }
+    root.remove();
+    st.remove();
+  }
+
   function typoPrepass(tpl, book) {
     const t = book.typo || {};
     const report = { loose: 0, fixed: 0, gridded: 0 };
