@@ -383,6 +383,44 @@
     return { at: new Map(chosen.map(c => [c.i, c])), style, labeled: labeled.length >= chosen.length / 2 };
   }
 
+  // livro sem nenhuma marcação: títulos são linhas curtas, sozinhas, sem pontuação final, entre parágrafos longos
+  function plainTitles(flat) {
+    const els = [];
+    flat.forEach((n, i) => { if (n.nodeType === 1 && /^(P|H[1-6]|DIV)$/.test(n.tagName) && n.textContent.trim()) els.push({ n, i, t: n.textContent.replace(/\s+/g, ' ').trim() }); });
+    if (els.length < 20) return null;
+    const isLong = e => e && e.t.length > 140;
+    // linhas curtas antes do primeiro parágrafo longo (exceto a última, que é o título do 1º capítulo): título/autor da obra
+    const firstLong = els.findIndex(isLong);
+    const front = firstLong > 1 ? els.slice(0, firstLong - 1).filter(e => e.t.length <= 80).map(e => e.t) : [];
+    const cands = els.filter((e, k) => {
+      if (k < firstLong - 1) return false;
+      const t = e.t;
+      if (t.length > 80 || t.split(' ').length > 12 || t.length < 2) return false;
+      if (/[.,;:…]$/.test(t) && !/^[IVXLC]+\.$|^\d+\.$/.test(t)) return false;
+      if (/^[—–\-"“«'‘(]/.test(t) || /^[a-zà-ú]/.test(t)) return false;
+      if (e.n.querySelector && e.n.querySelector('.footnote, img')) return false;
+      const prev = els[k - 1], next = els[k + 1];
+      // título: o próximo bloco é texto corrido (ou outro título curto, nome do capítulo); o anterior não é a mesma frase quebrada
+      return (isLong(next) || (next && next.t.length <= 80 && isLong(els[k + 2]))) && (!prev || isLong(prev) || prev.t.length <= 80);
+    });
+    // junta “título + subtítulo” consecutivos e exige distância mínima entre títulos
+    const out = [];
+    cands.forEach(c => {
+      const last = out[out.length - 1];
+      if (last && els.indexOf(c) - els.indexOf(last.c) <= 1) { last.sub = c; return; }
+      out.push({ c });
+    });
+    if (out.length < 2) return null;
+    const pos = out.map(o => els.indexOf(o.c));
+    const gaps = pos.slice(1).map((p, k) => p - pos[k]);
+    const avg = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+    if (avg < 8 || gaps.filter(g => g < 3).length > gaps.length * 0.2) return null;
+    if (pos[0] > els.length * 0.25) return null;
+    const res = out.map(o => ({ i: o.c.i, title: o.c.t, sub: o.sub ? { i: o.sub.i, title: o.sub.t } : null }));
+    res.front = front.length === firstLong - 1 ? front : [];
+    return res;
+  }
+
   function htmlToChapters(html, fallbackTitle, opts) {
     opts = opts || {};
     const doc = new DOMParser().parseFromString('<body>' + String(html || '') + '</body>', 'text/html');
@@ -436,6 +474,34 @@
         current.parts.push(n.nodeType === 1 ? n.outerHTML : escapeHtml(n.nodeValue || ''));
       });
       detected = { style: markers.style, labeled: markers.labeled, count: markers.at.size };
+    } else if (!headTag && !opts.noPlain && (detected = plainTitles(flat))) {
+      // sem títulos marcados: linhas curtas isoladas viram capítulos (confira em Revisar títulos)
+      const at = new Map(detected.map(d => [d.i, d]));
+      const skip = new Set(detected.filter(d => d.sub).map(d => d.sub.i));
+      flat.forEach((n, i) => {
+        if (skip.has(i)) return;
+        const d = at.get(i);
+        if (d) {
+          const mk = chapterMark(d.title, 'H1');
+          let title = mk && mk.title ? mk.title : d.title;
+          if (mk && !mk.title && d.sub) title = d.sub.title;
+          else if (d.sub) title = d.title + ' — ' + d.sub.title;
+          start(title, { numbered: !(SPECIAL_RE.test(title)) && !(mk && !mk.title && !d.sub), sourceLabel: d.title });
+          return;
+        }
+        if (!current) {
+          if (n.nodeType === 3 && !n.nodeValue.trim()) return;
+          start(fallbackTitle, { numbered: false });
+        }
+        current.parts.push(n.nodeType === 1 ? n.outerHTML : escapeHtml(n.nodeValue || ''));
+      });
+      const front = detected.front || [];
+      detected = { style: 'arabic', labeled: true, count: detected.length, plain: true };
+      // título e autor no começo do arquivo: vão para os dados do livro, não para um capítulo
+      if (front.length && chapters[0] && chapters[0].numbered === false && !chapters[0].sourceLabel) {
+        const txt = chapters[0].parts.join(' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        if (txt === front.join(' ')) { chapters.shift(); detected.meta = { title: front[0], author: front[1] || '' }; }
+      }
     } else {
       flat.forEach(n => {
         if (headTag && n.nodeType === 1 && n.tagName === headTag) { start(clean(n.textContent)); return; }
@@ -454,6 +520,7 @@
       .filter(c => c.html.replace(/<[^>]+>/g, '').trim() || /<img|<table/.test(c.html) || c.sourceLabel);
     out.notes = notes;
     out.detected = detected;
+    if (detected && detected.meta) out.meta = detected.meta;
     return out;
   }
 

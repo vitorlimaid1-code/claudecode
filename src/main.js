@@ -339,8 +339,29 @@ const IMPORT_FILTERS = [
   { name: 'Manuscritos', extensions: ['docx', 'doc', 'epub', 'pdf', 'odt', 'txt', 'md', 'markdown', 'html', 'htm', 'rtf'] },
   { name: 'Todos os arquivos', extensions: ['*'] }
 ];
+// registro de progresso mostrado na interface (carregamento e exportação)
+function progress(msg) { try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('progress', String(msg)); } catch (e) { /* ok */ } }
+const kb = n => (n > 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
+
 async function importPath(filePath) {
-  try { return await importAny(filePath); } catch (err) {
+  try {
+    let size = 0;
+    try { size = fs.statSync(filePath).size; } catch (e) { /* ok */ }
+    progress(`Abrindo “${path.basename(filePath)}” (${kb(size)})`);
+    progress('Lendo o conteúdo do arquivo…');
+    const t0 = Date.now();
+    const res = await importAny(filePath);
+    if (res) {
+      const parts = [];
+      if (res.html) parts.push(`${kb(res.html.length)} de texto formatado`);
+      if (res.text) parts.push(`${kb(res.text.length)} de texto`);
+      if (res.docs) parts.push(`${res.docs.length} arquivo(s) internos`);
+      if (res.pages) parts.push(`${res.pages.length} página(s) de PDF`);
+      if (res.footnotes && res.footnotes.length) parts.push(`${res.footnotes.length} nota(s)`);
+      progress(`Arquivo lido em ${((Date.now() - t0) / 1000).toFixed(1).replace('.', ',')} s${parts.length ? ' — ' + parts.join(', ') : ''}`);
+    }
+    return res;
+  } catch (err) {
     dialog.showErrorBox('Não foi possível importar', `${path.basename(filePath)}\n\n${String(err.message || err)}`);
     return null;
   }
@@ -475,11 +496,16 @@ async function renderBookSegmented(win, project, options) {
   const meta = Object.assign({}, book, { html: '', segments: undefined, overlays: [] });
   const tag = 'export' + (++buildSeq) + ':';
   const t0 = Date.now();
+  progress(`Paginando ${segs.length} partes do livro em paralelo (${pool().size} processos)…`);
+  let doneN = 0;
+  const label = k => (k === 'front' ? 'páginas iniciais' : k === 'back' ? 'páginas finais' : k === 'all' ? 'publicação' : 'capítulo ' + (book.chapterIds.indexOf(k.slice(3)) + 1));
   const results = await Promise.all(segs.map(s => {
     const chId = s.key.startsWith('ch:') ? s.key.slice(3) : null;
     const adjust = chId && adjustAll[chId] ? { [chId]: adjustAll[chId] } : {};
-    return pool().layout(Object.assign({}, meta, { html: s.html }), { adjust }, tag + s.key, 5000).catch(err => ({ error: String(err) }));
+    return pool().layout(Object.assign({}, meta, { html: s.html }), { adjust }, tag + s.key, 5000).catch(err => ({ error: String(err) }))
+      .then(r => { doneN++; progress(`  ${doneN}/${segs.length} · ${label(s.key)}: ${r && r.pages ? r.pages + ' página(s)' : 'erro'}`); return r; });
   }));
+  progress('Juntando as páginas, números de página, sumário e índice…');
   if (results.some(r => !r || r.error || r.superseded || !r.pagesHtml)) { console.error('exportação por trechos falhou; paginando o livro inteiro'); return null; }
   // um trecho incompleto: o livro inteiro é paginado de uma vez (com as tentativas da exportação)
   if (results.some(r => !r.complete)) { console.error('trecho incompleto (' + segs.filter((s, i) => !results[i].complete).map(s => s.key).join(', ') + '); paginando o livro inteiro'); return null; }
@@ -506,6 +532,7 @@ async function renderBookIn(win, project, options) {
   const seg = await renderBookSegmented(win, project, options).catch(err => { console.error('exportação por trechos:', err); return null; });
   if (seg) return seg;
   if (seg === null) await win.loadURL(win.webContents.getURL());
+  progress('Paginando o livro inteiro de uma vez…');
   const book = await bookPayload(project);
   options = options || {};
   const url = win.webContents.getURL();
@@ -558,6 +585,7 @@ async function renderPdf(project, opts) {
   opts = opts || {};
   const t0 = Date.now();
   const tm = label => { if (process.env.DEBUG_TIMING) console.log('TIMING', label, Date.now() - t0, 'ms'); };
+  progress('Preparando a janela de impressão…');
   return withRenderWindow(async win => {
     tm('janela');
     const ns = normalizeProject(project).settings;
@@ -565,6 +593,8 @@ async function renderPdf(project, opts) {
     if (sh && sh.fits && !opts.spreads) project = Object.assign({}, project, { settings: Object.assign({}, project.settings, { cropMarks: false }) });
     const { info } = await renderBookIn(win, project, { spreadsPrint: !!opts.spreads, pageRange: opts.range || '' });
     tm('paginação');
+    progress(`Paginação pronta: ${info.pages} páginas${info.complete ? '' : ' (atenção: conferir o fim do livro)'}`);
+    progress('Gerando o PDF (fontes incorporadas)…');
     if (process.env.DEBUG_LAYOUT) {
       const dbg = await win.webContents.executeJavaScript(`(() => { const t = document.querySelector('.pagedjs_pages').innerText; return { clipped: window.findClippedText().slice(0, 6), chars: t.length, w: innerWidth, h: innerHeight, dpr: devicePixelRatio, notes: [...document.querySelectorAll('.pagedjs_page')].map(p => { const a = p.querySelector('.pagedjs_footnote_area'); const r = a && a.getBoundingClientRect(); const pr = p.getBoundingClientRect(); const f = [...p.querySelectorAll('.pagedjs_footnote_area .footnote')]; return f.length || (r && r.height) ? { n: p.dataset.pageNumber, f: f.map(x => x.innerText.slice(0, 12) + '@' + Math.round(x.getBoundingClientRect().top - pr.top) + '/' + Math.round(pr.height)), ah: r && Math.round(r.height) } : null; }).filter(Boolean) }; })()`, true);
       console.log('DEBUG_LAYOUT', JSON.stringify(dbg));
@@ -574,6 +604,7 @@ async function renderPdf(project, opts) {
       generateDocumentOutline: !!opts.outline, generateTaggedPDF: !!opts.tagged
     });
     tm('printToPDF');
+    progress(`PDF gerado (${kb(pdf.length)}); gravando caixas de corte e sangria${opts.color && opts.color !== 'rgb' ? ', convertendo cores' : ''}…`);
     let colorReport = null;
     if (!opts.spreads) ({ pdf, colorReport } = await finishPrintPdf(pdf, project, opts));
     tm('caixas/cor');
@@ -754,6 +785,7 @@ async function runExport(req) {
     if (!file) return null;
     const { pdf, pages, colorReport } = await renderPdf(project, opts);
     fs.writeFileSync(file, pdf);
+    progress(`Arquivo salvo: ${path.basename(file)} (${kb(pdf.length)})`);
     return { files: [file], pages, colorReport };
   }
   if (kind === 'png' || kind === 'jpeg' || kind === 'tiff') {
@@ -777,13 +809,16 @@ async function runExport(req) {
     let buf;
     if (kind === 'epub' || kind === 'mobi') {
       const e = Object.assign({ uuid: crypto.randomUUID() }, req.epub);
+      progress(e.cover ? 'Preparando a capa (JPEG RGB para lojas e leitores)…' : 'Sem imagem de capa');
       e.coverJpeg = ebookCover(e.cover);
+      progress(`Montando ${(e.docs || []).length} capítulo(s), sumário navegável e metadados (título, autor, sinopse, data de hoje, créditos Casa Vertigem)…`);
       buf = kind === 'epub' ? await exporters.exportEpub(e, project.assets || {}) : require('./main/mobi').buildMobi(e, project.assets || {}).mobi;
     }
     else if (kind === 'docx') buf = await exporters.exportDocx(req.doc, project.assets || {}, page);
     else if (kind === 'odt') buf = await exporters.exportOdt(req.doc, project.assets || {}, page);
     else buf = exporters.exportTxt(req.doc);
     fs.writeFileSync(file, buf);
+    progress(`Arquivo salvo: ${path.basename(file)} (${kb(buf.length)})`);
     return { files: [file] };
   }
   if (kind === 'package') {

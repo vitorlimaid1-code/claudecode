@@ -237,26 +237,33 @@
       }
     }
     state.running = true;
-    App.toast('Exportando… isso pode levar alguns segundos.', 120000);
+    App.progress.expect('Exportando o livro', ({ pdf: 'PDF', epub: 'EPUB', mobi: 'MOBI (Kindle)', package: 'Pacote de produção', docx: 'Word', odt: 'OpenDocument', txt: 'Texto', png: 'Imagens PNG', jpeg: 'Imagens JPEG', tiff: 'Imagens TIFF' })[o.kind] || o.kind);
     try {
       const proj = projectForExport();
       const req = { kind: o.kind, project: proj, opts: { spreads: !!o.spreads, outline: !!o.outline, tagged: o.purpose === 'digital', dpi: o.dpi || 300, quality: o.quality || 92, bleed: !!o.imageBleed, color: o.purpose === 'digital' ? 'rgb' : (o.color || 'rgb'), colorProfile: o.colorProfile || 'fogra39', range: rangeSpec(), noProfile: !!o.noProfile && o.color === 'gray', fileBase: o.cedet && (o.kind === 'pdf' || o.kind === 'package') ? cedetFileName('MIOLO') : '', cedet: !!o.cedet, includeCover: !!o.includeCover, includeEpub: !!o.includeEpub, includeProject: !!o.includeProject, suffix: o.purpose === 'digital' ? '-digital' : '' } };
       if (o.kind === 'epub' || o.kind === 'mobi' || (o.kind === 'package' && o.includeEpub)) {
         const coverDataUrl = await ebookCoverFor(o);
         if (coverDataUrl === false) { state.running = false; $('#toast').classList.remove('show'); return; }
+        App.progress.log('Preparando o livro digital: capítulos, notas, imagens e sumário…');
         req.epub = await App.exportPrep.buildEpub(proj, { includeCover: false, coverDataUrl: coverDataUrl || null });
       }
       if (['docx', 'odt', 'txt'].includes(o.kind)) req.doc = App.exportPrep.buildDoc(proj);
       if (o.kind === 'package') { req.report = reportText() || (await preflight(), reportText()); req.specs = specsText(proj); }
       const r = await api.exportRun(req);
       $('#toast').classList.remove('show');
-      if (!r) return;
+      if (!r) { App.progress.close(); return; }
       logExport(o, r);
       const cr = r.colorReport;
       const sep = cr && cr.onlyBlack !== undefined ? (cr.onlyBlack ? '\n✓ Separações conferidas: somente preto (desligando o preto, nada aparece).' : `\n⚠ Separações: ainda há ${cr.nonBlack.join(', ')}.`) : '';
       const colorTxt = !cr ? '' : cr.error ? `\n\n⚠ A conversão de cor falhou (${cr.error}); o PDF foi salvo em RGB.` : `${sep}\n\nCor: ${cr.mode === 'cmyk' ? 'CMYK — ' + cr.profile : cr.profile && cr.mode === 'gray' && /sGray/.test(cr.profile) ? 'escala de cinza (sGray, sem perfil incorporado)' : 'escala de cinza'} · ${cr.colors} cor(es) e ${cr.images} imagem(ns) convertidas${cr.kOnly ? ' · pretos e cinzas em 100% K' : ''}${(cr.warnings || []).length ? '\n' + cr.warnings.map(w => '⚠ ' + w).join('\n') : ''}`;
-      const b = await api.confirm('Exportação concluída!', `${r.files.length} arquivo(s)${r.pages ? ' · ' + r.pages + ' páginas' : ''}\n${r.files[0]}${colorTxt}`, ['Abrir', 'Mostrar na pasta', 'Fechar']);
-      if (b === 0) api.openPath(r.files[0]); else if (b === 1) api.showItem(r.files[0]);
+      App.progress.done('Exportação concluída', [`${r.files.length} arquivo(s)${r.pages ? ' · ' + r.pages + ' páginas' : ''}`, r.files[0]].concat(colorTxt ? colorTxt.trim().split('\n').filter(Boolean) : []), [
+        { label: 'Mostrar na pasta', onClick: () => api.showItem(r.files[0]) },
+        { label: 'Abrir', onClick: () => api.openPath(r.files[0]) },
+        { label: 'Fechar', primary: true }
+      ]);
+    } catch (err) {
+      console.error(err);
+      App.progress.fail('Falha na exportação: ' + String(err && err.message || err));
     } finally {
       state.running = false;
       $('#toast').classList.remove('show');

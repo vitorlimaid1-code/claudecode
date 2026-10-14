@@ -702,22 +702,9 @@
   L.state = () => state;
   L.invalidate = () => { state = null; };
   L.refresh = attachHosts;
-  // modo clássico (texto do capítulo também numa coluna à parte), guardado neste computador
-  function setClassic(on) {
-    document.body.classList.toggle('classic-editor', !!on);
-    const b = $('#classicToggle');
-    if (b) b.classList.toggle('on', !!on);
-    try { localStorage.setItem('classicEditor', on ? '1' : ''); } catch (e) { /* ok */ }
-  }
-  const initClassic = () => {
-    let on = false;
-    try { on = localStorage.getItem('classicEditor') === '1'; } catch (e) { /* ok */ }
-    setClassic(on);
-    const b = $('#classicToggle');
-    if (b) b.addEventListener('click', () => setClassic(!document.body.classList.contains('classic-editor')));
-  };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initClassic); else initClassic();
-  L.setClassic = setClassic;
+  // sem coluna de texto à parte: a edição é sempre direto nas páginas
+  try { localStorage.removeItem('classicEditor'); } catch (e) { /* ok */ }
+  document.body && document.body.classList.remove('classic-editor');
 
   // para testes
   L._buildV = buildV; L._align = align; L._modelV = modelV; L._stageV = stageV;

@@ -573,7 +573,8 @@
       assets: {},
       overlays: [],
       cover: null,
-      ebook: { coverAsset: null },
+      // capa e imagens antes da página de rosto (página inteira, sem margens), também usadas no EPUB
+      ebook: { coverAsset: null, coverInBook: true, preImages: [] },
       settings
     };
   }
@@ -677,7 +678,7 @@
       pageStyles: p.pageStyles && typeof p.pageStyles === 'object' ? p.pageStyles : {},
       cover: p.cover || null,
       // livro digital (EPUB/MOBI): imagem da capa escolhida para as lojas e aplicativos de leitura
-      ebook: Object.assign({ coverAsset: null }, p.ebook || {}),
+      ebook: Object.assign({ coverAsset: null, coverInBook: true, preImages: [] }, p.ebook || {}),
       fontSubstitutions: Array.isArray(p.fontSubstitutions) ? p.fontSubstitutions : [],
       exportLog: Array.isArray(p.exportLog) ? p.exportLog : [],
       // ajuste automático da última página de cada capítulo: { idDoCapítulo: { mode: 'shrink'|'expand', hash } }

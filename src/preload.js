@@ -74,6 +74,7 @@ contextBridge.exposeInMainWorld('api', {
   closeConfirmed: () => ipcRenderer.send('app:closeConfirmed'),
   setTitle: title => ipcRenderer.send('app:setTitle', title),
   onMenu: cb => ipcRenderer.on('menu', (e, cmd) => cb(cmd)),
+  onProgress: cb => ipcRenderer.on('progress', (e, msg) => cb(msg)),
   onRequestClose: cb => ipcRenderer.on('request-close', () => cb()),
   pathForFile: file => { try { return webUtils.getPathForFile(file); } catch (e) { return ''; } }
 });

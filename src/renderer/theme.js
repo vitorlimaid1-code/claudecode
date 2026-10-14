@@ -7,7 +7,7 @@
     const mode = get('themeMode', 'light');
     const dark = mode === 'dark' || (mode === 'auto' && mq && mq.matches);
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-    document.documentElement.dataset.accent = get('themeAccent', 'carvao');
+    document.documentElement.dataset.accent = get('themeAccent', 'vertigem');
     // a prévia (iframes) acompanha o modo
     document.querySelectorAll && document.querySelectorAll('iframe.preview-frame').forEach(f => { try { f.contentDocument.documentElement.dataset.theme = document.documentElement.dataset.theme; } catch (e) { /* ok */ } });
   }
@@ -16,7 +16,7 @@
   window.SystemTheme = {
     apply,
     get mode() { return get('themeMode', 'light'); },
-    get accent() { return get('themeAccent', 'carvao'); },
+    get accent() { return get('themeAccent', 'vertigem'); },
     set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* sem armazenamento */ } apply(); },
     reset() { try { localStorage.removeItem('themeMode'); localStorage.removeItem('themeAccent'); } catch (e) { /* ok */ } apply(); }
   };

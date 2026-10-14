@@ -531,6 +531,10 @@ function buildHtml(project, ctx) {
   const push = h => { parts.push(h); keys.push(segKey); };
   const tocItems = [];
 
+  // capa e imagens iniciais (opcionais): páginas inteiras, sem margens, antes da página de rosto
+  const eb = project.ebook || {};
+  if (!periodical && eb.coverInBook !== false && eb.coverAsset && ctx.assets[eb.coverAsset]) push(fullBleedHtml(eb.coverAsset, 'cover', ctx, 'book-cover'));
+  if (!periodical) (eb.preImages || []).forEach(id => { if (ctx.assets[id]) push(fullBleedHtml(id, 'cover', ctx, 'pre-image')); });
   // Ordem padrão: página de rosto > ficha catalográfica > sumário > (dedicatória/epígrafe) > capítulos > páginas extras
   if (front.halfTitle) push(`<section class="front half-title"><div class="ht-title">${esc(meta.title)}</div></section>`);
   if (front.titlePage) {

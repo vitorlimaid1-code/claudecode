@@ -53,84 +53,88 @@
   }
 
   const KIND_NAMES = { html: 'Word / HTML', markdown: 'Markdown', doc: 'Word 97-2003 (.doc)', epub: 'EPUB', odt: 'OpenDocument (.odt)', pdf: 'PDF', text: 'Texto' };
+  const TOC_RE = /^(sum[áa]rio|[íi]ndice( geral)?|conte[úu]do|contents|table of contents)$/i;
+  const isSample = () => !App.project.chapters.some(c => BookText.countWords(c.html) > 0 && !/Era uma vez um livro que ainda não existia/.test(c.html));
 
+  // Importação automática: títulos, capítulos, notas, tema padrão, sumário e paginação — sem perguntas.
+  // O registro de cada etapa aparece na tela; no fim, um resumo com os próximos passos.
   async function processImport(res) {
-    if (!res) return;
-    App.toast('Lendo o manuscrito…', 20000);
+    const P = App.progress;
+    if (!res) { P.close(); return; }
+    if (!P.active) P.open('Carregando o livro', 'Títulos, capítulos, paginação e sumário são aplicados automaticamente');
+    const t0 = Date.now();
+    P.log(`Formato: ${KIND_NAMES[res.kind] || res.kind}`);
+    P.log('Identificando a estrutura: títulos, capítulos e notas…');
+    await new Promise(r => setTimeout(r, 30));
     let chapters;
-    try { chapters = BookText.convertImport(res); } catch (e) { console.error(e); $('#toast').classList.remove('show'); return api.confirm('Não foi possível ler o arquivo.', String(e.message || e), ['OK']); }
+    try { chapters = BookText.convertImport(res); } catch (e) { console.error(e); return P.fail('Não foi possível ler o arquivo: ' + String(e.message || e)); }
     const notes = chapters.notes || 0;
     const meta = chapters.meta;
     const det = chapters.detected;
     chapters = chapters.filter(c => c.html.replace(/<[^>]+>/g, '').trim() || /<img|<table/.test(c.html));
-    const images = await convertImages(chapters);
-    const charts = await convertCharts(chapters, res.charts);
-    $('#toast').classList.remove('show');
-    if (!chapters.length) return App.toast('Nenhum texto encontrado no arquivo.');
-    const noteCount = chapters.reduce((s, c) => s + (c.html.match(/class="footnote"/g) || []).length, 0) || notes;
-    const hasContent = App.project.chapters.some(c => BookText.countWords(c.html) > 0 && !/Era uma vez um livro que ainda não existia/.test(c.html));
-    const words = chapters.reduce((s, c) => s + BookText.countWords(c.html), 0);
-    const mode = el('select', {}, [['replace', 'Substituir os capítulos atuais'], ['append', 'Adicionar ao final do livro']].map(([a, b]) => el('option', { value: a, text: b })));
-    mode.value = hasContent ? 'append' : 'replace';
-    const notesSel = el('select', {}, [['keep', 'Manter como notas de rodapé'], ['hide', 'Manter, mas ocultar no livro'], ['remove', 'Remover todas']].map(([a, b]) => el('option', { value: a, text: b })));
-    const useMeta = el('input', { type: 'checkbox', checked: !!(meta && meta.title) && !hasContent });
-    const warn = [];
-    if (res.kind === 'pdf') warn.push('PDF não guarda a estrutura do texto: parágrafos, títulos e notas foram reconstruídos automaticamente pela posição das letras. Confira os títulos dos capítulos e as notas. Imagens do PDF não são importadas.');
-    if (res.kind === 'doc') warn.push('Arquivos .doc antigos não preservam itálico/negrito na importação. Se possível, salve como .docx no Word e importe novamente.');
-    // sumário que já vem no manuscrito: o livro gera o seu, com os números de página corretos
-    const TOC_RE = /^(sum[áa]rio|[íi]ndice( geral)?|conte[úu]do|contents|table of contents)$/i;
+    if (!chapters.length) return P.fail('Nenhum texto encontrado no arquivo.');
+    if (det && det.plain) P.log(`Livro sem títulos marcados: ${det.count} título(s) reconhecido(s) por linhas curtas isoladas`);
+    else if (det) P.log(`${det.count} capítulos reconhecidos pelos marcadores do texto (“${det.labeled ? 'CAPÍTULO ' : ''}${det.style === 'roman' ? 'I, II, III' : '1, 2, 3'}”)`);
+    else P.log(`${chapters.length} parte(s) pelos títulos do arquivo`);
+    chapters.slice(0, 6).forEach((c, i) => P.log(`   ${i + 1}. ${c.title}`));
+    if (chapters.length > 6) P.log(`   … e mais ${chapters.length - 6}`);
+    // sumário que vinha no manuscrito: sai (o livro gera o seu, com as páginas certas)
     const tocChapters = chapters.filter(c => TOC_RE.test(String(c.title || '').replace(/<[^>]+>/g, '').trim()));
-    const dropToc = el('input', { type: 'checkbox', checked: tocChapters.length > 0 });
-    const tocText = tocChapters.map(c => c.html.replace(/<[^>]+>/g, ' ')).join(' ').toLowerCase();
-    const subTitles = [];
-    chapters.forEach(c => { const t = document.createElement('template'); t.innerHTML = c.html; t.content.querySelectorAll('h2').forEach(h => subTitles.push(h.textContent.trim().toLowerCase())); });
-    const tocHasSections = subTitles.some(t => t.length > 3 && tocText.includes(t));
-    const genreSel = el('select', {}, [el('option', { value: '', text: App.project.genre ? 'Manter o atual (' + (D.GENRE_PRESETS[App.project.genre] || {}).label + ')' : 'Manter a configuração atual' })].concat(Object.entries(D.GENRE_PRESETS).map(([k, p]) => el('option', { value: k, text: p.label }))));
-    const list = el('ol', { class: 'import-list' }, chapters.slice(0, 80).map(c => el('li', { text: `${c.sourceLabel && c.sourceLabel !== c.title ? c.sourceLabel + ' · ' : ''}${c.title}${c.numbered === false ? ' (sem número)' : ''} — ${BookText.countWords(c.html).toLocaleString('pt-BR')} palavras` })));
-    // capítulos achados pelos marcadores do manuscrito (CAPÍTULO 1, II, 3…): numeração no mesmo estilo
-    const STYLE_NAMES = { roman: 'romanos (I, II, III)', arabic: 'arábicos (1, 2, 3)', words: 'por extenso (Um, Dois)' };
-    const useNumbering = el('input', { type: 'checkbox', checked: !!det });
-    App.modal({
-      title: `Importar “${res.name}${res.ext || ''}”`, wide: true,
-      body: el('div', {}, [
-        el('p', { text: `${KIND_NAMES[res.kind] || res.kind}: ${chapters.length} capítulo(s), ${words.toLocaleString('pt-BR')} palavras, ${noteCount} nota(s) de rodapé, ${images} imagem(ns)${charts ? `, ${charts} gráfico(s) do Word (recriados e editáveis)` : ''}${(() => { const n = chapters.reduce((t, c) => t + (c.html.match(/class="comment"/g) || []).length, 0); return n ? `, ${n} comentário(s) de revisão (aparecem no editor, não no livro)` : ''; })()}. O texto será padronizado com os estilos do livro (fontes, tamanhos e espaçamentos do manuscrito são substituídos pela configuração atual).` }),
-        warn.length ? el('div', { class: 'warn-box' }, warn.map(w => el('p', { text: '⚠ ' + w }))) : null,
-        el('div', { class: 'grid' }, [App.field('Como importar', mode), App.field('Notas de rodapé', notesSel), App.field('Gênero do livro (estilos, títulos e alinhamento)', genreSel, 'Texto justificado; poesia alinhada à esquerda'),
-          tocChapters.length ? el('label', { class: 'chk' }, [dropToc, ` Remover o sumário do manuscrito (“${tocChapters[0].title}”) e gerar o sumário automático com as páginas certas`]) : null,
-          det ? el('label', { class: 'chk' }, [useNumbering, ` ${det.count} capítulos identificados pelos marcadores do texto — numerar com ${det.labeled ? '“Capítulo” + ' : ''}números ${STYLE_NAMES[det.style] || ''}`]) : null,
-          meta && meta.title ? el('label', { class: 'chk' }, [useMeta, ` Usar título/autor do arquivo (“${meta.title}”${meta.author ? ', ' + meta.author : ''})`]) : null]),
-        el('h4', { text: 'Capítulos encontrados' }),
-        list,
-        chapters.length > 80 ? el('p', { class: 'muted', text: `… e mais ${chapters.length - 80}` }) : null
-      ]),
-      buttons: [{ label: 'Cancelar' }, { label: 'Importar', primary: true, onClick: async () => {
-        App.flush();
-        App.commit('Antes da importação');
-        if (dropToc.checked) chapters = chapters.filter(c => !tocChapters.includes(c));
-        const chs = chapters.map(c => ({ id: D.uid(), title: c.title, numbered: c.numbered !== false, html: c.html, locked: false, style: {}, separator: 'default', openingImage: null }));
-        if (notesSel.value === 'remove') chs.forEach(c => { const t = document.createElement('template'); t.innerHTML = c.html; t.content.querySelectorAll('span.footnote').forEach(n => n.remove()); c.html = t.innerHTML; });
-        if (notesSel.value === 'hide') App.project.settings.footnotesVisible = false;
-        if (mode.value === 'replace') {
-          const locked = App.project.chapters.filter(c => c.locked);
-          App.project.chapters = locked.concat(chs);
-          if (locked.length) App.toast(`${locked.length} capítulo(s) bloqueado(s) foram mantidos.`, 4000);
-        } else App.project.chapters.push(...chs);
-        if (useMeta.checked && meta) { if (meta.title) App.project.meta.title = meta.title.replace(/<[^>]+>/g, ''); if (meta.author) App.project.meta.author = meta.author.replace(/<[^>]+>/g, ''); if (meta.publisher) App.project.meta.publisher = meta.publisher.replace(/<[^>]+>/g, ''); }
-        const f = App.project.front;
-        if (dropToc.checked || chs.length > 1) { f.toc = true; if (dropToc.checked) { f.tocMode = 'auto'; f.tocLevels = Math.max(Number(f.tocLevels) || 1, tocHasSections ? 2 : 1); } }
-        App.editorChapterId = null;
-        if (genreSel.value) await App.genre.apply(genreSel.value, false);
-        if (det && useNumbering.checked) { App.project.settings.chapterNumbering = det.style; App.project.settings.chapterLabel = det.labeled ? 'Capítulo' : ''; }
-        App.changed(`Importação de “${res.name}” (${chs.length} capítulos)`);
-        App.setView('chapter', chs[0].id);
-        App.toast(`${chs.length} capítulo(s) importado(s). Confira os títulos em Livro › Revisar títulos.`, 5000);
-      } }]
+    if (tocChapters.length) { chapters = chapters.filter(c => !tocChapters.includes(c)); P.log('Sumário do manuscrito removido (o sumário automático o substitui)'); }
+    const images = await convertImages(chapters);
+    if (images) P.log(`${images} imagem(ns) incorporada(s)`);
+    const charts = await convertCharts(chapters, res.charts);
+    if (charts) P.log(`${charts} gráfico(s) do Word recriado(s)`);
+    const noteCount = chapters.reduce((s, c) => s + (c.html.match(/class="footnote"/g) || []).length, 0) || notes;
+    if (noteCount) P.log(`${noteCount} nota(s) de rodapé preservada(s)`);
+    const words = chapters.reduce((s, c) => s + BookText.countWords(c.html), 0);
+    P.log(`${words.toLocaleString('pt-BR')} palavras`);
+    // livro atual com conteúdo: substituir, adicionar ou cancelar
+    let mode = 'replace';
+    if (!isSample()) {
+      const b = await api.confirm('Já há um livro aberto', 'O novo arquivo substitui o livro atual ou entra no final dele?', ['Substituir pelo novo livro', 'Adicionar ao final', 'Cancelar']);
+      if (b === 2 || b === -1) return P.fail('Importação cancelada.');
+      mode = b === 1 ? 'append' : 'replace';
+    }
+    App.flush();
+    App.commit('Antes da importação');
+    const chs = chapters.map(c => ({ id: D.uid(), title: c.title, numbered: c.numbered !== false, html: c.html, locked: false, style: {}, separator: 'default', openingImage: null }));
+    const p = App.project;
+    if (mode === 'replace') {
+      const locked = p.chapters.filter(c => c.locked);
+      p.chapters = locked.concat(chs);
+      // título e autor: do arquivo, do começo do texto ou do nome do arquivo
+      const clean = t => String(t || '').replace(/<[^>]+>/g, '').trim();
+      const title = clean(meta && meta.title) || (/^(meu livro|sem título)?$/i.test(p.meta.title || '') ? clean(res.name).replace(/[_-]+/g, ' ') : '');
+      if (title) p.meta.title = title;
+      if (meta && meta.author) p.meta.author = clean(meta.author);
+      if (meta && meta.publisher) p.meta.publisher = clean(meta.publisher);
+      P.log(`Título: “${p.meta.title}”${p.meta.author ? ' · ' + p.meta.author : ''}`);
+    } else p.chapters.push(...chs);
+    // tema padrão: numeração dos capítulos como no manuscrito, sumário automático, números de página
+    if (det) { p.settings.chapterNumbering = det.style === 'words' ? 'arabic' : det.style; p.settings.chapterLabel = det.labeled ? 'Capítulo' : ''; }
+    p.front.toc = true;
+    p.front.tocMode = 'auto';
+    if (!p.settings.pageNumbers || p.settings.pageNumbers === 'none') p.settings.pageNumbers = 'outer';
+    P.log('Aplicando o tema padrão: estilos, margens, títulos, numeração de páginas e sumário automático');
+    App.editorChapterId = null;
+    App.changed(`Importação de “${res.name}” (${chs.length} capítulos)`);
+    App.setView('chapter', chs[0].id);
+    if (App.preview.resetMode) App.preview.resetMode();
+    P.log('Paginando…');
+    P.whenPaged(info => {
+      P.done('Livro pronto', [`${chs.length} capítulo(s) · ${info.pages} páginas · sumário gerado · ${((Date.now() - t0) / 1000).toFixed(1).replace('.', ',')} s`], [
+        { label: 'Revisar títulos', onClick: () => App.titles.open() },
+        { label: 'Capa e imagens', onClick: () => App.setView('frontimages') },
+        { label: 'Exportar', onClick: () => App.setView('export') },
+        { label: 'Ver o livro', primary: true }
+      ]);
     });
   }
 
   App.importer = {
-    fromDialog: async () => processImport(await api.importFile()),
-    fromPath: async p => processImport(await api.importPath(p)),
+    fromDialog: async () => { App.progress.expect('Carregando o livro', 'Títulos, capítulos, paginação e sumário são aplicados automaticamente'); return processImport(await api.importFile()); },
+    fromPath: async p => { App.progress.expect('Carregando o livro', 'Títulos, capítulos, paginação e sumário são aplicados automaticamente'); return processImport(await api.importPath(p)); },
     process: processImport
   };
 
@@ -209,8 +213,9 @@
       title: 'Como usar', wide: true,
       body: el('div', { class: 'help' }, [
         el('ol', {}, [
+          ['Enviar um livro', 'envie qualquer arquivo (Word, PDF, EPUB, ODT, TXT, Markdown), mesmo sem formatação: títulos, capítulos, tema padrão, paginação, números de página e sumário são aplicados sozinhos. Confira os títulos em Livro › Revisar títulos.'],
+          ['Capa e imagens iniciais', 'a capa abre o livro em página inteira e é a capa do EPUB; imagens extras vêm antes da página de rosto. Ao escolher a capa, informe a sinopse (vai para os metadados do EPUB).'],
           ['Editar nas páginas', 'clique em qualquer parágrafo do livro e digite: o texto é editado na própria página, e o capítulo se repagina sozinho logo depois. A barra acima das páginas (títulos, negrito, notas, imagens…) age onde está o cursor. Selecione um trecho para colocá-lo numa caixa de texto ou de citação (▢ Caixa ▾ / ❝ Citação ▾).'],
-          ['Importar', 'traga o manuscrito (DOCX, DOC, EPUB, PDF, ODT, TXT, Markdown). Capítulos são reconhecidos por “CAPÍTULO 1”, “Capítulo IV” ou números/romanos em sequência; as notas de rodapé são preservadas. Confira em Livro › Revisar títulos.'],
           ['Formato e diagramação', 'o padrão é o modelo CEDET (15,5 × 23, 13,7 × 21 ou 11,5 × 17,5 cm, margem de segurança de 20 mm, sangria de 5 mm e marcas de corte; exporte com o perfil “CEDET — miolo”); escolha outro tamanho, margens espelhadas, sangria, capitulares, cabeçalhos e uma configuração pronta por gênero. “★ Salvar como meu padrão” guarda suas escolhas para os próximos livros.'],
           ['Estilos de texto', 'ajuste fonte, tamanho, cor e espaçamentos do texto, dos títulos (T1, T2, T3), citações, poesias, referências, notas e legendas.'],
           ['Capítulos', 'clique para editar; ☑ seleciona vários para editar cor da página, fontes e títulos de uma vez; 🔒 bloqueia contra edição e exclusão.'],
@@ -295,8 +300,34 @@
       api.autosaveClear();
     }
     loadProject(await api.newProject(), null, false);
-    try { if (!localStorage.getItem('helpShown2')) { localStorage.setItem('helpShown2', '1'); help(); } } catch (e) { /* ok */ }
+    welcome();
   }
+
+  // ---------------------------------------------------------------- boas-vindas
+  function welcome() {
+    const go = fn => () => { back.classList.add('out'); setTimeout(() => back.remove(), 260); if (fn) fn(); };
+    const card = (icon, title, text, fn, main) => el('button', { class: 'wl-card' + (main ? ' main' : ''), onclick: go(fn) }, [
+      el('span', { class: 'wl-ic', html: App.icons ? App.icons.svg(icon) : '' }),
+      el('span', { class: 'wl-ct' }, [el('b', { text: title }), el('span', { text })])
+    ]);
+    const hour = new Date().getHours();
+    const hello = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+    const back = el('div', { class: 'wl-back' }, [el('div', { class: 'wl-card-box' }, [
+      el('div', { class: 'wl-brand', html: '<svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="116" fill="#0d0d0f"/><g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><path d="M106 262 L256 136 L406 262"/><path d="M160 222 V372 H352 V222"/><path d="M232 372 V318 A24 24 0 0 1 280 318 V372"/><path d="M318 186 V150 H342 V206"/></g></svg>' }),
+      el('p', { class: 'wl-hello', text: hello + ',' }),
+      el('h1', { class: 'wl-title' }, ['Bem-vindo à ', el('span', { text: 'Casa Vertigem Hub' })]),
+      el('p', { class: 'wl-sub', text: 'Envie um livro e o resto é automático: títulos, capítulos, paginação, números de página e sumário. Depois é só ajustar o que quiser e baixar.' }),
+      el('div', { class: 'wl-actions' }, [
+        card('upload', 'Enviar um livro', 'Word, PDF, EPUB, ODT, TXT ou Markdown', () => App.importer.fromDialog(), true),
+        card('folder', 'Abrir um projeto', 'Continuar um livro salvo (.livro)', () => runCommand('open')),
+        card('plus', 'Começar do zero', 'Livro, revista ou jornal em branco', () => runCommand('new'))
+      ]),
+      el('button', { class: 'wl-skip', text: 'Entrar no aplicativo →', onclick: go() }),
+      el('p', { class: 'wl-foot', text: 'Tudo fica no seu computador — o aplicativo funciona sem internet.' })
+    ])]);
+    document.body.appendChild(back);
+  }
+  App.welcome = welcome;
 
   init();
 })();

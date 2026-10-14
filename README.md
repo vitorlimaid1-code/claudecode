@@ -21,12 +21,18 @@ Como os executáveis não têm assinatura digital, o Windows SmartScreen pode av
 
 ## Recursos
 
+### Fluxo rápido: enviar, ajustar e baixar
+- Ao abrir, a tela de **boas-vindas** oferece **Enviar um livro**, abrir um projeto ou começar do zero.
+- **Envie qualquer livro**, mesmo sem formatação: o sistema reconhece os títulos (marcadores como “CAPÍTULO 1”/“IV”, títulos do Word ou, sem nada marcado, linhas curtas isoladas entre parágrafos), divide os capítulos, aplica o tema padrão, pagina, numera as páginas e gera o sumário — **sem perguntas**. Título e autor vêm do arquivo (ou das primeiras linhas do texto).
+- Um painel mostra o **registro de cada etapa** do carregamento e da exportação, com o tempo; no fim, atalhos para revisar títulos, pôr a capa e exportar.
+- **Capa e imagens iniciais** (opcional): a capa abre o livro em página inteira (sem margens) e é a capa do EPUB; imagens extras vêm antes da página de rosto. Ao escolher a capa, o sistema pede a **sinopse**.
+- **EPUB pronto para uso**: capa reconhecida pelos aplicativos e lojas, sumário navegável, título, autor, idioma, sinopse, editora, ISBN, **data de publicação = dia em que foi gerado** e crédito à **Casa Vertigem** (produção do livro digital).
+
 ### Edição direta nas páginas
 - O texto é **editado na própria página**: clique em qualquer parágrafo do livro e digite. Não há caixa de texto separada — o que aparece na tela é o livro paginado, com fontes, margens, notas e números de página reais.
 - Digitação, Enter, apagar, colar, negrito/itálico (Ctrl+B/I/U), desfazer (Ctrl+Z) e todos os botões da barra (títulos, citações, notas, imagens, tabelas, ligações) funcionam direto na página. O capítulo é **repaginado em segundo plano** logo depois de parar de digitar, e o cursor continua no mesmo ponto.
 - O título do capítulo também pode ser editado clicando nele na página.
 - **Caixa de texto e caixa de citação**: selecione o texto na página e escolha na barra flutuante **▢ Caixa** (contorno, fundo cinza, barra lateral, filetes, fundo escuro) ou **❝ Citação** (recuada, aspas grandes, barra lateral, destaque centralizado). “Sem caixa” desfaz.
-- Para quem prefere, o botão **Texto em coluna** mostra também o texto corrido numa coluna à parte (modo clássico).
 
 ### Paginação rápida
 - O livro é paginado **por capítulos, em paralelo**, em processos separados: a janela nunca trava e as primeiras páginas aparecem em cerca de um segundo. Ao editar, só o capítulo alterado é paginado de novo. A exportação usa o mesmo caminho (mesmo resultado da tela).
@@ -108,8 +114,8 @@ Todo livro novo nasce no padrão do **Manual de Preparação de Arquivos do Cede
 - **Word (.docx)**: imagens, **gráficos nativos do Word** (recriados como gráficos editáveis), notas de rodapé, **comentários de revisão** (ficam no editor como 💬 e na Revisão do texto, nunca no livro), listas, tabelas, legendas ligadas à figura/tabela/gráfico e “Fonte:” — tudo no estilo definido do livro e indexado nas listas.
 
 ### Aparência do sistema
-- Visual claro e limpo: navegação à esquerda, páginas do livro no centro e os ajustes abrindo ao lado das páginas (a prévia acompanha cada mudança).
-- **Modo noturno** (botão 🌙 no topo), claro ou automático (segue o Windows) e **dez cores** do sistema (Carvão — padrão —, Terracota, Azul-marinho, Verde-floresta, Vinho, Roxo, Petróleo, Âmbar, Rosa, Grafite). As páginas do livro continuam brancas na prévia; restaurável em Restaurar padrões.
+- Visual vibrante e elegante: menu com botões grandes, ícones e bordas, resposta visual ao passar o mouse e ao clicar; páginas do livro no centro e os ajustes abrindo ao lado delas.
+- **Modo noturno** (botão 🌙 no topo), claro ou automático (segue o Windows) e **onze cores** do sistema (Vertigem — padrão —, Carvão, Terracota, Azul-marinho, Verde-floresta, Vinho, Roxo, Petróleo, Âmbar, Rosa, Grafite). As páginas do livro continuam brancas na prévia; restaurável em Restaurar padrões.
 
 ### Tipografia e paginação (acabamento automático)
 - **Grade de linha de base**: títulos, imagens, tabelas, citações e caixas ocupam um número inteiro de linhas e os espaços entre blocos são múltiplos da entrelinha — as linhas das páginas opostas ficam na mesma altura, mesmo com títulos e imagens.

@@ -218,10 +218,14 @@ function opfMetadata(epub, uid, hasCover) {
     L.push(`<meta refines="#aut${i}" property="file-as">${xmlEsc(fa)}</meta>`);
   });
   (x.contributors || []).forEach((c, i) => { if (!c.name) return; L.push(`<dc:contributor id="ctb${i}">${xmlEsc(c.name)}</dc:contributor>`, `<meta refines="#ctb${i}" property="role" scheme="marc:relators">${marcOf(c.role)}</meta>`); });
+  // créditos da Casa Vertigem: produção do livro digital
+  L.push('<dc:contributor id="cvhub">Casa Vertigem</dc:contributor>', '<meta refines="#cvhub" property="role" scheme="marc:relators">bkp</meta>');
   L.push(`<dc:language>${xmlEsc(m.language || 'pt-BR')}</dc:language>`);
-  if (m.publisher) L.push(`<dc:publisher>${xmlEsc(m.publisher)}</dc:publisher>`);
-  const year = String(m.year || '').match(/\d{4}/);
-  if (year) L.push(`<dc:date>${year[0]}</dc:date>`);
+  L.push(`<dc:publisher>${xmlEsc(m.publisher || 'Casa Vertigem')}</dc:publisher>`);
+  // data de publicação: o dia em que o livro digital foi gerado
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  L.push(`<dc:date>${today}</dc:date>`);
   if (m.description) L.push(`<dc:description>${xmlEsc(m.description)}</dc:description>`);
   (x.subjects || []).forEach(sj => L.push(`<dc:subject>${xmlEsc(sj)}</dc:subject>`));
   if (x.rights) L.push(`<dc:rights>${xmlEsc(x.rights)}</dc:rights>`);
@@ -233,6 +237,7 @@ function opfMetadata(epub, uid, hasCover) {
     '<meta property="schema:accessibilityFeature">tableOfContents</meta>', '<meta property="schema:accessibilityFeature">readingOrder</meta>',
     '<meta property="schema:accessibilityFeature">structuralNavigation</meta>', '<meta property="schema:accessibilityHazard">none</meta>',
     '<meta property="schema:accessibilitySummary">Livro com sumário navegável, ordem de leitura e títulos estruturados.</meta>');
+  L.push('<meta name="generator" content="Casa Vertigem Hub"/>');
   L.push(`<meta property="dcterms:modified">${new Date().toISOString().replace(/\.\d+Z$/, 'Z')}</meta>`);
   if (hasCover) L.push('<meta name="cover" content="cover-img"/>');
   return L.join('\n');
@@ -267,6 +272,19 @@ async function exportEpub(epub, assets) {
     manifest.push('<item id="cover" href="cover.xhtml" media-type="application/xhtml+xml" properties="svg"/>');
     spine.push('<itemref idref="cover" linear="yes"/>');
   }
+  // imagens extras antes da página de rosto, em página inteira
+  (epub.preImages || []).forEach((du, i) => {
+    const bin = dataUrlToBuffer(du);
+    if (!bin) return;
+    const ext = EXT[bin.mime] || 'png';
+    const name = `images/pre${i + 1}.${ext}`;
+    zip.file(`OEBPS/${name}`, bin.buf);
+    manifest.push(`<item id="pre-img${i + 1}" href="${name}" media-type="${bin.mime}"/>`);
+    zip.file(`OEBPS/pre${i + 1}.xhtml`, page(`Imagem ${i + 1}`, `<div class="cover-page"><img src="${name}" alt="" style="max-width:100%; max-height:100vh; display:block; margin:0 auto;"/></div>`,
+      '<style>html, body { margin: 0; padding: 0; } .cover-page { margin: 0; padding: 0; text-align: center; page-break-after: always; }</style>'));
+    manifest.push(`<item id="pre${i + 1}" href="pre${i + 1}.xhtml" media-type="application/xhtml+xml"/>`);
+    spine.push(`<itemref idref="pre${i + 1}"/>`);
+  });
   zip.file('OEBPS/title.xhtml', page(m.title, `<section epub:type="titlepage" class="titlepage"><p class="tp-author">${xmlEsc(m.author)}</p><h1 class="tp-title">${xmlEsc(m.title)}</h1>${m.subtitle ? `<p class="tp-sub">${xmlEsc(m.subtitle)}</p>` : ''}${m.publisher ? `<p class="tp-pub">${xmlEsc(m.publisher)}</p>` : ''}</section>`));
   manifest.push('<item id="title" href="title.xhtml" media-type="application/xhtml+xml"/>');
   spine.push('<itemref idref="title"/>');

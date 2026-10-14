@@ -3,7 +3,7 @@
 (function () {
   const { el, $ } = App;
   const ACCENTS = [
-    ['carvao', 'Carvão (padrão)', '#111113'], ['terracota', 'Terracota', '#8a3b1f'], ['azul', 'Azul-marinho', '#1f4e8a'], ['verde', 'Verde-floresta', '#2f6b3a'],
+    ['vertigem', 'Vertigem (padrão)', '#6d28d9'], ['carvao', 'Carvão', '#111113'], ['terracota', 'Terracota', '#8a3b1f'], ['azul', 'Azul-marinho', '#1f4e8a'], ['verde', 'Verde-floresta', '#2f6b3a'],
     ['vinho', 'Vinho', '#7a1f3d'], ['roxo', 'Roxo', '#5b3a8a'], ['petroleo', 'Petróleo', '#0f5c66'],
     ['ambar', 'Âmbar', '#8f5a00'], ['rosa', 'Rosa', '#a3366b'], ['grafite', 'Grafite', '#3b3f46']
   ];
@@ -39,7 +39,7 @@
         el('h3', { text: 'Cor do sistema' }),
         el('div', { class: 'theme-swatches' }, ACCENTS.map(([k, label, c]) => el('div', { class: 'theme-swatch' + (SystemTheme.accent === k ? ' on' : ''), onclick: () => { SystemTheme.set('themeAccent', k); render(); } }, [el('span', { class: 'dot', style: `background:${c}` }), el('span', { text: label })])))
       ]),
-      el('div', { class: 'inline wrap' }, [el('button', { text: '↺ Restaurar a aparência padrão (claro, carvão)', onclick: () => { SystemTheme.reset(); syncButton(); render(); App.toast('Aparência padrão restaurada.'); } })])
+      el('div', { class: 'inline wrap' }, [el('button', { text: '↺ Restaurar a aparência padrão (claro, Vertigem)', onclick: () => { SystemTheme.reset(); syncButton(); render(); App.toast('Aparência padrão restaurada.'); } })])
     ]));
   }
 

@@ -252,7 +252,9 @@ aside p { text-indent: 0; }
       contributors, series: cat.series || '', fileAs: cat.authorEntry ? cat.authorEntry.replace(/,?\s*\d{4}-?\s*$/, '').trim() : '',
       rights: (cat.rights || `© ${m.year || ''} ${m.author || ''}. Todos os direitos reservados.`).replace(/\s+/g, ' ').trim()
     };
-    return { meta: m, extra, docs, css: epubCss(s), copyright, cover, tocTitle: project.front.tocTitle };
+    // imagens extras antes da página de rosto (página inteira)
+    const preImages = ((project.ebook && project.ebook.preImages) || []).map(id => project.assets[id] && project.assets[id].dataUrl).filter(Boolean);
+    return { meta: m, extra, docs, css: epubCss(s), copyright: copyright + '<p class="cv-credit">Livro digital produzido com Casa Vertigem Hub — Casa Vertigem.</p>', cover, preImages, tocTitle: project.front.tocTitle };
   }
 
   App.exportPrep = { buildDoc, buildEpub, blocksOf };

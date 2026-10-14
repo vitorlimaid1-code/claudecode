@@ -82,6 +82,7 @@
     P.setLayerEditing(App.view === 'layers');
     P.highlightLayers([...App.layers.sel]);
     markCurrent();
+    if (App.progress && App.progress.paged) App.progress.paged(info, seg.order.length - info.pending, seg.order.length);
     App.hooks.afterChange.forEach(fn => { try { fn({ rendered: true, partial: !!info.pending }); } catch (e) { /* ok */ } });
     if (!info.pending) {
       $('#previewBusy').classList.remove('show');

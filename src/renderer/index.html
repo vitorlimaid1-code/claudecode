@@ -39,6 +39,7 @@
   <aside class="sidebar">
     <nav class="nav">
       <div class="nav-group">Livro</div>
+      <button class="nav-item" data-view="frontimages"><span class="ic">▣</span>Capa e imagens iniciais</button>
       <button class="nav-item" data-view="book"><span class="ic">ℹ</span>Dados e páginas iniciais</button>
       <button class="nav-item" data-view="catalog"><span class="ic">▦</span>Créditos e ficha</button>
       <button class="nav-item" data-view="back"><span class="ic">✎</span>Páginas finais</button>
@@ -82,6 +83,7 @@
   </aside>
 
   <main class="workspace">
+    <section id="view-frontimages" class="view"></section>
     <section id="view-book" class="view"></section>
     <section id="view-catalog" class="view"></section>
     <section id="view-back" class="view"></section>
@@ -122,7 +124,6 @@
           <button id="chapterLock" class="ghost" title="Bloquear contra edição e exclusão acidental">🔓 Bloquear</button>
           <button id="chapterLook" class="ghost" title="Cor da página, fontes, cores, separador e imagem de abertura deste capítulo">🎨 Aparência</button>
           <button id="chapterDelete" class="ghost danger" title="Excluir capítulo">Excluir</button>
-          <button id="classicToggle" class="ghost stage-toggle" title="Mostrar também o texto do capítulo numa coluna à parte (modo clássico)">Texto em coluna</button>
         </div>
         <div id="chapterLookPanel" class="look-panel"></div>
         <div id="lockBanner" class="lock-banner">🔒 Capítulo bloqueado — desbloqueie para editar, mover ou excluir.</div>
@@ -211,6 +212,8 @@
 <script src="../shared/defaults.js"></script>
 <script src="sanitize.js"></script>
 <script src="core.js"></script>
+<script src="icons.js"></script>
+<script src="progress-ui.js"></script>
 <script src="editor.js"></script>
 <script src="panels.js"></script>
 <script src="toc-ui.js"></script>
@@ -242,6 +245,7 @@
 <script src="page-tools.js"></script>
 <script src="live-edit.js"></script>
 <script src="titles-ui.js"></script>
+<script src="frontimages-ui.js"></script>
 <script src="preview-ui.js"></script>
 <script src="app.js"></script>
 <script src="cover3d.js"></script>
