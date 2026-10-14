@@ -592,7 +592,7 @@
         dedication: 'Para quem sempre acreditou nesta história.', epigraph: '', epigraphAuthor: '',
         language: 'pt-BR', description: ''
       },
-      front: { halfTitle: false, titlePage: true, copyright: true, toc: true, tocTitle: 'Sumário', tocMode: 'auto', tocLevels: 1, tocEntries: [], tocStyle: 'dots', listQuadros: false, dedication: false, epigraph: false, listFigures: false, listCharts: false, listTables: false },
+      front: { halfTitle: false, titlePage: true, copyright: true, toc: true, tocTitle: 'Sumário', tocMode: 'auto', tocLevels: 1, tocEntries: [], tocStyle: 'dots', tocTheme: 'none', tocColor: '#1d1d24', listQuadros: false, dedication: false, epigraph: false, listFigures: false, listCharts: false, listTables: false },
       titlePage: { logo: null, logoWidth: 25, showPublisher: true, showYear: true, logoPlacement: 'foot', imprint: '' },
       catalog: Object.assign(emptyCatalog(), isCedet(settings) ? { distribution: CEDET.distribution } : {}),
       back: {

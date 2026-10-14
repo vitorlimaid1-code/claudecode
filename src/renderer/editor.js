@@ -1095,6 +1095,16 @@
         return;
       }
       if (!html && !text) return;
+      // tabelas, gráficos e imagens: formatação original lida antes da limpeza
+      if (html && !data.prepared && App.pasteKeep && /<table|<img|<svg|v:imagedata/i.test(html)) {
+        const sel = document.getSelection(), rg = sel && sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
+        App.pasteKeep.prepare(html, data.files).then(r => {
+          if (rg && ed.contains(rg.startContainer)) { ed.focus(); const s2 = document.getSelection(); s2.removeAllRanges(); s2.addRange(rg); }
+          paste(Object.assign({}, data, { html: r.html, prepared: true, files: [] }));
+          if (r.tables || r.images) App.toast(`Colado com a formatação original${r.tables ? `: ${r.tables} tabela(s)` : ''}${r.images ? `${r.tables ? ',' : ':'} ${r.images} imagem(ns)/gráfico(s)` : ''} — ajustado à largura da página.`, 4000);
+        }).catch(err => { console.error('colar com formatação', err); paste(Object.assign({}, data, { prepared: true })); });
+        return;
+      }
       let clean;
       if (html) clean = BookText.sanitizeHtml(html);
       else {

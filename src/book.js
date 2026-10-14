@@ -3,6 +3,7 @@ const { normalizeProject, BUNDLED_FONTS, autoBleed, CEDET, charStylesCss } = req
 const CatalogParse = require('./shared/catalog-parse');
 const X = require('./book-extras');
 const PageFrames = require('./shared/frames');
+const TocThemes = require('./shared/tocthemes');
 
 function effectiveBleed(s) {
   if (s.bleedAuto) return autoBleed(s);
@@ -263,6 +264,29 @@ function ownLabel(captionHtml) {
 }
 
 // tabelas de até 15 linhas ficam inteiras numa página (com o título)
+// Tabela colada com a formatação original: mesmas proporções de colunas, encaixada na largura da mancha
+// (nunca maior que ela); se era mais larga que a página, a letra diminui na mesma medida (com limite).
+function origTables(html, ctx) {
+  if (!/tb-orig/.test(html)) return html;
+  const colPx = (ctx.colW || 100) * 96 / 25.4;
+  return String(html).replace(/<table\b([^>]*\btb-orig\b[^>]*)>(\s*<caption\b[\s\S]*?<\/caption>)?/gi, (m, attrs, cap) => {
+    const a = parseAttrs(attrs);
+    const tw = Number(a['data-tw']) || colPx;
+    const width = Math.min(100, Math.max(25, tw / colPx * 100));
+    const cols = String(a['data-cols'] || '').split(',').map(Number).filter(v => v > 0);
+    // letra: do tamanho das tabelas do livro; menor só quando a palavra ou número mais longo de cada
+    // coluna não caberia na largura da página (nada é partido ao meio)
+    const bookPx = num((ctx.settings.styles.table || {}).size, 9.5) * 96 / 72;
+    const minW = Number(a['data-minw']) || 0, ofs = Number(a['data-fs']) || bookPx;
+    const need = minW ? minW * (bookPx / ofs) * 1.1 + Math.max(1, cols.length) * 2 : 0;
+    const fs = need > colPx ? Math.max(0.55, colPx * 0.97 / need) : 1;
+    const sum = cols.reduce((x, y) => x + y, 0) || 1;
+    const cg = cols.length ? `<colgroup>${cols.map(c => `<col style="width:${(c / sum * 100).toFixed(2)}%">`).join('')}</colgroup>` : '';
+    const rest = attrs.replace(/\sstyle="[^"]*"/i, '');
+    return `<table${rest} style="width:${width.toFixed(1)}%;${fs < 1 ? ` font-size:${fs.toFixed(2)}em;` : ''}">${cap || ''}${cg}`;
+  });
+}
+
 function markShortTables(html) {
   return String(html).replace(/<table\b([^>]*)>([\s\S]*?)<\/table>/gi, (m, attrs, inner) => {
     if ((inner.match(/<tr\b/gi) || []).length > 15) return m;
@@ -599,7 +623,8 @@ function tocHtml(project, items, ctx) {
     const sum = style === 'summary' && c.summary ? `<div class="toc-sum">${esc(c.summary)}</div>` : '';
     return `<li class="toc-l${c.level}">${c.id ? `<a href="#${esc(c.id)}">${inner}</a>` : `<a>${inner}</a>`}${sum}</li>`;
   }).join('');
-  return `<section class="front toc tocstyle-${style}${ctx && ctx.frontNum ? ' front-num' : ''}" id="sumario"><h2 class="toc-heading">${esc(front.tocTitle || 'Sumário')}</h2><ul class="toc-list">${li}</ul></section>`;
+  const theme = TocThemes.byKey(front.tocTheme).key;
+  return `<section class="front toc tocstyle-${style}${theme !== 'none' ? ' tt-' + theme : ''}${ctx && ctx.frontNum ? ' front-num' : ''}" id="sumario"><h2 class="toc-heading">${esc(front.tocTitle || 'Sumário')}</h2><ul class="toc-list">${li}</ul></section>`;
 }
 
 function mastheadHtml(project, ctx) {
@@ -672,7 +697,7 @@ function buildHtml(project, ctx) {
     const bl = c.bleed || {};
     if (bl.before && bl.before.asset && ctx.assets[bl.before.asset]) push(fullBleedHtml(bl.before.asset, bl.before.fit, ctx, 'fb-chapter' + (bl.spread !== false ? ' fb-spread' : ''), bl.before.box));
     const heads = [];
-    let body = markLongBoxes(markShortTables(numberTables(processBody(anchorHeadings(ctx.markBlocks ? markBlocks(c.html) : c.html, c.id, heads), ctx), ctx)));
+    let body = markLongBoxes(markShortTables(origTables(numberTables(processBody(anchorHeadings(ctx.markBlocks ? markBlocks(c.html) : c.html, c.id, heads), ctx), ctx), ctx)));
     heads.forEach(h => tocItems.push({ id: h.id, label: '', title: h.title, level: h.level }));
     // notas no fim do capítulo, no fim do livro ou na margem externa (em vez do rodapé)
     if (notesMode !== 'footnote' && settings.footnotesVisible !== false) {
@@ -682,6 +707,8 @@ function buildHtml(project, ctx) {
       if (notesMode === 'book') ctx.endnotes.push({ heading: [label, c.title].filter(Boolean).join(' — '), notes: r.notes });
     }
     if (hyph) { try { body = hyph(body); } catch (e) { /* sem hifenização */ } }
+    // tabelas coladas com a formatação original: sem hifenização automática (como no original)
+    if (/tb-orig/.test(body)) body = body.replace(/<table\b[^>]*\btb-orig\b[\s\S]*?<\/table>/g, m => m.replace(/\u00ad/g, ''));
     if (settings.hyphenExceptions) body = X.applyHyphenExceptions(body, settings.hyphenExceptions);
     const segments = splitFullBleed(body);
     segments.forEach((seg, k) => {
@@ -1132,6 +1159,7 @@ ${s.footnoteNumbering === 'chapter' ? '.chapter:not(.chapter-cont) { counter-res
 .tocstyle-twocol .toc-title { max-width: 70%; }
 .tocstyle-summary .toc-list li.toc-l1 { margin-bottom: 0.9em; }
 .tocstyle-summary .toc-sum { font-size: 0.86em; font-style: italic; line-height: 1.3; margin: 0.15em 2.5em 0 0; text-align: left; hyphens: manual; }
+${TocThemes.css(project.front.tocTheme, { mt: num(s.marginTop, 20), mb: num(s.marginBottom, 22), mi: num(s.marginInner, 22), mo: num(s.marginOuter, 16), bleed: ctx.bleed, contentH: ctx.contentH, colW: ctx.colW, color: project.front.tocColor })}
 
 /* ---------- notas de fim e notas laterais ---------- */
 .en-call { vertical-align: super; font-size: 0.65em; line-height: 0; }
@@ -1182,6 +1210,9 @@ ${s.baselineGrid ? `/* grade: listas, citações, caixas e poemas com a mesma en
 .chapter-body, .back-matter .chapter-body { overflow-wrap: break-word; }
 .chapter-body a[href^="http"], .chapter-body a[href^="mailto"] { overflow-wrap: anywhere; }
 .chapter-body table { max-width: 100%; table-layout: fixed; }
+/* tabela colada com a formatação original: as cores, bordas e alinhamentos vêm de cada célula */
+.chapter-body table.tb-orig { margin-left: auto; margin-right: auto; table-layout: auto; }
+.chapter-body table.tb-orig td, .chapter-body table.tb-orig th { padding: 0.3em 0.45em; overflow-wrap: break-word; hyphens: none; }
 .chapter-body img { max-width: 100%; }
 
 /* ---------- cores de páginas isoladas ---------- */
@@ -1254,6 +1285,7 @@ async function buildBook(rawProject, opts) {
   (s.charStyles || []).forEach(cs => { if (cs && cs.font) fams.add(cs.font); });
   project.chapters.forEach(c => { if (c.style.font) fams.add(c.style.font); if (c.style.titleFont) fams.add(c.style.titleFont); });
   (project.overlays || []).forEach(o => { if (o.font) fams.add(o.font); });
+  if (project.front.toc) { const tt = TocThemes.byKey(project.front.tocTheme); if (tt.font) fams.add(tt.font); }
 
   const overlays = (project.overlays || []).map(o => Object.assign({}, o, o.asset && ctx.assets[o.asset] ? { src: ctx.assets[o.asset].dataUrl } : {}));
 

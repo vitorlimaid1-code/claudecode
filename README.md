@@ -189,6 +189,16 @@ O layout padrão é o de **livro**. Em **Outros módulos** (barra lateral) ficam
 - **Blocos de imagem** (tela *Blocos e páginas sangradas*): áreas cinza, horizontais (largura toda) ou verticais (ao lado do texto), com legenda de teste. No preview, o **+** do bloco escolhe a imagem (ou arraste uma imagem para dentro dele); “Legenda ✓/✕” liga/desliga a legenda e ✕ remove o bloco. “Distribuir” coloca os blocos em pontos estratégicos das matérias. Na exportação, o verificador avisa se algum bloco ficou sem imagem.
 - **Páginas sangradas (full bleed)**, opcionais, antes e/ou depois de cada matéria (ou capítulo, no livro): imagem cobrindo a página inteira; com “página dupla” a imagem fica na página par e a matéria abre na ímpar ao lado. Um **box** opcional com título e texto informativo (escuro, claro ou só contorno; nos cantos ou em faixa).
 
+### Estilos de sumário (galeria)
+- Botão **✦ Estilos de sumário…** (em Dados e páginas iniciais › Sumário e em Tipografia e paginação): janela com 18 estilos prontos, em miniaturas com o formato, as margens e os capítulos do seu livro.
+- **Fontes e espaçamentos:** Clássico grande (Garamond, versalete), Moderno grosso (Playfair extra-grosso), Fino e arejado (Cormorant leve), Compacto, Editorial (fio grosso, número à esquerda), Centrado (Baskerville), Bem espaçado (Merriweather com fios).
+- **Com moldura:** simples, dupla, grossa (na cor escolhida) e cantoneiras.
+- **Imersivos** (chegam ao corte, com sangria): faixa à direita, à esquerda, no alto (título em branco) e na base; moldura grossa nos quatro lados; página inteira escura. Cor das faixas e molduras escolhida na própria janela.
+
+### Colar tabelas, gráficos e imagens
+- Cole (Ctrl+V) no editor ou direto nas páginas tabelas do **Excel, Word, LibreOffice, Google Planilhas** ou de páginas da web: cada célula mantém **fundo, cor, negrito, itálico, alinhamentos e bordas** e as colunas mantêm a **proporção**. No livro, a tabela é só encaixada na largura da mancha; se for mais larga que a página, a letra diminui o necessário para que **nenhuma palavra ou número seja partido**.
+- **Gráficos** em SVG viram imagem em alta resolução; imagens coladas (inclusive as que o Word/Excel mandam como arquivo temporário) viram imagens do projeto, redimensionadas para caber na largura e na altura da página.
+
 ### Estilos de título
 - Tela *Estilos de título*: título dentro de **caixa preta fina com letra branca**, **caixa branca fina com letra preta** ou **só contorno preto fino**, alinhado à esquerda, ao centro ou à direita. Vale para todos os capítulos/matérias ou só para um (estilo próprio).
 

@@ -10,6 +10,8 @@ const out = path.join(root, 'src', 'renderer', 'vendor');
 const FONTS = ['eb-garamond', 'crimson-pro', 'libre-baskerville', 'lora', 'merriweather', 'cormorant-garamond', 'playfair-display'];
 const WEIGHTS = ['400', '400-italic', '700', '700-italic'];
 const SUBSETS = ['latin', 'latin-ext'];
+// pesos extras (fino e extra-grosso) usados pelos modelos de sumário e de título
+const EXTRA = { 'cormorant-garamond': ['300', '300-italic'], 'crimson-pro': ['300', '300-italic'], merriweather: ['300', '300-italic', '900'], 'playfair-display': ['900', '900-italic'] };
 
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(path.join(out, 'fonts'), { recursive: true });
@@ -75,7 +77,7 @@ for (const font of FONTS) {
   const pkg = path.join(nm, '@fontsource', font);
   const fontOut = path.join(out, 'fonts', font);
   fs.mkdirSync(fontOut, { recursive: true });
-  for (const w of WEIGHTS) {
+  for (const w of WEIGHTS.concat(EXTRA[font] || [])) {
     for (const sub of SUBSETS) {
       const cssFile = path.join(pkg, `${sub}-${w}.css`);
       if (!fs.existsSync(cssFile)) continue;

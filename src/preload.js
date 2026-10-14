@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('api', {
   importPath: p => inv('import:path', p),
   pickImages: opts => inv('image:pick', opts || {}),
   imagesFromPaths: paths => inv('image:fromPaths', paths),
+  imagesFromFileUrls: urls => inv('image:fromFileUrls', urls),
   analyzeImage: dataUrl => inv('image:analyze', dataUrl),
 
   libList: () => inv('lib:list'),

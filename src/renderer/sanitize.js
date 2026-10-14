@@ -9,6 +9,17 @@
   const DIV_CLASSES = ['page-break', 'poem', 'box', 'fullbleed', 'tframe', 'ph-block'];
   const FIG_ATTRS = ['data-asset', 'data-align', 'data-wrap', 'data-width', 'data-gap', 'data-rot', 'data-flipx', 'data-flipy', 'data-opacity', 'data-crop', 'data-ratio', 'data-fit', 'data-ref', 'data-bleed'];
 
+  // estilos aceitos nas células de tabelas coladas com a formatação original
+  const KEEP_PROPS = /^(background-color|color|font-weight|font-style|text-align|vertical-align|border(-(top|right|bottom|left))?(-(width|style|color))?|font-size|text-decoration(-line)?)$/;
+  function keepCellStyle(st) {
+    return String(st).split(';').map(d => {
+      const i = d.indexOf(':');
+      if (i < 0) return null;
+      const k = d.slice(0, i).trim().toLowerCase(), v = d.slice(i + 1).trim();
+      return KEEP_PROPS.test(k) && /^[#(),.\w\s%-]{1,80}$/.test(v) ? `${k}:${v}` : null;
+    }).filter(Boolean).join(';');
+  }
+
   function children(node, doc, parent) {
     node.childNodes.forEach(ch => { const c = cleanNode(ch, doc); if (c) parent.appendChild(c); });
     return parent;
@@ -161,7 +172,16 @@
     }
     const e = doc.createElement(outTag);
     if (outTag === 'p') cls.forEach(c => { if (P_CLASSES.has(c)) e.classList.add(c); });
-    if (outTag === 'table') { cls.forEach(c => { if (/^tb-(zebra|compact|quadro)$/.test(c)) e.classList.add(c); }); if (node.getAttribute('data-ref')) e.setAttribute('data-ref', node.getAttribute('data-ref')); }
+    if (outTag === 'table') { cls.forEach(c => { if (/^tb-(zebra|compact|quadro|orig)$/.test(c)) e.classList.add(c); }); if (node.getAttribute('data-ref')) e.setAttribute('data-ref', node.getAttribute('data-ref')); }
+    // tabela colada com a formatação original: proporção das colunas, largura e o visual de cada célula
+    if (outTag === 'table' && cls.contains('tb-orig')) {
+      if (/^[\d.]+(,[\d.]+){0,60}$/.test(node.getAttribute('data-cols') || '')) e.setAttribute('data-cols', node.getAttribute('data-cols'));
+      ['data-tw', 'data-minw', 'data-fs'].forEach(a => { if (/^\d{1,5}$/.test(node.getAttribute(a) || '')) e.setAttribute(a, node.getAttribute(a)); });
+    }
+    if ((outTag === 'td' || outTag === 'th') && node.closest && node.closest('table.tb-orig')) {
+      const st = keepCellStyle(node.getAttribute('data-ks') || node.getAttribute('style') || '');
+      if (st) e.setAttribute('style', st);
+    }
     if (outTag === 'td' && cls.contains('num')) e.classList.add('num');
     if (outTag === 'blockquote' && /^[a-z-]{1,20}$/.test(node.getAttribute('data-style') || '')) e.setAttribute('data-style', node.getAttribute('data-style'));
     if (outTag === 'p' && (cls.contains('caption') || cls.contains('legenda'))) e.classList.add('caption-import');
@@ -850,7 +870,7 @@
     const root = tpl.content;
     root.querySelectorAll('font').forEach(f => f.replaceWith(...Array.from(f.childNodes)));
     root.querySelectorAll('[style]').forEach(e => {
-      if (e.closest('figure.img, div.fullbleed')) return;
+      if (e.closest('figure.img, div.fullbleed, table.tb-orig')) return; // tabela colada mantém o visual original
       const st = e.style;
       const tag = e.tagName;
       if (/^(P|H2|H3|H4|LI|BLOCKQUOTE|TD|TH)$/.test(tag)) {

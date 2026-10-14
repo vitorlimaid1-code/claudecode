@@ -85,6 +85,7 @@
     return App.card('Sumário', [
       el('label', { class: 'chk' }, [bind(f, 'toc', 'checkbox', { onChange: rerender }), ' Incluir sumário (depois da ficha catalográfica)']),
       field('Título do sumário', bind(f, 'tocTitle', 'text')),
+      el('div', { class: 'field wide' }, [el('button', { class: 'primary', text: '✦ Estilos de sumário… (galeria)', onclick: () => App.tocGallery.open() }), el('span', { class: 'small muted', text: ' ' + (window.TocThemes ? 'Estilo atual: ' + TocThemes.byKey(f.tocTheme).label : '') })]),
       field('Modelo do sumário', bind(f, 'tocStyle', 'select', { options: D.TOC_STYLES.map(t => ({ value: t.key, label: `${t.label} — ${t.desc}` })), onChange: rerender })),
       f.tocStyle === 'summary' ? el('div', { class: 'field wide' }, [
         el('span', { class: 'flabel', text: 'Resumos dos capítulos (aparecem abaixo do título no sumário)' }),

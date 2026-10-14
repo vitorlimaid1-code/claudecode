@@ -116,6 +116,7 @@
       ], 'Quadro = tabela de informações em texto (escolha “Quadro” ao inserir a tabela). Para citar no texto, use “↪ Referência” no editor: entra “ver Figura 3, p. 41”, que se atualiza sozinho quando a numeração ou a página mudam.'),
 
       card('Modelo do sumário', [
+        el('div', { class: 'inline wrap span-all' }, [el('button', { class: 'primary', text: '✦ Galeria de estilos de sumário…', onclick: () => App.tocGallery.open() }), el('span', { class: 'small muted', text: 'Fontes grandes, grossas ou finas; com ou sem moldura; faixas imersivas até o corte. Estilo atual: ' + TocThemes.byKey(f.tocTheme).label })]),
         el('div', { class: 'toc-styles span-all' }, D.TOC_STYLES.map(t => el('button', {
           class: 'toc-style-card' + ((f.tocStyle || 'dots') === t.key ? ' on' : ''),
           onclick: () => { f.tocStyle = t.key; App.changed('Modelo do sumário: ' + t.label); rerender(); }

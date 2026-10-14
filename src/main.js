@@ -441,6 +441,14 @@ ipcMain.handle('image:pick', async (e, opts) => {
   return res.filePaths.map(fileToAsset);
 });
 ipcMain.handle('image:fromPaths', (e, paths) => paths.filter(p => IMAGE_MIME[path.extname(p).toLowerCase()]).map(fileToAsset));
+// imagens de um conteúdo colado do Word/Excel/LibreOffice: vêm como arquivos temporários (file:///…/clip_image001.png)
+ipcMain.handle('image:fromFileUrls', (e, urls) => (urls || []).map(u => {
+  try {
+    const p = require('url').fileURLToPath(String(u));
+    if (!IMAGE_MIME[path.extname(p).toLowerCase()] || !fs.existsSync(p)) return null;
+    return fileToAsset(p);
+  } catch (err) { return null; }
+}));
 ipcMain.handle('image:analyze', (e, dataUrl) => {
   const bin = exporters.dataUrlToBuffer(dataUrl);
   if (!bin) return null;
