@@ -39,6 +39,9 @@ const MODELS = [
   { id: 'claude-haiku-5-5', name: 'Claude Haiku 5.5 — rápido e barato', in: 0.1, out: 0.5, fallback: false }
 ];
 
+const OR_URL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1'; // (endereço trocável só para testes)
+const OR_DEFAULT_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b:free';
+
 function createTranslator({ userFile, safeStorage }) {
   const cfgFile = userFile('tradutor.json');
   const read = () => { try { return JSON.parse(fs.readFileSync(cfgFile, 'utf8')); } catch (e) { return {}; } };
@@ -55,6 +58,9 @@ function createTranslator({ userFile, safeStorage }) {
       effort: c.effort || 'high',
       ollamaUrl: c.ollamaUrl || 'http://localhost:11434',
       ollamaModel: c.ollamaModel || 'qwen2.5:14b',
+      orModel: c.orModel || OR_DEFAULT_MODEL,
+      hasOrKey: !!dec(c.orKey) || !!process.env.OPENROUTER_API_KEY,
+      orKeyHint: (k => (k ? k.slice(0, 8) + '…' + k.slice(-4) : process.env.OPENROUTER_API_KEY ? 'variável OPENROUTER_API_KEY' : ''))(dec(c.orKey)),
       glue: c.glue !== false,
       hasKey: !!key || !!process.env.ANTHROPIC_API_KEY,
       keyHint: key ? key.slice(0, 7) + '…' + key.slice(-4) : process.env.ANTHROPIC_API_KEY ? 'variável ANTHROPIC_API_KEY' : '',
@@ -64,8 +70,9 @@ function createTranslator({ userFile, safeStorage }) {
   }
   function setConfig(patch) {
     const c = read();
-    ['provider', 'model', 'effort', 'ollamaUrl', 'ollamaModel', 'glue'].forEach(k => { if (patch[k] !== undefined) c[k] = patch[k]; });
+    ['provider', 'model', 'effort', 'ollamaUrl', 'ollamaModel', 'orModel', 'glue'].forEach(k => { if (patch[k] !== undefined) c[k] = patch[k]; });
     if (patch.apiKey !== undefined) c.key = patch.apiKey ? enc(String(patch.apiKey).trim()) : null;
+    if (patch.orKey !== undefined) c.orKey = patch.orKey ? enc(String(patch.orKey).trim()) : null;
     write(c);
     return config();
   }
@@ -81,6 +88,41 @@ function createTranslator({ userFile, safeStorage }) {
       clientKey = key;
     }
     return { client, A };
+  }
+
+  // OpenRouter (API compatível com chat completions): modelos gratuitos como o NVIDIA Nemotron 3 Ultra
+  const orKey = () => dec(read().orKey) || process.env.OPENROUTER_API_KEY || '';
+  async function openrouter(messages, maxTokens) {
+    const cfg = config();
+    const key = orKey();
+    if (!key) throw Object.assign(new Error('Informe a chave do OpenRouter em Configurações da tradução (crie em openrouter.ai/keys).'), { fatal: true });
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 20 * 60 * 1000);
+    let r;
+    try {
+      r = await fetch(OR_URL + '/chat/completions', {
+        method: 'POST', signal: ac.signal,
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + key, 'HTTP-Referer': 'https://casavertigem.app', 'X-Title': 'Casa Vertigem Hub' },
+        body: JSON.stringify({ model: cfg.orModel, messages, temperature: 0.3, max_tokens: maxTokens || 32000 })
+      });
+    } catch (e) {
+      throw Object.assign(new Error('Sem conexão com o OpenRouter (verifique a internet).'), { retry: true });
+    } finally { clearTimeout(timer); }
+    const raw = await r.text();
+    let j = {};
+    try { j = JSON.parse(raw); } catch (e) { /* resposta não-JSON */ }
+    const emsg = (j.error && (j.error.message || j.error.code)) || raw.slice(0, 200);
+    if (r.status === 401) throw Object.assign(new Error('Chave do OpenRouter inválida (401). Confira em openrouter.ai/keys.'), { fatal: true });
+    if (r.status === 402) throw Object.assign(new Error('O OpenRouter pediu créditos para este modelo (402): ' + emsg), { fatal: true });
+    if (r.status === 404) throw Object.assign(new Error(`Modelo “${cfg.orModel}” não encontrado no OpenRouter (404).`), { fatal: true });
+    if (r.status === 429) throw Object.assign(new Error('Limite do plano gratuito do OpenRouter atingido (muitos pedidos por minuto ou por dia); aguardando para tentar de novo.'), { retry: true });
+    if (r.status >= 500) throw Object.assign(new Error(`OpenRouter indisponível (${r.status}).`), { retry: true });
+    if (!r.ok) throw new Error(`OpenRouter respondeu ${r.status}: ${emsg}`);
+    if (j.error) throw Object.assign(new Error('OpenRouter: ' + emsg), { retry: true });
+    const ch = (j.choices || [])[0] || {};
+    // alguns modelos devolvem o raciocínio entre <think>…</think> no próprio texto
+    const text = String((ch.message || {}).content || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    return { text, finish: ch.finish_reason || ch.native_finish_reason || '', usage: j.usage || {}, model: j.model || cfg.orModel };
   }
 
   // separa as duas seções da resposta
@@ -129,6 +171,15 @@ function createTranslator({ userFile, safeStorage }) {
       const j = await r.json();
       const out = parse(j.message && j.message.content);
       return Object.assign(out, { usage: { input_tokens: j.prompt_eval_count || 0, output_tokens: j.eval_count || 0 }, model: cfg.ollamaModel, stop: 'end_turn' });
+    }
+    if (cfg.provider === 'openrouter') {
+      if (onProgress) onProgress(0);
+      const res = await openrouter([{ role: 'system', content: SYSTEM }, { role: 'user', content: msg }], 32000);
+      if (res.finish === 'length') throw Object.assign(new Error('Trecho longo demais para uma resposta.'), { tooLong: true });
+      if (!res.text) throw Object.assign(new Error('O modelo devolveu uma resposta vazia.'), { retry: true });
+      if (onProgress) onProgress(res.text.length);
+      const out = parse(res.text);
+      return Object.assign(out, { usage: { input_tokens: res.usage.prompt_tokens || 0, output_tokens: res.usage.completion_tokens || 0 }, model: res.model, stop: res.finish || 'end_turn', price: { in: 0, out: 0 } });
     }
     const { client: c, A } = anthropic();
     const m = MODELS.find(x => x.id === cfg.model) || MODELS[0];
@@ -181,6 +232,7 @@ Notas editoriais do tradutor:
 ${(req.notes || []).slice(0, 120).map(n => '- ' + n).join('\n') || '(sem notas)'}`;
     let text = '';
     if (cfg.provider === 'mock') text = '### PARECER\nTradução de teste (modo de simulação).\n### PRINCIPAIS MUDANÇAS\n- Simulação.\n### PRINCIPAIS CORREÇÕES\n- Simulação.';
+    else if (cfg.provider === 'openrouter') text = (await openrouter([{ role: 'user', content: prompt }], 8000)).text;
     else if (cfg.provider === 'ollama') {
       const r = await fetch(cfg.ollamaUrl.replace(/\/$/, '') + '/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model: cfg.ollamaModel, stream: false, messages: [{ role: 'user', content: prompt }] }) });
       if (!r.ok) throw new Error('Ollama: ' + r.status);
@@ -201,6 +253,23 @@ ${(req.notes || []).slice(0, 120).map(n => '- ' + n).join('\n') || '(sem notas)'
   async function test() {
     const cfg = config();
     if (cfg.provider === 'mock') return { ok: true, msg: 'Modo de simulação (teste).' };
+    if (cfg.provider === 'openrouter') {
+      const key = orKey();
+      if (!key) return { ok: false, msg: 'informe a chave do OpenRouter (crie grátis em openrouter.ai/keys).' };
+      try {
+        const kr = await fetch(OR_URL + '/key', { headers: { authorization: 'Bearer ' + key } });
+        if (kr.status === 401) return { ok: false, msg: 'chave do OpenRouter inválida (401).' };
+        const kj = kr.ok ? await kr.json() : {};
+        const mr = await fetch(OR_URL + '/models');
+        const ids = mr.ok ? ((await mr.json()).data || []).map(x => x.id) : [];
+        if (ids.length && !ids.includes(cfg.orModel)) {
+          const sim = ids.filter(x => /nemotron/i.test(x)).slice(0, 6);
+          return { ok: false, msg: `modelo “${cfg.orModel}” não está disponível no OpenRouter.${sim.length ? ' Parecidos: ' + sim.join(', ') : ''}` };
+        }
+        const d = kj.data || {};
+        return { ok: true, msg: `Conectado ao OpenRouter · ${cfg.orModel}${d.is_free_tier ? ' · plano gratuito (limite de pedidos por minuto e por dia)' : ''}` };
+      } catch (e) { return { ok: false, msg: 'sem conexão com o OpenRouter (verifique a internet).' }; }
+    }
     if (cfg.provider === 'ollama') {
       const r = await fetch(cfg.ollamaUrl.replace(/\/$/, '') + '/api/tags').catch(e => ({ ok: false, statusText: e.message }));
       if (!r.ok) return { ok: false, msg: 'Ollama não respondeu em ' + cfg.ollamaUrl + ' (' + (r.statusText || r.status) + '). Ele está aberto?' };

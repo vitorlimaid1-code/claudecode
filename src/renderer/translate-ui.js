@@ -147,7 +147,7 @@
     const notes = [];
     let lang = '';
     const totalChunks = proj.chapters.reduce((s, c) => s + chunks(chapterBlocks(c, [])).length, 0);
-    log(`${proj.chapters.length} capítulo(s) · ${fmt(srcWords)} palavras · ${totalChunks} trecho(s) para traduzir (${cfg.provider === 'ollama' ? 'Ollama · ' + cfg.ollamaModel : cfg.provider === 'mock' ? 'simulação' : (cfg.models.find(m => m.id === cfg.model) || {}).name || cfg.model})`);
+    log(`${proj.chapters.length} capítulo(s) · ${fmt(srcWords)} palavras · ${totalChunks} trecho(s) para traduzir (${cfg.provider === 'ollama' ? 'Ollama · ' + cfg.ollamaModel : cfg.provider === 'openrouter' ? 'OpenRouter · ' + cfg.orModel : cfg.provider === 'mock' ? 'simulação' : (cfg.models.find(m => m.id === cfg.model) || {}).name || cfg.model})`);
     const origTitle = proj.meta.title;
     let done = 0;
     for (let ci = 0; ci < proj.chapters.length; ci++) {
@@ -202,7 +202,7 @@
     if (!rep || rep.error || !rep.parecer) rep = localReport(stats, rep && rep.error);
     item.report = {
       file: item.path, out: item.out, title: proj.meta.title, originalTitle: origTitle, author: proj.meta.author, lang: lang || 'não identificado',
-      engine: cfg.provider === 'ollama' ? `Ollama · ${cfg.ollamaModel} (local)` : cfg.provider === 'mock' ? 'Simulação (teste)' : `${(cfg.models.find(m => m.id === cfg.model) || {}).name || cfg.model} · esforço ${cfg.effort}`,
+      engine: cfg.provider === 'ollama' ? `Ollama · ${cfg.ollamaModel} (local)` : cfg.provider === 'openrouter' ? `OpenRouter · ${cfg.orModel}` : cfg.provider === 'mock' ? 'Simulação (teste)' : `${(cfg.models.find(m => m.id === cfg.model) || {}).name || cfg.model} · esforço ${cfg.effort}`,
       date: new Date().toLocaleString('pt-BR'), stats, cleaning: cleaning.filter(x => /removid|mantid|capítulo|nota/i.test(x)), notes, glossary: [...ctx.glossary.entries()], reps,
       tokens: { in: st.tokensIn, out: st.tokensOut, cost: st.cost }, parecer: rep.parecer, changes: rep.changes || [], corrections: rep.corrections || []
     };
@@ -225,6 +225,7 @@
     const todo = queue.filter(q => q.status === 'wait' || q.status === 'err');
     if (!todo.length) return App.toast('Envie um ou mais livros (EPUB, DOCX ou DOC).');
     cfg = await api.trConfig();
+    if (cfg.provider === 'openrouter' && !cfg.hasOrKey) { App.toast('Informe a chave do OpenRouter em Configurações da tradução (crie grátis em openrouter.ai/keys).', 6000); return; }
     if (cfg.provider === 'claude' && !cfg.hasKey) { App.toast('Informe a chave da API da Anthropic em Configurações da tradução (ou escolha Ollama, local).', 6000); return; }
     // conexão conferida antes da fila (chave errada ou sem internet não vira minutos de novas tentativas)
     const t = await api.trTest();
@@ -354,19 +355,22 @@ ${r.notes.length ? `<h2>Notas editoriais</h2><ul class="notes">${li(r.notes.slic
   async function renderConfig() {
     cfg = await api.trConfig();
     cfgBox.innerHTML = '';
-    const prov = el('select', {}, [['claude', 'Claude (Anthropic) — qualidade editorial, precisa de internet'], ['ollama', 'Ollama — modelo local, funciona sem internet']].concat(cfg.mock ? [['mock', 'Simulação (teste)']] : []).map(([v, t]) => el('option', { value: v, text: t, selected: cfg.provider === v })));
+    const prov = el('select', {}, [['claude', 'Claude (Anthropic) — qualidade editorial, precisa de internet'], ['openrouter', 'OpenRouter — modelos gratuitos (NVIDIA Nemotron 3 Ultra), precisa de internet'], ['ollama', 'Ollama — modelo local, funciona sem internet']].concat(cfg.mock ? [['mock', 'Simulação (teste)']] : []).map(([v, t]) => el('option', { value: v, text: t, selected: cfg.provider === v })));
     const key = el('input', { type: 'password', placeholder: cfg.hasKey ? `chave salva (${cfg.keyHint})` : 'sk-ant-…', autocomplete: 'off' });
     const model = el('select', {}, cfg.models.map(m => el('option', { value: m.id, text: m.name, selected: cfg.model === m.id })));
     const effort = el('select', {}, [['medium', 'Médio — mais rápido'], ['high', 'Alto — recomendado para literatura'], ['xhigh', 'Muito alto — máximo cuidado']].map(([v, t]) => el('option', { value: v, text: t, selected: cfg.effort === v })));
     const ourl = el('input', { type: 'text', value: cfg.ollamaUrl });
     const omodel = el('input', { type: 'text', value: cfg.ollamaModel, placeholder: 'ex.: qwen2.5:14b, llama3.1:8b, gemma2:9b' });
+    const orKey = el('input', { type: 'password', placeholder: cfg.hasOrKey ? `chave salva (${cfg.orKeyHint})` : 'sk-or-v1-…', autocomplete: 'off' });
+    const orModel = el('input', { type: 'text', value: cfg.orModel, placeholder: 'nvidia/nemotron-3-ultra-550b-a55b:free' });
     const glue = el('input', { type: 'checkbox', checked: cfg.glue !== false });
     const status = el('span', { class: 'small muted' });
     const save = async () => {
-      const patch = { provider: prov.value, model: model.value, effort: effort.value, ollamaUrl: ourl.value.trim(), ollamaModel: omodel.value.trim(), glue: glue.checked };
+      const patch = { provider: prov.value, model: model.value, effort: effort.value, ollamaUrl: ourl.value.trim(), ollamaModel: omodel.value.trim(), orModel: orModel.value.trim() || undefined, glue: glue.checked };
       if (key.value.trim()) patch.apiKey = key.value.trim();
+      if (orKey.value.trim()) patch.orKey = orKey.value.trim();
       cfg = await api.trSetConfig(patch);
-      key.value = '';
+      key.value = ''; orKey.value = '';
       status.textContent = 'Salvo.';
       renderConfig();
     };
@@ -376,6 +380,8 @@ ${r.notes.length ? `<h2>Notas editoriais</h2><ul class="notes">${li(r.notes.slic
       el('div', { class: 'tr-cfg-row' }, [el('label', { class: 'flabel', text: 'Motor de tradução' }), prov]),
       isClaude ? el('div', { class: 'tr-cfg-row' }, [el('label', { class: 'flabel', text: 'Chave da API da Anthropic' }), key, el('span', { class: 'small muted', text: 'Guardada criptografada neste computador. Crie em console.anthropic.com.' })]) : null,
       isClaude ? el('div', { class: 'tr-cfg-2' }, [el('div', { class: 'tr-cfg-row' }, [el('label', { class: 'flabel', text: 'Modelo' }), model]), el('div', { class: 'tr-cfg-row' }, [el('label', { class: 'flabel', text: 'Esforço' }), effort])]) : null,
+      cfg.provider === 'openrouter' ? el('div', { class: 'tr-cfg-row' }, [el('label', { class: 'flabel', text: 'Chave da API do OpenRouter' }), orKey, el('span', { class: 'small muted', text: 'Gratuita: entre em openrouter.ai, abra Keys e crie uma chave. Ela fica guardada criptografada neste computador.' })]) : null,
+      cfg.provider === 'openrouter' ? el('div', { class: 'tr-cfg-row' }, [el('label', { class: 'flabel', text: 'Modelo' }), orModel, el('span', { class: 'small muted', text: 'Padrão: NVIDIA Nemotron 3 Ultra (gratuito). Os modelos gratuitos têm limite de pedidos por minuto e por dia; quando o limite chega, o tradutor espera e continua sozinho. O texto do livro é enviado ao OpenRouter e ao provedor do modelo.' })]) : null,
       cfg.provider === 'ollama' ? el('div', { class: 'tr-cfg-2' }, [el('div', { class: 'tr-cfg-row' }, [el('label', { class: 'flabel', text: 'Endereço do Ollama' }), ourl]), el('div', { class: 'tr-cfg-row' }, [el('label', { class: 'flabel', text: 'Modelo instalado' }), omodel])]) : null,
       cfg.provider === 'ollama' ? el('p', { class: 'small muted', text: 'Instale o Ollama (ollama.com) e um modelo multilíngue (ex.: “ollama pull qwen2.5:14b”). Tudo roda no seu computador; a qualidade depende do modelo escolhido.' }) : null,
       el('label', { class: 'chk' }, [glue, ' Travessão colado na fala (—Olá — disse ele.)']),

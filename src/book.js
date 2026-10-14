@@ -381,11 +381,12 @@ function blocksHtml(html, ctx) {
   html = html.replace(/<div\b([^>]*class="[^"]*\bph-block\b[^"]*"[^>]*)>([\s\S]*?)<\/div>/gi, (m, attrs, inner) => {
     const a = parseAttrs(attrs);
     const v = a['data-ph'] === 'v';
+    const hero = a['data-ph'] === 'hero'; // foto principal (largura total, bem alta)
     const cap = a['data-cap'] !== '0';
     const capText = inner.replace(/<[^>]+>/g, '').trim() || 'Legenda de teste: descreva a imagem aqui.';
     const src = a['data-src'] !== undefined ? ` data-src="${esc(a['data-src'])}"` : '';
     const tools = ctx.markBlocks ? `<button class="ph-plus" title="Escolher a imagem que ilustra a matéria">+</button><span class="ph-tools" contenteditable="false"><button class="ph-cap" title="${cap ? 'Tirar a legenda' : 'Pôr legenda'}">${cap ? 'Legenda ✓' : 'Legenda ✕'}</button><button class="ph-del" title="Remover o bloco">✕</button></span>` : '';
-    return `<figure class="ph ph-${v ? 'v' : 'h'}"${src} contenteditable="false"><div class="ph-box"><span class="ph-label">${v ? 'Imagem vertical' : 'Imagem horizontal'}</span>${tools}</div>${cap ? `<figcaption>${esc(capText)}</figcaption>` : ''}</figure>`;
+    return `<figure class="ph ph-${v ? 'v' : 'h'}${hero ? ' ph-hero' : ''}"${src} contenteditable="false"><div class="ph-box"><span class="ph-label">${hero ? 'Foto principal' : v ? 'Imagem vertical' : 'Imagem horizontal'}</span>${tools}</div>${cap ? `<figcaption>${esc(capText)}</figcaption>` : ''}</figure>`;
   });
   // caixa de texto à parte: só o texto aparece (a caixa só delimita o espaço)
   html = html.replace(/<div\b([^>]*class="[^"]*\btframe\b[^"]*"[^>]*)>/gi, (m, attrs) => {
@@ -735,7 +736,8 @@ function buildHtml(project, ctx) {
         const tbAl = tb.align ? ` tb-al-${tb.align}` : '';
         const cls = `chapter${i === 0 ? ' first-chapter' : ''}${hasOpening ? ' after-opening' : ''}${imId ? ' has-immersion' : ''}${periodical ? ' article' + (c.newPage === false ? ' flow' : '') : ''}${tbCls}${tbAl}`;
         const frameAttr = !periodical && frameOk(c.frame, ctx) ? ` data-frame="${esc(c.frame)}"` : '';
-        push(`<section class="${cls}" id="${esc(c.id)}" data-chapter="${i}" data-cols="${cols}"${frameAttr}>
+        const layoutAttr = periodical && /^[a-z-]{1,20}$/.test(c.layout || '') ? ` data-layout="${c.layout}"` : '';
+        push(`<section class="${cls}" id="${esc(c.id)}" data-chapter="${i}" data-cols="${cols}"${frameAttr}${layoutAttr}>
           ${masthead}${imId ? `<div class="immersion${project.immersion.fade !== false ? ' fade' : ''}" data-asset="${esc(imId)}"><div class="im-img" style="background-image:url('${ctx.assets[imId].dataUrl}')"></div></div>` : ''}
           <header class="chapter-head">
             ${c.kicker ? `<div class="kicker">${esc(c.kicker)}</div>` : ''}
@@ -749,7 +751,7 @@ function buildHtml(project, ctx) {
         </section>`);
         masthead = '';
       } else if (seg.html.replace(/<[^>]+>/g, '').trim() || /<img|<figure|<table/.test(seg.html)) {
-        push(`<section class="chapter chapter-cont" data-chapter="${i}" data-cols="${cols}"${!periodical && frameOk(c.frame, ctx) ? ` data-frame="${esc(c.frame)}"` : ''}><div class="chapter-body">${seg.html}</div></section>`);
+        push(`<section class="chapter chapter-cont" data-chapter="${i}" data-cols="${cols}"${!periodical && frameOk(c.frame, ctx) ? ` data-frame="${esc(c.frame)}"` : ''}${periodical && /^[a-z-]{1,20}$/.test(c.layout || '') ? ` data-layout="${c.layout}"` : ''}><div class="chapter-body">${seg.html}</div></section>`);
       }
     });
     if (bl.after && bl.after.asset && ctx.assets[bl.after.asset]) push(fullBleedHtml(bl.after.asset, bl.after.fit, ctx, 'fb-chapter fb-after', bl.after.box));
@@ -1031,6 +1033,16 @@ ${pageNames}
 .chapter-body figure.ph .ph-box { position: relative; background: #d9d9de; display: flex; align-items: center; justify-content: center; }
 .chapter-body figure.ph-h { column-span: all; width: 100%; } .chapter-body figure.ph-h .ph-box { aspect-ratio: 16 / 9; }
 .chapter-body figure.ph-v .ph-box { aspect-ratio: 3 / 4; }
+.chapter-body figure.ph-hero .ph-box { aspect-ratio: 3 / 2; }
+/* composições de página (revista/jornal): variações do título de cada matéria */
+.chapter[data-layout="hero"] .chapter-title, .chapter[data-layout="galeria"] .chapter-title { font-size: 2.4em; line-height: 1.05; }
+.chapter[data-layout="abertura"] .chapter-head { text-align: center; } .chapter[data-layout="abertura"] .chapter-title { font-size: 2.9em; line-height: 1; letter-spacing: -0.01em; }
+.chapter[data-layout="abertura"] .lead { font-size: 1.25em; max-width: 80%; margin-left: auto; margin-right: auto; }
+.chapter[data-layout="jornal"] .chapter-title { font-size: 2.2em; font-weight: 800; line-height: 1.05; } .chapter[data-layout="jornal"] .chapter-head { border-bottom: 1.5pt solid currentColor; padding-bottom: 2.5mm; }
+.chapter[data-layout="ensaio"] .chapter-head { text-align: center; } .chapter[data-layout="ensaio"] .chapter-title { font-style: italic; font-size: 2.1em; } .chapter[data-layout="ensaio"] .chapter-body { padding: 0 8%; }
+.chapter[data-layout="entrevista"] .chapter-body p > b:first-child, .chapter[data-layout="entrevista"] .chapter-body p > strong:first-child { text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.9em; }
+.chapter[data-layout="classica"] .chapter-title, .chapter[data-layout="citacao"] .chapter-title { font-size: 2em; }
+.chapter[data-layout="retrato"] .chapter-head, .chapter[data-layout="lateral"] .chapter-head { border-left: 2.4pt solid currentColor; padding-left: 4mm; }
 .chapter:not([data-cols="2"]):not([data-cols="3"]) .chapter-body figure.ph-v { float: right; width: 42%; margin: 0.3em 0 3mm 5mm; }
 .ph-label { font: 600 8pt/1 system-ui, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: #8d8d96; }
 .chapter-body figure.ph figcaption { font-style: italic; color: #555; }

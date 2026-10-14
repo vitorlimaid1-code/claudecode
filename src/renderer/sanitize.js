@@ -64,14 +64,14 @@
       if (special === 'ph-block') {
         const d = doc.createElement('div');
         d.className = 'ph-block';
-        ['data-ph', 'data-cap', 'data-width', 'data-align'].forEach(a => { if (node.getAttribute(a) != null) d.setAttribute(a, node.getAttribute(a)); });
+        ['data-ph', 'data-cap', 'data-width', 'data-align', 'data-li'].forEach(a => { if (node.getAttribute(a) != null) d.setAttribute(a, node.getAttribute(a)); });
         d.textContent = node.textContent.replace(/[­​]/g, '').trim();
         return d;
       }
       if (special === 'tframe') {
         const d = doc.createElement('div');
         d.className = 'tframe';
-        ['data-pos', 'data-width', 'data-look', 'data-border'].forEach(a => { if (/^[a-z0-9.-]{1,12}$/.test(node.getAttribute(a) || '')) d.setAttribute(a, node.getAttribute(a)); });
+        ['data-pos', 'data-width', 'data-look', 'data-border', 'data-li'].forEach(a => { if (/^[a-z0-9.-]{1,12}$/.test(node.getAttribute(a) || '')) d.setAttribute(a, node.getAttribute(a)); });
         const inner = doc.createElement('div');
         children(node, doc, inner);
         d.innerHTML = normalizeBlocks(inner, doc, true);

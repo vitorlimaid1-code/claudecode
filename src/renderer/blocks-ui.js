@@ -81,7 +81,7 @@
     modelDo(c, root => {
       const ph = root.children[idx];
       if (!ph || !ph.matches('.ph-block')) return;
-      const v = ph.dataset.ph === 'v';
+      const v = ph.dataset.ph === 'v'; // 'hero' (foto principal) entra como a horizontal: largura total
       const cap = ph.dataset.cap !== '0' ? ph.textContent.trim() : '';
       const multi = periodical() && (Number(c.columns) || Number(App.project.settings.columns) || 1) > 1;
       const opts = v ? (multi ? { width: 100, align: 'center', wrap: 'none' } : { width: 42, align: 'right', wrap: 'square' }) : { width: 100, align: 'full', wrap: 'none' };

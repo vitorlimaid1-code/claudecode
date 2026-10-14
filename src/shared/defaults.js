@@ -697,7 +697,8 @@
           columns: c.columns || 0, newPage: c.newPage !== false,
           summary: c.summary || '',
           bleed: c.bleed && typeof c.bleed === 'object' ? c.bleed : null,
-          titleBox: c.titleBox && typeof c.titleBox === 'object' ? c.titleBox : null
+          titleBox: c.titleBox && typeof c.titleBox === 'object' ? c.titleBox : null,
+          layout: typeof c.layout === 'string' ? c.layout : ''
         }))
       : base.chapters;
     const catalog = Object.assign(emptyCatalog(), p.catalog || {});
