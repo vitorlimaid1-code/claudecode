@@ -60,7 +60,7 @@
       if (special === 'tframe') {
         const d = doc.createElement('div');
         d.className = 'tframe';
-        ['data-pos', 'data-width', 'data-look'].forEach(a => { if (/^[a-z0-9.-]{1,12}$/.test(node.getAttribute(a) || '')) d.setAttribute(a, node.getAttribute(a)); });
+        ['data-pos', 'data-width', 'data-look', 'data-border'].forEach(a => { if (/^[a-z0-9.-]{1,12}$/.test(node.getAttribute(a) || '')) d.setAttribute(a, node.getAttribute(a)); });
         const inner = doc.createElement('div');
         children(node, doc, inner);
         d.innerHTML = normalizeBlocks(inner, doc, true);

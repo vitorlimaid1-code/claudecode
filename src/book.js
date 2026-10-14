@@ -358,7 +358,8 @@ function blocksHtml(html, ctx) {
     const w = Math.max(20, Math.min(pos === 'band' ? 100 : 60, num(a['data-width'], 40)));
     const look = ['pull', 'plain', 'quote'].includes(a['data-look']) ? a['data-look'] : 'pull';
     const src = a['data-src'] !== undefined ? ` data-src="${esc(a['data-src'])}"` : '';
-    return `<div class="tframe tf-${pos} tf-${look}${pos === 'center' ? ' fig-both' : ''}"${src} data-pos="${pos}" style="width:${w}%"${ctx.markBlocks ? ' data-guide="1"' : ''}>`;
+    const keep = a['data-border'] === 'keep'; // manter: o contorno tracejado sai também no PDF
+    return `<div class="tframe tf-${pos} tf-${look}${keep ? ' tf-keep' : ''}${pos === 'center' ? ' fig-both' : ''}"${src} data-pos="${pos}" style="width:${w}%"${ctx.markBlocks ? ' data-guide="1"' : ''}>`;
   });
   return html;
 }
@@ -975,7 +976,9 @@ ${pageNames}
 .chapter-body .tframe.tf-pull b, .chapter-body .tframe.tf-pull strong { color: #000; }
 .chapter-body .tframe.tf-quote > p { font-style: italic; font-size: 1.22em; line-height: 1.3; text-align: left; hyphens: none; }
 .chapter-body .tframe.tf-quote > p:first-child::before { content: "“"; font-size: 2.2em; line-height: 0; vertical-align: -0.45em; margin-right: 0.08em; }
-.chapter-body .tframe[data-guide] { outline: 0.35mm dashed rgba(124, 58, 237, 0.45); outline-offset: 1.2mm; }
+/* contorno mantido: igual ao da tela, também na impressão; removido: só uma guia clarinha na tela */
+.chapter-body .tframe.tf-keep { outline: 0.35mm dashed rgba(124, 58, 237, 0.45); outline-offset: 1.2mm; }
+.chapter-body .tframe[data-guide]:not(.tf-keep) { outline: 0.25mm dotted rgba(124, 58, 237, 0.28); outline-offset: 1.2mm; }
 /* estilos de título: caixa preta, caixa branca ou só contorno (à esquerda, ao centro ou à direita) */
 .chapter[class*=" tb-"] .chapter-title { display: inline-block; padding: 1.8mm 4.5mm 2.1mm; line-height: 1.12; }
 .chapter.tb-black .chapter-title { background: #000; color: #fff !important; }

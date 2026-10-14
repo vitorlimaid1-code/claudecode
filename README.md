@@ -193,7 +193,7 @@ O layout padrão é o de **livro**. Em **Outros módulos** (barra lateral) ficam
 - Tela *Estilos de título*: título dentro de **caixa preta fina com letra branca**, **caixa branca fina com letra preta** ou **só contorno preto fino**, alinhado à esquerda, ao centro ou à direita. Vale para todos os capítulos/matérias ou só para um (estilo próprio).
 
 ### Caixas de texto (livro e revista)
-- Caixa invisível que só delimita o espaço: aparece apenas o texto (no preview há um tracejado de guia que não sai na exportação). Clique na caixa para o menu: **lateral esquerda/direita** (o texto ao lado segue reto pela margem), **centro** (o texto contorna dos dois lados), **faixa** (acima/abaixo, com o texto ajustado ao fluxo); largura −/+; estilo destaque grande, citação ou texto normal; remover.
+- Caixa invisível que só delimita o espaço: aparece apenas o texto (no preview há um tracejado de guia que não sai na exportação). Clique na caixa para o menu: **lateral esquerda/direita** (o texto ao lado segue reto pela margem), **centro** (o texto contorna dos dois lados), **faixa** (acima/abaixo, com o texto ajustado ao fluxo); largura −/+; estilo destaque grande, citação ou texto normal; **Contorno: Manter** (a caixa sai como no preview, com o contorno tracejado, também no PDF) ou **Remover** (só a frase); remover a caixa. Na tela *Blocos e páginas sangradas*, “Contorno de todas as caixas” aplica Manter/Remover em todas de uma vez.
 
 ### Capa e lombada
 - **Prévia 3D**: o livro montado (capa, lombada, contracapa e folhas), girando para todos os lados — frente, verso, lombada, lateral das folhas, cima e baixo — e **salvando em PNG com fundo transparente** em alta resolução.

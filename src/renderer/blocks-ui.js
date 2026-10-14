@@ -121,6 +121,17 @@
     }, true);
   }
 
+  // contorno de todas as caixas de texto do projeto (manter ou remover)
+  function allBorders(v) {
+    let n = 0;
+    App.project.chapters.forEach(c => {
+      if (!/\btframe\b/.test(c.html || '') || c.locked) return;
+      modelDo(c, root => root.querySelectorAll('.tframe').forEach(t => { t.setAttribute('data-border', v); n++; }));
+    });
+    App.changed(n ? (v === 'keep' ? 'Contorno das caixas mantido' : 'Contorno das caixas removido') : null);
+    App.toast(n ? `${n} caixa(s) de texto: contorno ${v === 'keep' ? 'mantido' : 'removido'}.` : 'Nenhuma caixa de texto nos capítulos (desbloqueados).', 3500);
+  }
+
   // menu flutuante da caixa de texto (posição, largura, estilo, remover)
   let menu = null;
   function hideFrameMenu() { if (menu) { menu.remove(); menu = null; } }
@@ -133,7 +144,7 @@
     const cur = attr => { let v = ''; modelDo(hit.c, root => { const t = root.children[hit.idx]; v = t ? t.getAttribute(attr) || '' : ''; }); return v; };
     const w = Number(cur('data-width')) || 40;
     const btn = (t, title, fn, on) => el('button', { class: 'tfm-btn' + (on ? ' on' : ''), title, text: t, onmousedown: e => e.preventDefault(), onclick: fn });
-    const pos = cur('data-pos') || 'right', look = cur('data-look') || 'pull';
+    const pos = cur('data-pos') || 'right', look = cur('data-look') || 'pull', keep = cur('data-border') === 'keep';
     menu = el('div', { class: 'tfm' }, [
       el('span', { class: 'tfm-l', text: 'Caixa de texto' }),
       btn('⯇', 'Na lateral esquerda — o texto segue reto pela margem', () => set('data-pos', 'left', 'Caixa à esquerda'), pos === 'left'),
@@ -148,6 +159,10 @@
       btn('Aa', 'Texto grande em destaque', () => set('data-look', 'pull', 'Estilo da caixa'), look === 'pull'),
       btn('❝', 'Citação', () => set('data-look', 'quote', 'Estilo da caixa'), look === 'quote'),
       btn('¶', 'Texto normal', () => set('data-look', 'plain', 'Estilo da caixa'), look === 'plain'),
+      el('span', { class: 'tfm-sep' }),
+      el('span', { class: 'tfm-l', text: 'Contorno' }),
+      btn('Manter', 'Manter o contorno: a caixa aparece como no preview, também no PDF', () => set('data-border', 'keep', 'Contorno da caixa mantido'), keep),
+      btn('Remover', 'Remover o contorno: só a frase aparece, sem a caixa', () => set('data-border', 'none', 'Contorno da caixa removido'), !keep),
       el('span', { class: 'tfm-sep' }),
       btn('🗑', 'Remover a caixa (o texto dela sai junto)', () => { modelDo(hit.c, root => { const t = root.children[hit.idx]; if (t) t.remove(); }); App.changed('Caixa de texto removida'); hideFrameMenu(); })
     ]);
@@ -207,7 +222,12 @@
           el('button', { text: '⯈ Lateral direita', onclick: () => insertFrame('right') }),
           el('button', { text: '▬ Faixa', onclick: () => insertFrame('band') })
         ]),
-        el('p', { class: 'small muted', text: 'Só o texto da caixa aparece no livro (a borda tracejada é guia da tela e não sai no PDF). Nas laterais, o texto ao lado segue reto pela margem; no centro, contorna a caixa dos dois lados; em faixa, fica acima e abaixo.' })
+        el('div', { class: 'inline wrap' }, [
+          el('span', { class: 'flabel', text: 'Contorno de todas as caixas:' }),
+          el('button', { text: '▭ Manter', title: 'A caixa aparece com o contorno tracejado, como no preview (também no PDF)', onclick: () => allBorders('keep') }),
+          el('button', { text: '¶ Remover', title: 'Só a frase aparece, sem a caixa', onclick: () => allBorders('none') })
+        ]),
+        el('p', { class: 'small muted', text: 'Cada caixa tem o seletor Contorno: Manter (a caixa sai como no preview, com o contorno tracejado) ou Remover (só a frase; na tela fica apenas uma guia pontilhada clarinha, que não sai no PDF) — clique na caixa, na página. Nas laterais, o texto ao lado segue reto pela margem; no centro, contorna a caixa dos dois lados; em faixa, fica acima e abaixo.' })
       ], '', 'span-all'),
       App.card(per ? 'Páginas de imagem sangrada por matéria' : 'Páginas de imagem sangrada por capítulo', [
         el('p', { class: 'small muted', text: 'Opcional. A imagem ocupa a página inteira, além do corte. “Antes” fica na página da esquerda, de frente para a abertura do texto (página dupla). Em cada imagem, um box com legenda ou texto informativo.' }),
