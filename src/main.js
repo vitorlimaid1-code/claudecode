@@ -373,6 +373,24 @@ ipcMain.handle('import:file', async () => {
 });
 ipcMain.handle('import:path', (e, filePath) => importPath(filePath));
 
+// Melhoramento: EPUBs do Project Gutenberg -> DOCX no padrão do livro, na pasta Downloads
+ipcMain.handle('enh:pick', async () => {
+  const res = await dialog.showOpenDialog(mainWindow, { title: 'Livros EPUB (Project Gutenberg)', filters: [{ name: 'EPUB', extensions: ['epub'] }], properties: ['openFile', 'multiSelections'] });
+  return res.canceled ? [] : res.filePaths;
+});
+ipcMain.handle('enh:read', async (e, filePath) => {
+  try { return Object.assign(await importAny(filePath), { name: path.basename(filePath, path.extname(filePath)), size: fs.statSync(filePath).size }); } catch (err) { return { error: String(err && err.message || err) }; }
+});
+ipcMain.handle('enh:target', (e, base, ext) => {
+  const dir = app.getPath('downloads');
+  fs.mkdirSync(dir, { recursive: true });
+  const b = safeName(base || 'livro', 120);
+  let f = path.join(dir, `${b}.${ext || 'docx'}`);
+  for (let i = 2; fs.existsSync(f); i++) f = path.join(dir, `${b} (${i}).${ext || 'docx'}`);
+  return f;
+});
+ipcMain.handle('enh:downloads', () => app.getPath('downloads'));
+
 // ---------------------------------------------------------------- imagens
 function fileToAsset(filePath) {
   const buf = fs.readFileSync(filePath);

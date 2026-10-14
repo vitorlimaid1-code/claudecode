@@ -242,7 +242,7 @@
 
   const commands = {
     new: newBook, open: () => open(), save: () => save(false), saveAs: () => save(true),
-    import: () => App.importer.fromDialog(), export: () => App.setView('export'),
+    import: () => App.importer.fromDialog(), export: () => App.setView('export'), enhance: () => App.enhance.open(),
     refresh: () => App.preview.schedule(true), help,
     projectUndo: () => App.undo(), projectRedo: () => App.redo(), history: () => App.showHistory(),
     library: () => App.library.toggle(), find: () => App.tools.find(),
@@ -323,7 +323,8 @@
       el('div', { class: 'wl-actions' }, [
         card('upload', 'Enviar um livro', 'Word, PDF, EPUB, ODT, TXT ou Markdown', () => App.importer.fromDialog(), true),
         card('folder', 'Abrir um projeto', 'Continuar um livro salvo (.livro)', () => runCommand('open')),
-        card('plus', 'Começar do zero', 'Livro, revista ou jornal em branco', () => runCommand('new'))
+        card('plus', 'Começar do zero', 'Livro, revista ou jornal em branco', () => runCommand('new')),
+        card('sparkles', 'Melhoramento', 'EPUBs do Gutenberg → DOCX no padrão, um ou vários', () => App.enhance.open())
       ]),
       el('button', { class: 'wl-skip', text: 'Entrar no aplicativo →', onclick: go() }),
       el('p', { class: 'wl-foot', text: 'Tudo fica no seu computador — o aplicativo funciona sem internet.' })

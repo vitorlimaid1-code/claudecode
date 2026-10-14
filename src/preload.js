@@ -74,6 +74,10 @@ contextBridge.exposeInMainWorld('api', {
   closeConfirmed: () => ipcRenderer.send('app:closeConfirmed'),
   setTitle: title => ipcRenderer.send('app:setTitle', title),
   onMenu: cb => ipcRenderer.on('menu', (e, cmd) => cb(cmd)),
+  enhPick: () => inv('enh:pick'),
+  enhRead: p => inv('enh:read', p),
+  enhTarget: (base, ext) => inv('enh:target', base, ext),
+  enhDownloads: () => inv('enh:downloads'),
   onProgress: cb => ipcRenderer.on('progress', (e, msg) => cb(msg)),
   onRequestClose: cb => ipcRenderer.on('request-close', () => cb()),
   pathForFile: file => { try { return webUtils.getPathForFile(file); } catch (e) { return ''; } }

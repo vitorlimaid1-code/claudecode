@@ -64,7 +64,7 @@
     });
     if (project.back.bio.enabled) chapters.push({ title: project.back.bio.title, label: '', blocks: blocksOf(project.back.bio.html) });
     if (project.back.extra.enabled) chapters.push({ title: project.back.extra.title, label: '', blocks: blocksOf(project.back.extra.html) });
-    return { meta: project.meta, font: s.styles.body.font, fontSize: s.styles.body.size, chapters };
+    return { meta: project.meta, font: s.styles.body.font, fontSize: s.styles.body.size, chapters, styles: s.styles, toc: project.front.toc !== false, tocTitle: project.front.tocTitle || 'Sumário' };
   }
 
   // ---------------------------------------------------------------- EPUB 3

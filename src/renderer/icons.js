@@ -39,7 +39,7 @@
   };
   const svg = name => `<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name] || P.book}</svg>`;
   const NAV = { frontimages: 'cover', immersion: 'mountain', book: 'info', catalog: 'credits', back: 'pen', layout: 'layout', typo: 'sparkles', stylelib: 'palette', styles: 'pilcrow', fonts: 'font', assets: 'images', layers: 'layers', notes: 'note', tools: 'check', cover: 'book', export: 'export', poetry: 'feather', periodical: 'news', kdp: 'kdp', appearance: 'contrast', reset: 'reset' };
-  const CMD = { new: 'file', open: 'folder', save: 'save', import: 'upload', projectUndo: 'undo', projectRedo: 'redo', history: 'clock', library: 'library', export: 'export' };
+  const CMD = { enhance: 'sparkles', new: 'file', open: 'folder', save: 'save', import: 'upload', projectUndo: 'undo', projectRedo: 'redo', history: 'clock', library: 'library', export: 'export' };
   function apply() {
     document.querySelectorAll('.nav-item').forEach(b => {
       const k = b.dataset.view ? NAV[b.dataset.view] : b.id === 'navTitles' ? 'heading' : null;

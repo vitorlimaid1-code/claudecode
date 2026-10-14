@@ -58,7 +58,7 @@ async function exportDocx(doc, assets, page) {
       }
       if (r.br) { out.push(new D.TextRun({ text: '', break: 1 })); return; }
       out.push(new D.TextRun({
-        text: r.text || '', bold: !!r.b, italics: !!r.i, underline: r.u ? {} : undefined, strike: !!r.s,
+        text: String(r.text || '').replace(/[\r\n\t]+/g, ' ').replace(/ {2,}/g, ' '), bold: !!r.b, italics: !!r.i, underline: r.u ? {} : undefined, strike: !!r.s,
         superScript: !!r.sup, subScript: !!r.sub, smallCaps: !!r.sc
       }));
     });
@@ -66,12 +66,26 @@ async function exportDocx(doc, assets, page) {
   };
   const align = a => ({ center: D.AlignmentType.CENTER, right: D.AlignmentType.RIGHT, left: D.AlignmentType.LEFT, justify: D.AlignmentType.JUSTIFIED }[a]);
 
+  const S = doc.styles || null;
+  const firstLine = S ? Math.round((Number(S.body.indent) || 0) * (Number(S.body.size) || 11) * 20) : 340;
   doc.chapters.forEach((ch, ci) => {
-    children.push(new D.Paragraph({ heading: D.HeadingLevel.HEADING_1, pageBreakBefore: ci > 0, children: [new D.TextRun({ text: ch.label ? `${ch.label} — ${ch.title}` : ch.title })] }));
+    if (S) {
+      // rótulo (“Capítulo 1”) e título no estilo do livro; o título entra no sumário do Word
+      if (ch.label) children.push(new D.Paragraph({ style: 'ChapterLabel', pageBreakBefore: true, children: [new D.TextRun({ text: ch.label })] }));
+      children.push(new D.Paragraph({ heading: D.HeadingLevel.HEADING_1, pageBreakBefore: !ch.label, children: [new D.TextRun({ text: ch.title })] }));
+    } else children.push(new D.Paragraph({ heading: D.HeadingLevel.HEADING_1, pageBreakBefore: ci > 0, children: [new D.TextRun({ text: ch.label ? `${ch.label} — ${ch.title}` : ch.title })] }));
+    let firstP = true;
     ch.blocks.forEach(b => {
-      if (b.t === 'p') children.push(new D.Paragraph({ children: mkRuns(b.runs), alignment: align(b.align), style: b.cls === 'reference' ? 'Bibliography' : undefined, indent: b.cls === 'noindent' ? undefined : { firstLine: 340 } }));
+      if (b.t === 'p') {
+        const noInd = b.cls === 'noindent' || (S && firstP);
+        firstP = false;
+        children.push(new D.Paragraph({ children: mkRuns(b.runs), alignment: align(b.align), style: b.cls === 'reference' ? 'Bibliography' : undefined, indent: noInd ? { firstLine: 0 } : { firstLine } }));
+        return;
+      }
+      firstP = b.t === 'h' || b.t === 'scene';
+      if (b.t === 'p') return;
       else if (b.t === 'h') children.push(new D.Paragraph({ heading: [D.HeadingLevel.HEADING_2, D.HeadingLevel.HEADING_3, D.HeadingLevel.HEADING_4][Math.min(2, b.level - 2)], children: mkRuns(b.runs) }));
-      else if (b.t === 'quote' || b.t === 'box') b.paras.forEach(p => children.push(new D.Paragraph({ children: mkRuns(p), indent: { left: 720, right: 360 }, style: 'Quote' })));
+      else if (b.t === 'quote' || b.t === 'box') b.paras.forEach(p => children.push(new D.Paragraph({ children: mkRuns(p), indent: { left: 720, right: 360, firstLine: 0 }, style: 'Quote' })));
       else if (b.t === 'poem') b.stanzas.forEach(st => children.push(new D.Paragraph({ children: st.flatMap((l, i) => (i ? [new D.TextRun({ text: '', break: 1 })] : []).concat(mkRuns(l))), indent: { left: 720 }, spacing: { after: 240 } })));
       else if (b.t === 'list') b.items.forEach((it, i) => children.push(new D.Paragraph({ children: [new D.TextRun(b.ordered ? `${i + 1}. ` : '• ')].concat(mkRuns(it)), indent: { left: 360 } })));
       else if (b.t === 'scene') children.push(new D.Paragraph({ alignment: D.AlignmentType.CENTER, children: [new D.TextRun('*  *  *')] }));
@@ -97,19 +111,43 @@ async function exportDocx(doc, assets, page) {
     });
   });
 
+  // estilos do livro (fonte, tamanho, entrelinha, alinhamento, recuo, títulos) como estilos do Word
+  const mmTw = mm => Math.round((Number(mm) || 0) / 25.4 * 1440);
+  const runOf = (st, base) => ({ font: (st && st.font) || base.font, size: Math.round(((st && st.size) || base.size) * 2), bold: !!(st && st.bold), italics: !!(st && st.italic), allCaps: !!(st && st.uppercase), smallCaps: !!(st && st.smallcaps), color: st && st.color ? String(st.color).replace('#', '') : undefined, characterSpacing: st && st.letterSpacing ? Math.round(st.letterSpacing * ((st.size || base.size) * 20)) : undefined });
+  const styles = { default: { document: { run: { font: doc.font || 'Georgia', size: Math.round((doc.fontSize || 11) * 2) } } } };
+  if (S) {
+    const base = { font: S.body.font || 'Georgia', size: Number(S.body.size) || 11 };
+    const lh = st => Math.round(240 * (Number((st && st.lineHeight) || S.body.lineHeight) || 1.4));
+    styles.default.document.run = { font: base.font, size: Math.round(base.size * 2) };
+    styles.paragraphStyles = [
+      { id: 'Normal', name: 'Normal', run: runOf(S.body, base), paragraph: { alignment: align(S.body.align || 'justify'), spacing: { line: lh(S.body), after: mmTw(S.body.spaceAfter) }, indent: { firstLine } } },
+      { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: runOf(S.chapterTitle, base), paragraph: { alignment: align(S.chapterTitle.align || 'center'), spacing: { before: S.chapterLabel ? 0 : mmTw(S.chapterTitle.spaceBefore), after: mmTw(Math.max(6, S.chapterTitle.spaceAfter || 0) * 2), line: 276 }, indent: { firstLine: 0 }, keepNext: true, outlineLevel: 0 } },
+      { id: 'ChapterLabel', name: 'Rótulo do capítulo', basedOn: 'Normal', next: 'Heading1', run: runOf(S.chapterLabel, base), paragraph: { alignment: align(S.chapterTitle.align || 'center'), spacing: { before: mmTw(S.chapterTitle.spaceBefore), after: mmTw(S.chapterLabel.spaceAfter || 3) }, indent: { firstLine: 0 }, keepNext: true } },
+      { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: runOf(S.h2, base), paragraph: { alignment: align(S.h2.align || 'center'), spacing: { before: mmTw(S.h2.spaceBefore), after: mmTw(S.h2.spaceAfter) }, indent: { firstLine: 0 }, keepNext: true, outlineLevel: 1 } },
+      { id: 'Heading3', name: 'Heading 3', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: runOf(S.h3, base), paragraph: { alignment: align(S.h3.align || 'left'), spacing: { before: mmTw(S.h3.spaceBefore), after: mmTw(S.h3.spaceAfter) }, indent: { firstLine: 0 }, keepNext: true, outlineLevel: 2 } },
+      { id: 'Heading4', name: 'Heading 4', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: runOf(S.h4, base), paragraph: { alignment: align(S.h4.align || 'left'), spacing: { before: mmTw(S.h4.spaceBefore), after: mmTw(S.h4.spaceAfter) }, indent: { firstLine: 0 }, keepNext: true } },
+      { id: 'Quote', name: 'Quote', basedOn: 'Normal', run: runOf(S.quote, base), paragraph: { alignment: align(S.quote.align || 'justify'), spacing: { line: lh(S.quote), before: mmTw(S.quote.spaceBefore), after: mmTw(S.quote.spaceAfter) } } },
+      { id: 'Caption', name: 'Caption', basedOn: 'Normal', run: runOf(S.caption, base), paragraph: { alignment: align(S.caption.align || 'center'), indent: { firstLine: 0 } } },
+      { id: 'TocTitle', name: 'Título do sumário', basedOn: 'Normal', run: Object.assign(runOf(S.chapterTitle, base), { size: Math.round((Number(S.chapterTitle.size) || 22) * 1.6) }), paragraph: { alignment: align(S.chapterTitle.align || 'center'), spacing: { before: mmTw(S.chapterTitle.spaceBefore), after: mmTw(10) }, indent: { firstLine: 0 } } }
+    ];
+  }
+  // sumário automático do Word (preenchido com as páginas ao abrir o arquivo)
+  const front = [];
+  if (S && doc.toc !== false) front.push(new D.Paragraph({ style: 'TocTitle', pageBreakBefore: false, children: [new D.TextRun({ text: doc.tocTitle || 'Sumário' })] }), new D.TableOfContents(doc.tocTitle || 'Sumário', { hyperlink: true, headingStyleRange: '1-1' }));
   const document = new D.Document({
     creator: doc.meta.author,
     title: doc.meta.title,
     description: doc.meta.subtitle || '',
     footnotes,
-    styles: { default: { document: { run: { font: doc.font || 'Georgia', size: Math.round((doc.fontSize || 11) * 2) } } } },
+    features: S ? { updateFields: true } : undefined,
+    styles,
     sections: [{
       properties: { page: { size: { width: mmToTwip(page.width), height: mmToTwip(page.height) }, margin: { top: mmToTwip(page.marginTop), bottom: mmToTwip(page.marginBottom), left: mmToTwip(page.marginInner), right: mmToTwip(page.marginOuter), mirror: true } } },
       children: [
-        new D.Paragraph({ alignment: D.AlignmentType.CENTER, children: [new D.TextRun({ text: doc.meta.title, size: 48 })] }),
-        new D.Paragraph({ alignment: D.AlignmentType.CENTER, children: [new D.TextRun({ text: doc.meta.author, size: 28 })] }),
+        new D.Paragraph({ alignment: D.AlignmentType.CENTER, indent: { firstLine: 0 }, spacing: { before: 2400 }, children: [new D.TextRun({ text: doc.meta.title, size: 48 })] }),
+        new D.Paragraph({ alignment: D.AlignmentType.CENTER, indent: { firstLine: 0 }, children: [new D.TextRun({ text: doc.meta.author, size: 28 })] }),
         new D.Paragraph({ children: [new D.PageBreak()] })
-      ].concat(children)
+      ].concat(front, children)
     }]
   });
   return D.Packer.toBuffer(document);

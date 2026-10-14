@@ -190,7 +190,9 @@ async function importEpub(filePath) {
     title: (/<dc:title[^>]*>([\s\S]*?)<\/dc:title>/.exec(opf) || [])[1] || '',
     author: (/<dc:creator[^>]*>([\s\S]*?)<\/dc:creator>/.exec(opf) || [])[1] || '',
     publisher: (/<dc:publisher[^>]*>([\s\S]*?)<\/dc:publisher>/.exec(opf) || [])[1] || '',
-    language: (/<dc:language[^>]*>([\s\S]*?)<\/dc:language>/.exec(opf) || [])[1] || ''
+    language: (/<dc:language[^>]*>([\s\S]*?)<\/dc:language>/.exec(opf) || [])[1] || '',
+    source: (/<dc:identifier[^>]*>([\s\S]*?)<\/dc:identifier>/.exec(opf) || [])[1] || '',
+    subjects: (opf.match(/<dc:subject[^>]*>[\s\S]*?<\/dc:subject>/g) || []).map(x => x.replace(/<[^>]+>/g, '').trim())
   };
 
   const docs = [];
@@ -200,9 +202,13 @@ async function importEpub(filePath) {
     const file = zip.file(item.href);
     if (!file) continue;
     let xhtml = await file.async('string');
-    const body = (/<body[^>]*>([\s\S]*)<\/body>/i.exec(xhtml) || [, xhtml])[1];
+    let body = (/<body[^>]*>([\s\S]*)<\/body>/i.exec(xhtml) || [, xhtml])[1];
+    // XHTML: <a id="x"/>, <div .../> etc. viram pares abertos/fechados (no HTML, a tag autofechada
+    // de um elemento comum fica aberta e engole o texto seguinte)
+    body = body.replace(/<(?!(?:area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\b)([a-zA-Z][\w:-]*)(\s[^<>]*?)?\s*\/>/g, (m, tag, attrs) => `<${tag}${attrs || ''}></${tag}>`);
     const html = await zipImagesToDataUrls(zip, item.href, body);
-    docs.push({ href: item.href, html });
+    const bodyAttrs = (/<body([^>]*)>/i.exec(xhtml) || [, ''])[1];
+    docs.push({ href: item.href, html, id, bodyAttrs });
   }
   return { kind: 'epub', docs, meta };
 }
