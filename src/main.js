@@ -322,6 +322,15 @@ ipcMain.handle('publishers:set', (e, data) => { writeJson(userFile('editoras.jso
 ipcMain.handle('cover:proof', async (e, cover, assets, dpi) => {
   try { return await cmyk.softProof(APP_ROOT, cover || {}, assets || {}, CoverGeometry.geometry(cover || {}), Math.max(36, Math.min(200, Number(dpi) || 72))); } catch (err) { return { error: String(err.message || err) }; }
 });
+// páginas do miolo final: o livro é paginado exatamente como na exportação do PDF (para a calculadora de lombada)
+ipcMain.handle('cover:bookPages', async (e, project) => {
+  try {
+    return await withRenderWindow(async win => {
+      const { info } = await renderBookIn(win, require('./shared/defaults').nfcDeep(project), {});
+      return { pages: info.pages, complete: !!info.complete };
+    });
+  } catch (err) { return { error: String(err && err.message || err) }; }
+});
 ipcMain.handle('cover:analyze', async (e, settings) => {
   const res = await dialog.showOpenDialog(mainWindow, { title: 'Manuscrito para calcular a capa', filters: [{ name: 'Livros', extensions: ['pdf', 'doc', 'docx', 'odt', 'html', 'htm', 'epub', 'mobi', 'azw', 'azw3', 'txt', 'md'] }], properties: ['openFile'] });
   if (res.canceled || !res.filePaths.length) return null;
@@ -1229,6 +1238,9 @@ async function runSmokeTest() {
   const d4 = await PDFDocument.load(cv2.pdf);
   const cmb = d4.getPage(0).getMediaBox(), ctb = d4.getPage(0).getTrimBox();
   assert(gc.bleed === 5 && gc.W === s.pageWidth && !gc.flap && cv2.report.barcode === '9788533302273' && cv2.report.marks && Math.abs(ctb.width - gc.trimTotalW * ptmm) < 0.05 && cmb.width > (gc.totalW + 9) * ptmm, 'capa CEDET ' + JSON.stringify([cmb, ctb, cv2.report]));
+  // calculadora de lombada do Cedet (planilha oficial): 244 p. Pólen Natural 80 + Triplex 250 = 14,2 mm; 246 p. → linha 248
+  const cs = CoverGeometry.geometry({ cedet: true, pages: 244, trimW: 155, trimH: 230, bleedAuto: true });
+  assert(cs.spine === 14.2 && CoverGeometry.geometry({ cedet: true, pages: 246, trimW: 155, trimH: 230 }).cedetCalc.pages === 248 && Math.abs(cs.totalW - (2 * 155 + 14.2 + 10)) < 0.01, 'calculadora Cedet ' + JSON.stringify(cs.cedetCalc));
   console.log(`SMOKE_CHECKS caixas=ok miolo_cmyk=${cm.colorReport.colors}cores miolo_cedet=só_preto capa=${cv.report.widthPx}x${cv.report.heightPx}px capa_cedet=${Math.round(cmb.width / ptmm)}x${Math.round(cmb.height / ptmm)}mm`);
   console.log(`SMOKE_OK pages=${pages} bytes=${pdf.length} out=${out}`);
 }

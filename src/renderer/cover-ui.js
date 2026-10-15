@@ -1,4 +1,4 @@
-/* global App, CoverGeometry */
+/* global App, CoverGeometry, CedetSpine */
 // Capa e lombada para capas já prontas: as dimensões vêm do livro em diagramação, de um
 // manuscrito carregado (PDF, DOC, DOCX, ODT, HTML, EPUB, MOBI) ou são digitadas. A saída é
 // sempre um PDF CMYK para gráfica (perfil ICC real, PDF/X-1a), com sangria automática ou manual.
@@ -8,18 +8,9 @@
   let proof = null;
   const guideState = { bleedLines: true, guides: true, bleed: true }; // linhas na prévia (não vão para o PDF)
 
-  // Critério de página chapada (manual Cedet): imagem ou fundo impresso até a borda em alguma página do miolo
-  function hasChapada() {
-    const p = App.project;
-    const white = c => !c || /^#?f{3}(f{3})?$/i.test(String(c).trim());
-    return !!(App.needsBleed && App.needsBleed(p)) || !white(p.settings.pageColor) ||
-      p.chapters.some(c => c.style && !white(c.style.pageColor)) ||
-      Object.values(p.pageStyles || {}).some(st => st && !white(st.bg));
-  }
-  function cedetPaper(c) {
-    const ch = c.chapada === 'yes' ? true : c.chapada === 'no' ? false : hasChapada();
-    return ch ? 'cedetPolenBold70' : 'cedetAvena80';
-  }
+  // Calculadora de lombada do Cedet: capa Triplex 250 e miolo Pólen Natural (B2B) 80, gramatura 75 g/m²
+  const CEDET_COVER = CedetSpine.DEFAULT_COVER, CEDET_PAPER = CedetSpine.DEFAULT_PAPER, CEDET_GSM = 75;
+  const paperName = t => String(t || '').replace(/POLÉN/g, 'PÓLEN').toLowerCase().replace(/(^|\s|\()(\S)/g, (m, a, b) => a + b.toUpperCase()).replace(/\(b2b\)/i, '(B2B)');
   const barcodeDefaults = cedet => ({ enabled: !!cedet, isbn: '', pos: 'br', dx: 12, dy: 12, scale: 1, barHeight: 20, showIsbnText: true });
 
   function defaults() {
@@ -43,8 +34,10 @@
     c.isbnBarcode = Object.assign(barcodeDefaults(false), c.isbnBarcode || {});
     c.marks = Object.assign({ enabled: false, offset: 5, len: 5, weight: 0.25 }, c.marks || {});
     if (c.cedet) {
-      // CEDET: papel do miolo pelo critério de página chapada, orelhas de 6, 7 ou 8 cm, sangria 5 mm
-      c.paper = cedetPaper(c);
+      // CEDET: lombada pela calculadora oficial (capa Triplex 250, miolo Pólen Natural B2B 80), sem orelhas, sangria 5 mm
+      c.paper = 'cedetPolenNat80';
+      c.cedetPaper = CEDET_PAPER;
+      c.cedetCover = CEDET_COVER;
       c.bleedAuto = true;
       c.flaps = 0; // livros Cedet nunca têm orelhas
       c.hardcover = false;
@@ -71,13 +64,38 @@
   }
   App.hooks.afterChange.push(o => { if (o && o.rendered) { syncFromBook(); if (App.view === 'cover') { updateSummary(); redraw(); } } });
 
-  function confirmDims() {
+  // Confirmar medidas: conta as páginas do miolo final (paginado como na exportação do PDF, ou do manuscrito
+  // carregado), passa pela calculadora de lombada do Cedet e fixa formato, lombada e tamanho total da capa
+  let confirming = false;
+  async function confirmDims() {
+    if (confirming) return;
     const c = cover();
+    if (c.source === 'book') {
+      confirming = true;
+      App.toast('Paginando o miolo final, como na exportação do PDF…');
+      const r = await api.coverBookPages(App.serialize()).catch(e => ({ error: String(e.message || e) }));
+      confirming = false;
+      const d = bookDims();
+      c.trimW = d.trimW; c.trimH = d.trimH;
+      if (r && r.pages) c.pages = r.pages;
+      else if (d.pages) c.pages = d.pages;
+      else return App.toast('Não foi possível contar as páginas do miolo' + (r && r.error ? ': ' + r.error : '.'));
+      if (r && r.pages && r.complete === false) App.toast('Atenção: a paginação não chegou ao fim do livro; confira o miolo.');
+    }
+    if (c.cedet) {
+      const calc = CedetSpine.spine(c.pages, CEDET_PAPER, CEDET_COVER);
+      if (!calc.ok) { await api.confirm('Lombada fora da calculadora do Cedet', calc.error + '\n\nConsulte editoras-parceiras@cedet.com.br.', ['OK']); return; }
+      c.spineMode = 'manual';
+      c.spine = calc.spine;
+      c.totalsManual = false;
+      c.spineFor = { pages: c.pages, tablePages: calc.pages, paper: calc.paper, cover: calc.cover, gsm: CEDET_GSM, source: 'calculadora' };
+    }
     const g = CoverGeometry.geometry(c);
     c.confirmed = { trimW: c.trimW, trimH: c.trimH, pages: c.pages, totalW: g.totalW, totalH: g.totalH, spine: g.spine, at: new Date().toISOString() };
-    App.changed('Dimensões da capa confirmadas', { preview: false });
+    App.changed('Medidas da capa confirmadas', { preview: false });
+    proof = null;
     render();
-    App.toast(`Dimensões confirmadas: ${App.fmtNum(g.totalW)} × ${App.fmtNum(g.totalH)} mm, lombada ${App.fmtNum(g.spine)} mm.`);
+    App.toast(`Medidas confirmadas: ${App.fmtNum(g.totalW)} × ${App.fmtNum(g.totalH)} mm, lombada ${App.fmtNum(g.spine)} mm${c.cedet ? ` (calculadora do Cedet, ${c.pages} páginas)` : ''}.`);
   }
 
   async function loadManuscript() {
@@ -119,7 +137,7 @@
         el('div', {}, [el('span', { class: 'muted small', text: 'Capa / contracapa' }), el('strong', { text: `${App.fmtNum(g.W)} × ${App.fmtNum(g.H)} mm` })]),
         el('div', {}, [el('span', { class: 'muted small', text: 'Sangria' }), el('strong', { text: `${App.fmtNum(g.bleed)} mm${g.wrap ? ` + ${App.fmtNum(g.wrap)} mm de dobra` : ''}` })])
       ]),
-      el('div', { class: 'small muted', text: `${c.spineMode === 'manual' ? 'Lombada digitada' : `Lombada calculada: ${g.pages} páginas × ${App.fmtNum(g.perPage, 4)} mm${c.hardcover ? ' + cartão' : ''}`}${g.spine < 6 ? ' · lombada fina: evite texto ou elementos importantes nela' : ''}` }),
+      el('div', { class: 'small muted', text: `${c.cedet && c.spineFor && c.spineFor.source === 'calculadora' ? `Lombada pela calculadora do Cedet: ${c.spineFor.pages} páginas (linha ${c.spineFor.tablePages} da tabela) · miolo ${paperName(c.spineFor.paper)} · capa ${paperName(c.spineFor.cover)}` : c.cedet && g.cedetCalc ? (g.cedetCalc.ok ? `Lombada prévia pela calculadora do Cedet (${g.cedetCalc.pages} páginas): clique em “Confirmar medidas” para fixar com o miolo final` : g.cedetCalc.error) : c.spineMode === 'manual' ? 'Lombada digitada' : `Lombada calculada: ${g.pages} páginas × ${App.fmtNum(g.perPage, 4)} mm${c.hardcover ? ' + cartão' : ''}`}${g.spine < 6 ? ' · lombada fina: evite texto ou elementos importantes nela' : ''}` }),
       changed ? el('div', { class: 'warn small', text: `⚠ O livro mudou desde a confirmação: agora ${App.fmtNum(d.trimW / 10)} × ${App.fmtNum(d.trimH / 10)} cm, ${d.pages} páginas.` }) : null
     );
   }
@@ -209,7 +227,6 @@
   }
 
   const BARCODE_EDGE = 5; // distância mínima do quadro do código até o corte/dobra (igual à marca de corte)
-  const chapadaNow = c => (c.chapada === 'yes' ? true : c.chapada === 'no' ? false : hasChapada());
   // A lombada da calculadora vale para um número de páginas e uma gráfica: se o miolo mudou, refaça o cálculo
   function spineStale(c) {
     const f = c.spineFor;
@@ -217,8 +234,7 @@
     const pages = App.lastRender ? App.lastRender.pages : c.pages;
     const parts = [];
     if (pages && f.pages && pages !== f.pages) parts.push(`o miolo passou de ${f.pages} para ${pages} páginas`);
-    if (typeof f.chapada === 'boolean' && f.chapada !== chapadaNow(c)) parts.push(`o miolo agora ${chapadaNow(c) ? 'tem' : 'não tem'} página chapada (muda a gráfica e a calculadora)`);
-    return parts.length ? `A lombada de ${App.fmtNum(c.spine)} mm foi digitada antes da última mudança: ${parts.join(' e ')}. Refaça o cálculo na calculadora do Cedet.` : '';
+    return parts.length ? `A lombada de ${App.fmtNum(c.spine)} mm foi calculada antes da última mudança: ${parts.join(' e ')}. Clique em “Confirmar medidas” para recalcular.` : '';
   }
 
   // Problemas que o manual Cedet considera obrigatórios na capa
@@ -229,7 +245,8 @@
     const okFmt = [[155, 230], [137, 210], [115, 175]].some(([w, h]) => Math.abs(c.trimW - w) < 0.3 && Math.abs(c.trimH - h) < 0.3);
     if (!okFmt) out.push(`Formato ${App.fmtNum(c.trimW / 10)} × ${App.fmtNum(c.trimH / 10)} cm fora dos formatos Cedet (15,5 × 23, 13,7 × 21, 11,5 × 17,5 cm).`);
     if (Math.abs(c.trimW - s.pageWidth) > 0.3 || Math.abs(c.trimH - s.pageHeight) > 0.3) out.push('A capa não está no mesmo formato do miolo.');
-    if (c.spineMode !== 'manual') out.push('Lombada ainda estimada: digite a lombada calculada na calculadora do Cedet indicada pelo critério de página chapada.');
+    if (!(c.spineFor && c.spineFor.source === 'calculadora') || c.spineMode !== 'manual') out.push('Lombada ainda não confirmada: clique em “Confirmar medidas” para calcular pela calculadora do Cedet com o miolo final.');
+    else if (Math.abs(Number(c.spine) - CedetSpine.spine(c.spineFor.pages, CEDET_PAPER, CEDET_COVER).spine) > 0.001) out.push('A lombada foi alterada à mão depois do cálculo: clique em “Confirmar medidas” para voltar ao valor da calculadora do Cedet.');
     else {
       const st = spineStale(c);
       if (st) out.push(st);
@@ -312,16 +329,27 @@
 
   function cedetCard(c, on) {
     const g = CoverGeometry.geometry(c);
-    const det = hasChapada();
-    const ch = c.chapada === 'yes' ? true : c.chapada === 'no' ? false : det;
     const issues = c.cedet ? cedetCoverIssues(c) : [];
-    const spineIn = el('input', { type: 'number', step: 0.1, min: 0, placeholder: 'mm', value: c.spineMode === 'manual' ? c.spine : '' });
-    spineIn.addEventListener('change', () => { const v2 = parseFloat(spineIn.value); if (isFinite(v2) && v2 > 0) { c.spineMode = 'manual'; c.spine = v2; c.spineFor = { pages: App.lastRender ? App.lastRender.pages : c.pages, chapada: chapadaNow(c) }; } else { c.spineMode = 'auto'; c.spineFor = null; } App.changed('Lombada (calculadora Cedet)', { preview: false }); proof = null; render(); });
+    const done = c.spineFor && c.spineFor.source === 'calculadora';
+    const pagesNow = done ? c.spineFor.pages : c.pages;
+    const calc = CedetSpine.spine(pagesNow, CEDET_PAPER, CEDET_COVER);
+    const row = (k, v) => el('div', { class: 'cedet-calc-row' }, [el('span', { class: 'muted small', text: k }), el('strong', { text: v })]);
     return App.card('Padrão CEDET (manual de preparação de arquivos)', [
       el('label', { class: 'chk' }, [on(c, 'cedet', 'checkbox', { onChange: v2 => { if (v2) { c.marks.enabled = true; c.hardcover = false; c.flaps = 0; c.totalsManual = false; } proof = null; render(); } }), ' Capa no padrão CEDET (sem orelhas)']),
       c.cedet ? el('div', { class: 'small', text: `Capa sem orelhas (o Cedet não usa orelhas): capa e contracapa com ${App.fmtNum(g.W / 10)} × ${App.fmtNum(g.H / 10)} cm, o mesmo formato do miolo; capa aberta ${App.fmtNum(g.trimTotalW)} × ${App.fmtNum(g.H)} mm sem sangria, ${App.fmtNum(g.totalW)} × ${App.fmtNum(g.totalH)} mm com 5 mm de sangria.` }) : null,
-      c.cedet ? App.field('Página chapada no miolo', on(c, 'chapada', 'select', { options: [{ value: 'auto', label: `Detectar automaticamente (${det ? 'há' : 'não há'} página chapada)` }, { value: 'yes', label: 'Sim — há pelo menos uma página chapada' }, { value: 'no', label: 'Não — nenhuma página chapada' }], onChange: () => { proof = null; render(); } }), ch ? 'Com página chapada: gráfica externa · miolo Pólen Bold 70 g · capa cartão 250 g → use a calculadora de lombada da gráfica externa.' : 'Sem página chapada: gráfica interna · miolo Avena 80 g · capa cartão 250 g → use a calculadora de lombada da gráfica interna.') : null,
-      c.cedet ? App.field('Lombada pela calculadora Cedet (mm)', spineIn, c.spineMode === 'manual' ? `Usando ${App.fmtNum(g.spine)} mm${c.spineFor && c.spineFor.pages ? ` (calculada para ${c.spineFor.pages} páginas)` : ''}.` : `Obrigatório: a lombada não pode ser calculada manualmente. Estimativa só de referência: ${App.fmtNum(g.autoSpine)} mm.`) : null,
+      c.cedet ? el('div', { class: 'cedet-calc' }, [
+        el('b', { text: '📘 Calculadora de lombada do Cedet' }),
+        row('Papel da capa', paperName(CEDET_COVER)),
+        row('Papel do miolo', paperName(CEDET_PAPER)),
+        row('Gramatura do papel', `${CEDET_GSM} g/m²`),
+        row('Páginas do miolo final', pagesNow ? `${pagesNow}${calc.pages !== pagesNow ? ` → ${calc.pages} na tabela (múltiplo de 4)` : ''}` : '—'),
+        row('Lombada', calc.ok ? `${App.fmtNum(calc.spine)} mm` : '—'),
+        row('Capa aberta (com sangria)', `${App.fmtNum(g.totalW)} × ${App.fmtNum(g.totalH)} mm`),
+        calc.ok ? null : el('div', { class: 'small warn', text: calc.error + ' Consulte editoras-parceiras@cedet.com.br.' }),
+        pagesNow && pagesNow % 4 ? el('div', { class: 'small warn', text: `⚠ ${pagesNow} páginas não é divisível por 4: a gráfica completa o caderno; a tabela usa ${calc.pages}.` }) : null,
+        el('div', { class: 'small ' + (done ? 'good' : 'muted'), text: done ? `✓ Calculada com o miolo final de ${c.spineFor.pages} páginas${c.confirmed ? ' em ' + new Date(c.confirmed.at).toLocaleString('pt-BR') : ''}.` : 'Clique em “Confirmar medidas”: o miolo é paginado como na exportação do PDF e a lombada sai da tabela oficial do Cedet.' }),
+        el('button', { class: 'primary', text: 'Confirmar medidas', onclick: confirmDims })
+      ]) : null,
       c.cedet ? el('div', { class: 'small muted', text: 'Sangria 5 mm · marcas de corte e de dobra de 0,25 pt a 5 mm do corte (capa, contracapa e lombada) · CMYK · 300 dpi · capa aberta em um único PDF (páginas espelhadas). Dúvidas sobre a lombada: editoras-parceiras@cedet.com.br.' }) : null,
       c.cedet && issues.length ? el('ul', { class: 'small warn' }, issues.map(x => el('li', { text: x }))) : c.cedet ? el('div', { class: 'good small', text: '✓ Capa conforme o manual Cedet.' }) : null
     ], '', 'span-all');
@@ -387,7 +415,7 @@
           el('div', { class: 'small', text: (c.confirmed ? `✓ Confirmado em ${new Date(c.confirmed.at).toLocaleString('pt-BR')} · ` : '') + srcText }),
           c.fileInfo && c.fileInfo.notes && c.fileInfo.notes.length ? el('div', { class: 'small warn', text: c.fileInfo.notes.join(' ') }) : null,
           el('div', { class: 'inline wrap' }, [
-            el('button', { class: 'primary', text: 'Confirmar as dimensões', onclick: confirmDims }),
+            el('button', { class: 'primary', text: 'Confirmar medidas', onclick: confirmDims }),
             el('button', { text: 'Usar o livro em diagramação', onclick: useBook }),
             el('button', { text: 'Carregar manuscrito…', title: 'Opcional: PDF, DOC, DOCX, ODT, HTML, EPUB ou MOBI', onclick: loadManuscript })
           ])

@@ -604,3 +604,8 @@ body.ws-book .nav-item[data-ws="periodical"] { display: none !important; }
 .tl-screen .tr-cfg input[type="range"] { width: 100%; }
 .tl-screen .enh-col { min-width: 0; overflow-x: hidden; }
 .tl-screen .tr-sub input[type="text"] { flex: 1; min-width: 0; box-sizing: border-box; }
+/* calculadora de lombada do Cedet (módulo Capa) */
+.cedet-calc { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--accent-line); border-radius: 12px; background: var(--accent-soft); }
+.cedet-calc-row { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; border-bottom: 1px dashed var(--line); padding: 2px 0; }
+.cedet-calc-row strong { text-align: right; }
+.cedet-calc button { justify-self: start; margin-top: 4px; }

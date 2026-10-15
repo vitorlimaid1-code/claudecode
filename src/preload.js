@@ -51,6 +51,7 @@ contextBridge.exposeInMainWorld('api', {
   inspect: (project, opts) => inv('export:inspect', project, opts || {}),
   exportRun: req => inv('export:run', req),
   coverAnalyze: s => inv('cover:analyze', s),
+  coverBookPages: project => inv('cover:bookPages', project),
   coverProof: (cover, assets, dpi) => inv('cover:proof', cover, assets, dpi),
   savePng: (name, dataUrl) => inv('dialog:savePng', name, dataUrl),
   catalogFixedGet: () => inv('catalog:fixedGet'),

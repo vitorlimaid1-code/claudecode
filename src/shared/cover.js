@@ -21,12 +21,20 @@
     // (miolo Pólen Bold 70 g); sem chapada → gráfica interna (miolo Avena 80 g). Capa: cartão 250 g.
     cedetAvena80: { label: 'CEDET — Avena 80 g/m² (gráfica interna: miolo sem página chapada)', mm: 0.053, cedet: true },
     cedetPolenBold70: { label: 'CEDET — Pólen Bold 70 g/m² (gráfica externa: miolo com página chapada)', mm: 0.062, cedet: true },
+    // padrão atual: lombada pela calculadora oficial do Cedet (cedet-spine.js); a espessura é só a média da tabela
+    cedetPolenNat80: { label: 'CEDET — Pólen Natural (B2B) 80 · capa Triplex 250 (calculadora do Cedet)', mm: 0.058, cedet: true },
     kdpWhite: { label: 'Amazon KDP — branco', mm: 0.0572 },
     kdpCream: { label: 'Amazon KDP — creme', mm: 0.0635 },
     kdpColor: { label: 'Amazon KDP — colorido premium', mm: 0.0596 },
     custom: { label: 'Personalizado', mm: null }
   };
   const n = (v, d) => { const x = Number(v); return v !== '' && v != null && isFinite(x) ? x : d; };
+  // calculadora de lombada do Cedet (tabela da planilha oficial)
+  const CS = typeof module === 'object' && module.exports ? require('./cedet-spine') : (typeof self !== 'undefined' ? self.CedetSpine : null);
+  function cedetCalc(c) {
+    if (!CS || !c || !c.cedet) return null;
+    return CS.spine(n(c.pages, 0), c.cedetPaper || CS.DEFAULT_PAPER, c.cedetCover || CS.DEFAULT_COVER);
+  }
 
   function autoCoverBleed(c) {
     if (c && c.cedet) return 5; // CEDET: sangria de 5 mm
@@ -37,7 +45,8 @@
     c = c || {};
     const perPage = c.paper === 'custom' ? n(c.paperMm, 0.05) : (PAPERS[c.paper] || PAPERS.polen80).mm;
     const pages = n(c.pages, 0);
-    const autoSpine = Math.round((pages * perPage + (c.hardcover ? n(c.boardExtra, 4) : 0)) * 100) / 100;
+    const calc = cedetCalc(c);
+    const autoSpine = calc && calc.ok ? calc.spine : Math.round((pages * perPage + (c.hardcover ? n(c.boardExtra, 4) : 0)) * 100) / 100;
     const spine = c.spineMode === 'manual' ? Math.max(0, n(c.spine, autoSpine)) : autoSpine;
     const bleed = c.bleedAuto !== false ? autoCoverBleed(c) : Math.max(0, n(c.bleed, 3));
     const wrap = c.hardcover ? n(c.wrapExtra, 15) : 0;
@@ -72,7 +81,7 @@
     }
     const folds = [p.spine[0], p.spine[0] + spine].concat(flap ? [outer + flap, outer + flap + 2 * W + spine] : []);
     return {
-      panelExtra, perPage, pages, autoSpine, spine: r(spine), bleed, wrap, outer, flap, W: r(W), H: r(H),
+      panelExtra, perPage, pages, autoSpine, cedetCalc: calc, spine: r(spine), bleed, wrap, outer, flap, W: r(W), H: r(H),
       totalW: r(totalW), totalH: r(totalH), trimTotalW: r(totalW - 2 * outer), trimTotalH: r(H),
       panels: p, folds,
       backTrim: [flap ? outer + flap : outer, W], frontTrim: [p.front[0], W]
@@ -107,5 +116,5 @@
     };
   }
 
-  return { PAPERS, geometry, autoCoverBleed, marks, brand, BRAND };
+  return { PAPERS, geometry, cedetCalc, autoCoverBleed, marks, brand, BRAND };
 });
