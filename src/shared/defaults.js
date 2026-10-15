@@ -621,7 +621,9 @@
       catalog: Object.assign(emptyCatalog(), isCedet(settings) ? { distribution: CEDET.distribution } : {}),
       back: {
         bio: { enabled: false, title: 'Sobre o autor', html: '', photo: null, photoWidth: 35 },
-        extra: { enabled: false, title: 'Do mesmo autor', html: '' }
+        extra: { enabled: false, title: 'Do mesmo autor', html: '' },
+        // página-convite no fim de todo livro: outros títulos da casa, site, QR do Instagram e endereço da ficha
+        invite: { enabled: true, site: 'www.casavertigem.com.br', instagram: 'casavertigem' }
       },
       chapters: [{ id: uid(), title: 'O começo', numbered: true, html: SAMPLE_TEXT, locked: false, style: {}, separator: 'default', openingImage: null }],
       assets: {},
@@ -747,7 +749,8 @@
       catalog,
       back: {
         bio: Object.assign({}, base.back.bio, (p.back && p.back.bio) || {}),
-        extra: Object.assign({}, base.back.extra, (p.back && p.back.extra) || {})
+        extra: Object.assign({}, base.back.extra, (p.back && p.back.extra) || {}),
+        invite: Object.assign({}, base.back.invite, (p.back && p.back.invite) || {})
       },
       chapters,
       assets: Object.assign({}, p.assets || {}),

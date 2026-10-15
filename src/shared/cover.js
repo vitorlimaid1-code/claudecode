@@ -95,10 +95,10 @@
     return { offset: Math.max(0, n(m.offset, 5)), len: Math.max(1, n(m.len, 5)), weight: Math.max(0.1, n(m.weight, 0.25)) };
   }
 
-  // Marca da editora na capa: logotipo (o da página de rosto) num lado e QR code do site no outro, no pé
-  // da quarta capa (ou da capa). aspect = largura/altura do logotipo; bc = código de barras {x, y, w, h}
-  // quando ele estiver no mesmo pé — o QR fica ao lado dele, sem sobrepor. Tudo em mm na capa aberta.
-  const BRAND = { enabled: true, panel: 'back', logoWidth: 24, qrSize: 18, margin: 12, qr: true, logo: true, qrText: 'https://www.casavertigem.com.br' };
+  // Marca da editora na capa: logotipo (o da página de rosto) no pé da quarta capa (ou da capa).
+  // aspect = largura/altura do logotipo. Tudo em mm na capa aberta.
+  // a capa NÃO leva QR code (na contracapa só o código de barras do ISBN): qr fica sempre desligado
+  const BRAND = { enabled: true, panel: 'back', logoWidth: 24, qrSize: 18, margin: 12, qr: false, logo: true, qrText: '' };
   function brand(g, c, aspect, bc) {
     const b = Object.assign({}, BRAND, (c && c.brand) || {});
     if (!b.enabled) return null;
@@ -107,12 +107,9 @@
     const bottom = g.outer + g.H - m;
     let lw = Math.max(5, n(b.logoWidth, 24)), lh = lw / (aspect > 0 ? aspect : 2);
     if (lh > 30) { lh = 30; lw = lh * (aspect > 0 ? aspect : 2); }
-    const s = Math.max(10, n(b.qrSize, 18));
-    let qx = trim[0] + trim[1] - m - s, qy = bottom - s;
-    if (bc && b.panel !== 'front' && bc.x < qx + s + 3 && bc.x + bc.w > qx - 3) { qx = bc.x - 4 - s; qy = bc.y + bc.h - s; }
     return {
       logo: b.logo !== false ? { x: trim[0] + m, y: bottom - lh, w: lw, h: lh } : null,
-      qr: b.qr !== false && String(b.qrText || '').trim() ? { x: qx, y: qy, s, text: String(b.qrText).trim() } : null
+      qr: null // sem QR code na capa
     };
   }
 

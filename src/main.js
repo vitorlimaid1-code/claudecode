@@ -1060,7 +1060,6 @@ async function renderCoverPdf(project, opts) {
   const la = c.brand.logoAsset && (project.assets || {})[c.brand.logoAsset];
   if (c.brand.enabled !== false) {
     if (la) { brand.logoUrl = la.dataUrl; try { const sz = require('electron').nativeImage.createFromDataURL(la.dataUrl).getSize(); brand.aspect = sz.width / sz.height; } catch (e) { /* padrão */ } }
-    if (c.brand.qr !== false && c.brand.qrText) { try { brand.qrUrl = await require('qrcode').toDataURL(String(c.brand.qrText), { margin: 1, width: 1000, errorCorrectionLevel: 'M' }); } catch (e) { /* sem QR */ } }
   }
   return withRenderWindow(async win => {
     await win.webContents.executeJavaScript(`window.renderCover(${JSON.stringify({ cover: c, assets: project.assets, brand })}, ${JSON.stringify({ bleed: opts.bleed !== false, guides: false, part: opts.part || 'all', print: true })})`, true);

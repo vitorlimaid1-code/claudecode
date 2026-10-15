@@ -89,7 +89,7 @@ window.App = (function () {
     const clean = h => String(h || '').replace(/\ssrc="blob:[^"]*"/g, '');
     return Object.assign({}, p, {
       chapters: p.chapters.map(c => Object.assign({}, c, { html: clean(c.html) })),
-      back: { bio: Object.assign({}, p.back.bio, { html: clean(p.back.bio.html) }), extra: Object.assign({}, p.back.extra, { html: clean(p.back.extra.html) }) }
+      back: Object.assign({}, p.back, { bio: Object.assign({}, p.back.bio, { html: clean(p.back.bio.html) }), extra: Object.assign({}, p.back.extra, { html: clean(p.back.extra.html) }) })
     });
   };
 

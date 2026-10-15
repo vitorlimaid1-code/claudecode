@@ -38,6 +38,8 @@
       c.paper = 'cedetPolenNat80';
       c.cedetPaper = CEDET_PAPER;
       c.cedetCover = CEDET_COVER;
+      // lombada sempre automática pela calculadora (a versão anterior a fixava ao confirmar)
+      if (c.spineFor && c.spineFor.source === 'calculadora') { c.spineMode = 'auto'; c.spineFor = null; }
       c.bleedAuto = true;
       c.flaps = 0; // livros Cedet nunca têm orelhas
       c.hardcover = false;
@@ -54,30 +56,33 @@
     if (pages && pages % 2) pages += 1;
     return { trimW: s.pageWidth, trimH: s.pageHeight, pages };
   }
-  // Sem confirmação, a capa acompanha o livro em diagramação automaticamente
+  // A capa acompanha o livro aberto na diagramação automaticamente (formato e páginas → lombada e capa aberta)
   function syncFromBook() {
     const c = App.project.cover;
-    if (!c || c.confirmed || c.source !== 'book') return;
+    if (!c || c.source !== 'book') return;
     const d = bookDims();
     c.trimW = d.trimW; c.trimH = d.trimH;
     if (d.pages) c.pages = d.pages;
   }
   App.hooks.afterChange.push(o => { if (o && o.rendered) { syncFromBook(); if (App.view === 'cover') { updateSummary(); redraw(); } } });
 
-  // Confirmar medidas: conta as páginas do miolo final (paginado como na exportação do PDF, ou do manuscrito
-  // carregado), passa pela calculadora de lombada do Cedet e fixa formato, lombada e tamanho total da capa
+  // Confirmar medidas: a capa já é calculada automaticamente a partir do livro aberto; este botão confere.
+  // Pagina o miolo final exatamente como na exportação do PDF, recalcula a lombada pela calculadora do Cedet
+  // e mostra se os números batem com o cálculo automático (corrige se a prévia ainda não tinha terminado).
   let confirming = false;
   async function confirmDims() {
     if (confirming) return;
     const c = cover();
+    const before = CoverGeometry.geometry(c);
+    const prevPages = c.pages;
     if (c.source === 'book') {
       confirming = true;
-      App.toast('Paginando o miolo final, como na exportação do PDF…');
+      App.toast('Conferindo: paginando o miolo final, como na exportação do PDF…');
       const r = await api.coverBookPages(App.serialize()).catch(e => ({ error: String(e.message || e) }));
       confirming = false;
       const d = bookDims();
       c.trimW = d.trimW; c.trimH = d.trimH;
-      if (r && r.pages) c.pages = r.pages;
+      if (r && r.pages) c.pages = r.pages % 2 ? r.pages + 1 : r.pages;
       else if (d.pages) c.pages = d.pages;
       else return App.toast('Não foi possível contar as páginas do miolo' + (r && r.error ? ': ' + r.error : '.'));
       if (r && r.pages && r.complete === false) App.toast('Atenção: a paginação não chegou ao fim do livro; confira o miolo.');
@@ -85,17 +90,18 @@
     if (c.cedet) {
       const calc = CedetSpine.spine(c.pages, CEDET_PAPER, CEDET_COVER);
       if (!calc.ok) { await api.confirm('Lombada fora da calculadora do Cedet', calc.error + '\n\nConsulte editoras-parceiras@cedet.com.br.', ['OK']); return; }
-      c.spineMode = 'manual';
-      c.spine = calc.spine;
+      c.spineMode = 'auto';
       c.totalsManual = false;
-      c.spineFor = { pages: c.pages, tablePages: calc.pages, paper: calc.paper, cover: calc.cover, gsm: CEDET_GSM, source: 'calculadora' };
     }
     const g = CoverGeometry.geometry(c);
-    c.confirmed = { trimW: c.trimW, trimH: c.trimH, pages: c.pages, totalW: g.totalW, totalH: g.totalH, spine: g.spine, at: new Date().toISOString() };
-    App.changed('Medidas da capa confirmadas', { preview: false });
+    const same = Math.abs(g.spine - before.spine) < 0.001 && Math.abs(g.totalW - before.totalW) < 0.001 && c.pages === prevPages;
+    c.confirmed = { trimW: c.trimW, trimH: c.trimH, pages: c.pages, totalW: g.totalW, totalH: g.totalH, spine: g.spine, at: new Date().toISOString(), same, prevPages, prevSpine: before.spine };
+    App.changed('Medidas da capa conferidas', { preview: false });
     proof = null;
     render();
-    App.toast(`Medidas confirmadas: ${App.fmtNum(g.totalW)} × ${App.fmtNum(g.totalH)} mm, lombada ${App.fmtNum(g.spine)} mm${c.cedet ? ` (calculadora do Cedet, ${c.pages} páginas)` : ''}.`);
+    App.toast(same
+      ? `✓ Conferido: ${c.pages} páginas, lombada ${App.fmtNum(g.spine)} mm, capa ${App.fmtNum(g.totalW)} × ${App.fmtNum(g.totalH)} mm — igual ao cálculo automático.`
+      : `Corrigido: ${prevPages} → ${c.pages} páginas; lombada ${App.fmtNum(before.spine)} → ${App.fmtNum(g.spine)} mm; capa ${App.fmtNum(g.totalW)} × ${App.fmtNum(g.totalH)} mm.`);
   }
 
   async function loadManuscript() {
@@ -126,8 +132,6 @@
     if (!box) return;
     const c = cover();
     const g = CoverGeometry.geometry(c);
-    const d = bookDims();
-    const changed = c.confirmed && c.source === 'book' && (Math.abs(c.confirmed.trimW - d.trimW) > 0.01 || Math.abs(c.confirmed.trimH - d.trimH) > 0.01 || (d.pages && c.confirmed.pages !== d.pages));
     box.innerHTML = '';
     box.append(
       el('div', { class: 'cover-total' }, [
@@ -137,13 +141,12 @@
         el('div', {}, [el('span', { class: 'muted small', text: 'Capa / contracapa' }), el('strong', { text: `${App.fmtNum(g.W)} × ${App.fmtNum(g.H)} mm` })]),
         el('div', {}, [el('span', { class: 'muted small', text: 'Sangria' }), el('strong', { text: `${App.fmtNum(g.bleed)} mm${g.wrap ? ` + ${App.fmtNum(g.wrap)} mm de dobra` : ''}` })])
       ]),
-      el('div', { class: 'small muted', text: `${c.cedet && c.spineFor && c.spineFor.source === 'calculadora' ? `Lombada pela calculadora do Cedet: ${c.spineFor.pages} páginas (linha ${c.spineFor.tablePages} da tabela) · miolo ${paperName(c.spineFor.paper)} · capa ${paperName(c.spineFor.cover)}` : c.cedet && g.cedetCalc ? (g.cedetCalc.ok ? `Lombada prévia pela calculadora do Cedet (${g.cedetCalc.pages} páginas): clique em “Confirmar medidas” para fixar com o miolo final` : g.cedetCalc.error) : c.spineMode === 'manual' ? 'Lombada digitada' : `Lombada calculada: ${g.pages} páginas × ${App.fmtNum(g.perPage, 4)} mm${c.hardcover ? ' + cartão' : ''}`}${g.spine < 6 ? ' · lombada fina: evite texto ou elementos importantes nela' : ''}` }),
-      changed ? el('div', { class: 'warn small', text: `⚠ O livro mudou desde a confirmação: agora ${App.fmtNum(d.trimW / 10)} × ${App.fmtNum(d.trimH / 10)} cm, ${d.pages} páginas.` }) : null
+      el('div', { class: 'small muted', text: `${c.cedet && g.cedetCalc && c.spineMode !== 'manual' ? (g.cedetCalc.ok ? `Lombada automática pela calculadora do Cedet: ${g.cedetCalc.rawPages} páginas (linha ${g.cedetCalc.pages} da tabela) · miolo ${paperName(g.cedetCalc.paper)} · capa ${paperName(g.cedetCalc.cover)}` : g.cedetCalc.error) : c.spineMode === 'manual' ? 'Lombada digitada' : `Lombada calculada: ${g.pages} páginas × ${App.fmtNum(g.perPage, 4)} mm${c.hardcover ? ' + cartão' : ''}`}${g.spine < 6 ? ' · lombada fina: evite texto ou elementos importantes nela' : ''}` }),
     );
   }
 
-  // logotipo (o da página de rosto) e QR code do site para a prévia da capa
-  const qrCache = {}, aspectCache = {};
+  // logotipo (o da página de rosto) para a prévia da capa (a capa não leva QR code)
+  const aspectCache = {};
   async function brandData(c) {
     const b = Object.assign({}, CoverGeometry.BRAND, c.brand || {});
     if (!b.enabled) return null;
@@ -154,8 +157,6 @@
       if (!aspectCache[out.logoUrl]) aspectCache[out.logoUrl] = await new Promise(res => { const im = new Image(); im.onload = () => res(im.naturalWidth / im.naturalHeight || 2); im.onerror = () => res(2); im.src = out.logoUrl; });
       out.aspect = aspectCache[out.logoUrl];
     }
-    const t = String(b.qrText || '').trim();
-    if (b.qr !== false && t) out.qrUrl = qrCache[t] || (qrCache[t] = await api.qrDataUrl(t));
     return out;
   }
 
@@ -227,16 +228,6 @@
   }
 
   const BARCODE_EDGE = 5; // distância mínima do quadro do código até o corte/dobra (igual à marca de corte)
-  // A lombada da calculadora vale para um número de páginas e uma gráfica: se o miolo mudou, refaça o cálculo
-  function spineStale(c) {
-    const f = c.spineFor;
-    if (!f) return '';
-    const pages = App.lastRender ? App.lastRender.pages : c.pages;
-    const parts = [];
-    if (pages && f.pages && pages !== f.pages) parts.push(`o miolo passou de ${f.pages} para ${pages} páginas`);
-    return parts.length ? `A lombada de ${App.fmtNum(c.spine)} mm foi calculada antes da última mudança: ${parts.join(' e ')}. Clique em “Confirmar medidas” para recalcular.` : '';
-  }
-
   // Problemas que o manual Cedet considera obrigatórios na capa
   function cedetCoverIssues(c) {
     const out = [];
@@ -245,12 +236,8 @@
     const okFmt = [[155, 230], [137, 210], [115, 175]].some(([w, h]) => Math.abs(c.trimW - w) < 0.3 && Math.abs(c.trimH - h) < 0.3);
     if (!okFmt) out.push(`Formato ${App.fmtNum(c.trimW / 10)} × ${App.fmtNum(c.trimH / 10)} cm fora dos formatos Cedet (15,5 × 23, 13,7 × 21, 11,5 × 17,5 cm).`);
     if (Math.abs(c.trimW - s.pageWidth) > 0.3 || Math.abs(c.trimH - s.pageHeight) > 0.3) out.push('A capa não está no mesmo formato do miolo.');
-    if (!(c.spineFor && c.spineFor.source === 'calculadora') || c.spineMode !== 'manual') out.push('Lombada ainda não confirmada: clique em “Confirmar medidas” para calcular pela calculadora do Cedet com o miolo final.');
-    else if (Math.abs(Number(c.spine) - CedetSpine.spine(c.spineFor.pages, CEDET_PAPER, CEDET_COVER).spine) > 0.001) out.push('A lombada foi alterada à mão depois do cálculo: clique em “Confirmar medidas” para voltar ao valor da calculadora do Cedet.');
-    else {
-      const st = spineStale(c);
-      if (st) out.push(st);
-    }
+    if (g.cedetCalc && !g.cedetCalc.ok) out.push(g.cedetCalc.error + ' Consulte editoras-parceiras@cedet.com.br.');
+    if (c.spineMode === 'manual' && g.cedetCalc && g.cedetCalc.ok && Math.abs(Number(c.spine) - g.cedetCalc.spine) > 0.001) out.push(`A lombada foi digitada à mão (${App.fmtNum(c.spine)} mm) e difere da calculadora do Cedet (${App.fmtNum(g.cedetCalc.spine)} mm): clique em “Recalcular automaticamente” ou em “Confirmar medidas”.`);
     const b = c.isbnBarcode || {};
     const isbnTxt = b.isbn || App.project.meta.isbn;
     if (!b.enabled || !isbnTxt) out.push('Sem código de barras do ISBN: o manual Cedet pede o código na contracapa (digite o ISBN quando tiver o número).');
@@ -265,6 +252,14 @@
           // o quadro branco não deve encostar no corte nem na dobra da lombada (o corte e a dobra variam alguns milímetros)
           const gap = Math.min(pos.x - bx, bx + bw - (pos.x + lay.w), pos.y - g.outer, g.outer + g.H - (pos.y + lay.h));
           if (gap < BARCODE_EDGE - 0.01) out.push(`O código de barras está a ${App.fmtNum(gap)} mm do corte ou da dobra da lombada: deixe pelo menos ${BARCODE_EDGE} mm para que o corte não atinja o código.`);
+          // manual Cedet: 2,5 mm livres entre a última barra e outros elementos da contracapa (o logotipo)
+          const lg = App.project.titlePage.logo && App.project.assets[App.project.titlePage.logo];
+          const L = lg ? CoverGeometry.brand(g, c, aspectCache[App.assetUrl(App.project.titlePage.logo)] || 2) : null;
+          const br = Object.assign({}, CoverGeometry.BRAND, c.brand || {});
+          if (L && L.logo && br.panel !== 'front') {
+            const r = L.logo, sep = Math.max(r.x - (pos.x + lay.w), pos.x - (r.x + r.w), r.y - (pos.y + lay.h), pos.y - (r.y + r.h));
+            if (sep < 0) out.push('O logotipo encosta no quadro do código de barras: o manual Cedet pede 2,5 mm livres entre as barras e outros elementos da contracapa. Mude a posição do código ou do logotipo.');
+          }
         }
       }
     }
@@ -277,17 +272,14 @@
     const b = c.brand;
     const reb = () => { proof = null; render(); };
     const hasLogo = !!(App.project.titlePage.logo && App.project.assets[App.project.titlePage.logo]);
-    return App.card('Logotipo da editora e QR code do site', [
-      el('label', { class: 'chk' }, [on(b, 'enabled', 'checkbox', { onChange: reb }), ' Logotipo à esquerda e QR code à direita, no pé da capa']),
+    return App.card('Logotipo da editora', [
+      el('label', { class: 'chk' }, [on(b, 'enabled', 'checkbox', { onChange: reb }), ' Logotipo da editora no pé da capa']),
       App.field('Onde', on(b, 'panel', 'select', { options: [{ value: 'back', label: 'Quarta capa (contracapa)' }, { value: 'front', label: 'Capa (frente)' }], onChange: reb })),
       el('label', { class: 'chk' }, [on(b, 'logo', 'checkbox', { onChange: reb }), ' Logotipo (o mesmo da página de rosto)']),
       App.field('Largura do logotipo (mm)', on(b, 'logoWidth', 'number', { step: 1, min: 8, max: 60 })),
-      el('label', { class: 'chk' }, [on(b, 'qr', 'checkbox', { onChange: reb }), ' QR code']),
-      App.field('Endereço do QR code', on(b, 'qrText', 'text', { onChange: () => { proof = null; redraw(); } })),
-      App.field('Tamanho do QR code (mm)', on(b, 'qrSize', 'number', { step: 1, min: 12, max: 40 }), 'Mínimo recomendado: 15 mm para a leitura pelo celular'),
       App.field('Distância dos cortes (mm)', on(b, 'margin', 'number', { step: 0.5, min: 3 })),
       !hasLogo ? el('p', { class: 'small warn', text: 'Nenhum logotipo na página de rosto: escolha um em Créditos e ficha → Editora e logotipo.' }) : null
-    ], 'O QR code fica ao lado do código de barras, sem encostar nele. Em capas escuras, prefira um logotipo claro.', 'span-all');
+    ], 'A capa não leva QR code: na contracapa fica só o código de barras do ISBN (padrão Cedet). Em capas escuras, prefira um logotipo claro.', 'span-all');
   }
 
   function barcodeCard(c, on) {
@@ -330,9 +322,9 @@
   function cedetCard(c, on) {
     const g = CoverGeometry.geometry(c);
     const issues = c.cedet ? cedetCoverIssues(c) : [];
-    const done = c.spineFor && c.spineFor.source === 'calculadora';
-    const pagesNow = done ? c.spineFor.pages : c.pages;
-    const calc = CedetSpine.spine(pagesNow, CEDET_PAPER, CEDET_COVER);
+    const calc = g.cedetCalc || CedetSpine.spine(c.pages, CEDET_PAPER, CEDET_COVER);
+    const pagesNow = calc.rawPages;
+    const conf = c.confirmed && c.confirmed.pages === c.pages && Math.abs(c.confirmed.spine - g.spine) < 0.001 ? c.confirmed : null;
     const row = (k, v) => el('div', { class: 'cedet-calc-row' }, [el('span', { class: 'muted small', text: k }), el('strong', { text: v })]);
     return App.card('Padrão CEDET (manual de preparação de arquivos)', [
       el('label', { class: 'chk' }, [on(c, 'cedet', 'checkbox', { onChange: v2 => { if (v2) { c.marks.enabled = true; c.hardcover = false; c.flaps = 0; c.totalsManual = false; } proof = null; render(); } }), ' Capa no padrão CEDET (sem orelhas)']),
@@ -343,11 +335,11 @@
         row('Papel do miolo', paperName(CEDET_PAPER)),
         row('Gramatura do papel', `${CEDET_GSM} g/m²`),
         row('Páginas do miolo final', pagesNow ? `${pagesNow}${calc.pages !== pagesNow ? ` → ${calc.pages} na tabela (múltiplo de 4)` : ''}` : '—'),
-        row('Lombada', calc.ok ? `${App.fmtNum(calc.spine)} mm` : '—'),
+        row('Lombada (automática)', calc.ok ? `${App.fmtNum(c.spineMode === 'manual' ? g.spine : calc.spine)} mm` : '—'),
         row('Capa aberta (com sangria)', `${App.fmtNum(g.totalW)} × ${App.fmtNum(g.totalH)} mm`),
         calc.ok ? null : el('div', { class: 'small warn', text: calc.error + ' Consulte editoras-parceiras@cedet.com.br.' }),
         pagesNow && pagesNow % 4 ? el('div', { class: 'small warn', text: `⚠ ${pagesNow} páginas não é divisível por 4: a gráfica completa o caderno; a tabela usa ${calc.pages}.` }) : null,
-        el('div', { class: 'small ' + (done ? 'good' : 'muted'), text: done ? `✓ Calculada com o miolo final de ${c.spineFor.pages} páginas${c.confirmed ? ' em ' + new Date(c.confirmed.at).toLocaleString('pt-BR') : ''}.` : 'Clique em “Confirmar medidas”: o miolo é paginado como na exportação do PDF e a lombada sai da tabela oficial do Cedet.' }),
+        el('div', { class: 'small ' + (conf ? 'good' : 'muted'), text: conf ? `✓ Conferido com o miolo final paginado como na exportação (${new Date(conf.at).toLocaleString('pt-BR')})${conf.same ? ': os números batem com o cálculo automático.' : `: corrigido de ${conf.prevPages} para ${conf.pages} páginas.`}` : `Calculado automaticamente a partir do livro aberto na diagramação${c.source === 'file' ? ' (manuscrito carregado)' : ''}. “Confirmar medidas” confere: pagina o miolo como na exportação do PDF e recalcula.` }),
         el('button', { class: 'primary', text: 'Confirmar medidas', onclick: confirmDims })
       ]) : null,
       c.cedet ? el('div', { class: 'small muted', text: 'Sangria 5 mm · marcas de corte e de dobra de 0,25 pt a 5 mm do corte (capa, contracapa e lombada) · CMYK · 300 dpi · capa aberta em um único PDF (páginas espelhadas). Dúvidas sobre a lombada: editoras-parceiras@cedet.com.br.' }) : null,
@@ -388,7 +380,7 @@
     autoSwop(c);
     const f = App.field;
     const on = (obj, key, type, o) => App.bind(obj, key, type, Object.assign({ label: 'Capa', onChange: () => { proof = null; redraw(); } }, o || {}));
-    const manualOn = () => { if (c.source === 'book' && !c.confirmed) { c.source = 'manual'; } };
+    const manualOn = () => { if (c.source === 'book') c.source = 'manual'; };
     const imgSlot = (key, label, hint) => {
       const it = c.images[key];
       const a = it && App.project.assets[it.asset];
@@ -412,7 +404,7 @@
         el('h2', { text: 'Capa e lombada' }),
         el('p', { class: 'muted small', text: 'Monte capas já editadas: insira a capa pronta (imagem envolvente) ou capa, lombada e contracapa separadas. A saída é um PDF CMYK para gráfica.' }),
         el('div', { class: 'cover-banner ' + (c.confirmed ? 'ok' : 'info') }, [
-          el('div', { class: 'small', text: (c.confirmed ? `✓ Confirmado em ${new Date(c.confirmed.at).toLocaleString('pt-BR')} · ` : '') + srcText }),
+          el('div', { class: 'small', text: (c.confirmed ? `✓ Medidas conferidas em ${new Date(c.confirmed.at).toLocaleString('pt-BR')} · ` : 'Medidas calculadas automaticamente · ') + srcText }),
           c.fileInfo && c.fileInfo.notes && c.fileInfo.notes.length ? el('div', { class: 'small warn', text: c.fileInfo.notes.join(' ') }) : null,
           el('div', { class: 'inline wrap' }, [
             el('button', { class: 'primary', text: 'Confirmar medidas', onclick: confirmDims }),

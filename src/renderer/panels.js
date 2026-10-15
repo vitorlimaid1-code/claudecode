@@ -557,6 +557,12 @@
         el('label', { class: 'chk' }, [bind(b.extra, 'enabled', 'checkbox'), ' Incluir página extra no fim do livro']),
         field('Título', bind(b.extra, 'title', 'text', { placeholder: 'Do mesmo autor, Agradecimentos, Contato…' })),
         miniEditor(b.extra, 'Conteúdo extra')
+      ], '', 'span-all'),
+      card('Convite aos leitores (última página)', [
+        el('label', { class: 'chk' }, [bind(b.invite, 'enabled', 'checkbox'), ' Incluir a página-convite no fim do livro (ligada em todos os livros)']),
+        field('Site', bind(b.invite, 'site', 'text', { placeholder: 'www.casavertigem.com.br' })),
+        field('Instagram (QR code)', bind(b.invite, 'instagram', 'text', { placeholder: 'casavertigem' })),
+        el('p', { class: 'muted small', text: 'Página elegante, sempre a última do livro e de todos os PDFs: convida o leitor a conhecer outros títulos no site, traz o QR code do Instagram e o endereço da editora — o mesmo da ficha catalográfica (contato da ficha ou, no padrão Cedet, o crédito de distribuição).' })
       ], '', 'span-all')
     ]));
   };

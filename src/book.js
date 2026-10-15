@@ -622,6 +622,34 @@ function catalogHtml(project, ctx) {
   if (c.contact) parts.push(`<div class="cat-contact">${multiline(c.contact)}</div>`);
   return `<section class="front copyright-page cat-style-${esc(c.style || 'box')} cat-pos-${c.position === 'top' ? 'top' : 'bottom'}" id="ficha">${parts.join('')}</section>`;
 }
+// endereço da editora: o mesmo impresso na ficha catalográfica (contato ou crédito de distribuição)
+function inviteAddress(project) {
+  const c = project.catalog || {};
+  const s = project.settings || {};
+  if (String(c.contact || '').trim()) return String(c.contact).replace(/\r\n?/g, '\n').trim();
+  const dist = String(c.distribution || (s.standard === 'cedet' ? CEDET.distribution : '')).replace(/\r\n?/g, '\n').trim();
+  return dist.split('\n').filter((l, i) => !(i === 0 && /^distribui[çc][ãa]o\b/i.test(l.trim()))).join('\n').trim();
+}
+function inviteHtml(project, ctx) {
+  const inv = project.back.invite || {};
+  const site = String(inv.site || 'www.casavertigem.com.br').trim();
+  const ig = String(inv.instagram || 'casavertigem').replace(/^@/, '').trim();
+  const addr = inviteAddress(project);
+  return `<section class="back-matter invite-page" id="convite">
+    <div class="invite">
+      <div class="invite-orn">❦</div>
+      <h1 class="invite-title">Gostou desta leitura?</h1>
+      <p class="invite-text">Obrigado por nos acompanhar até a última página. Se esta história ficou com você, temos outros títulos esperando na estante — clássicos, ensaios e descobertas escolhidos com o mesmo cuidado.</p>
+      <p class="invite-text">Conheça o nosso catálogo em</p>
+      <p class="invite-site">${esc(site)}</p>
+      <div class="invite-rule"></div>
+      ${ctx.inviteQr ? `<img class="invite-qr" src="${ctx.inviteQr}" alt="QR code do Instagram @${esc(ig)}">` : ''}
+      <p class="invite-ig">Siga-nos no Instagram <b>@${esc(ig)}</b></p>
+      <p class="invite-small">Aponte a câmera do celular para o código.</p>
+      ${addr ? `<div class="invite-addr">${multiline(addr)}</div>` : ''}
+    </div>
+  </section>`;
+}
 function catHead(c) {
   return `<div class="cat-head">Dados Internacionais de Catalogação na Publicação (CIP)${c.style === 'cbl' ? '<br>(Câmara Brasileira do Livro, SP, Brasil)' : ''}</div>`;
 }
@@ -809,6 +837,9 @@ function buildHtml(project, ctx) {
     push(ixHtml);
   }
 
+  // página-convite (sempre a última): outros títulos da casa no site, QR do Instagram e o endereço da ficha
+  if (back.invite && back.invite.enabled !== false && !periodical) push(inviteHtml(project, ctx));
+
   ctx.tocItems = tocItems;
   // listas de figuras/gráficos/tabelas logo depois do sumário
   const lists = listsHtml(project, ctx);
@@ -848,6 +879,8 @@ function buildCss(project, ctx) {
   const mm = v => `${num(v, 0)}mm`;
   const contentH = ctx.contentH;
   const bleed = ctx.bleed;
+  const contentHmm = (contentH - 2).toFixed(1);
+  const inviteFont = fontStack(S.chapterTitle.font || body.font);
 
   let leftHeader = 'none';
   let rightHeader = 'none';
@@ -1135,6 +1168,19 @@ body:not(.stage) .tframe[data-guide]:not(.tf-keep) { outline: none !important; }
 .chapter-sep img { display: block; max-height: 18mm; object-fit: contain; margin: 0 ${S.chapterTitle.align === 'right' ? '0' : 'auto'} 0 ${S.chapterTitle.align === 'left' ? '0' : 'auto'}; }
 .chapter-sep .sep-line { display: block; border: 0; border-top: 0.6pt solid ${color(s.separatorColor, '#000')}; height: 0; margin: 0 ${S.chapterTitle.align === 'right' ? '0' : 'auto'} 0 ${S.chapterTitle.align === 'left' ? '0' : 'auto'}; }
 .back-matter { page: back; break-before: page; }
+/* página-convite: centrada na página, só preto (vale para o miolo P&B do Cedet) */
+.invite-page { page: back; break-before: page; break-after: avoid; }
+.invite { height: ${contentHmm}mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #000; break-inside: avoid; }
+.invite p { text-indent: 0; text-align: center; margin: 0; hyphens: manual; }
+.invite-orn { font-size: 20pt; line-height: 1; margin-bottom: 5mm; }
+.invite-title { font-family: ${inviteFont}; font-size: 19pt; font-weight: normal; font-style: italic; margin: 0 0 6mm; letter-spacing: .01em; border: 0; }
+.invite-text { max-width: 82%; font-size: 10.5pt; line-height: 1.5; margin-bottom: 2.5mm !important; }
+.invite-site { font-family: ${inviteFont}; font-size: 13pt; letter-spacing: .12em; text-transform: uppercase; margin: 1mm 0 6mm !important; }
+.invite-rule { width: 18mm; border-top: .5pt solid #000; margin: 0 auto 6mm; }
+.invite-qr { width: 26mm; height: 26mm; display: block; margin: 0 auto 3mm; }
+.invite-ig { font-size: 10pt; }
+.invite-small { font-size: 8pt; opacity: .75; margin-top: 1mm !important; }
+.invite-addr { margin-top: 9mm; font-size: 7.5pt; line-height: 1.45; max-width: 85%; }
 .back-title { ${styleDecl(S.chapterTitle, body, { noSpace: true })} margin: ${mm(Math.max(10, num(S.chapterTitle.spaceBefore, 30) * 0.6))} 0 8mm; }
 .bio-photo { float: left; margin: 1mm 5mm 3mm 0; border-radius: 1mm; object-fit: cover; }
 
@@ -1405,6 +1451,11 @@ async function buildBook(rawProject, opts) {
     }
   }
 
+  // QR do Instagram da página-convite
+  const inv = project.back && project.back.invite;
+  if (inv && inv.enabled !== false) {
+    try { ctx.inviteQr = await require('qrcode').toDataURL('https://www.instagram.com/' + String(inv.instagram || 'casavertigem').replace(/^@/, '').trim() + '/', { margin: 1, width: 600, errorCorrectionLevel: 'M', color: { dark: '#000000', light: '#ffffff' } }); } catch (e) { /* sem QR */ }
+  }
   const html = buildHtml(project, ctx);
   const css = buildCss(project, ctx);
 
