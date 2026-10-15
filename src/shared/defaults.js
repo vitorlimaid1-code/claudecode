@@ -634,10 +634,23 @@
     return target;
   }
 
+  // Acentos: texto vindo de EPUB, Word ou PDF às vezes guarda o acento como um caractere à parte
+  // ("a" + "~" combinante, forma NFD). Várias fontes e o Word não posicionam esse acento solto e ele
+  // aparece deslocado. Tudo passa para a forma composta (NFC: "ã" num caractere só). Imagens (data:) ficam.
+  const COMBINING = /[\u0300-\u036f]/;
+  function nfcDeep(v, depth) {
+    if (typeof v === 'string') return v.startsWith('data:') || !COMBINING.test(v) ? v : v.normalize('NFC');
+    if (!v || typeof v !== 'object' || (depth || 0) > 40) return v;
+    if (Array.isArray(v)) { for (let i = 0; i < v.length; i++) v[i] = nfcDeep(v[i], (depth || 0) + 1); return v; }
+    for (const k of Object.keys(v)) v[k] = nfcDeep(v[k], (depth || 0) + 1);
+    return v;
+  }
+
   // Converte projetos da versão 1 e completa campos ausentes
   function normalizeProject(p) {
     const base = newProject();
     p = p && typeof p === 'object' ? p : {};
+    if (p.chapters) nfcDeep(p);
     const settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
     const ps = Object.assign({}, p.settings || {});
     if (!p.version || p.version < 2) {
@@ -757,7 +770,7 @@
   return {
     PAGE_FORMATS, FORMAT_GROUPS, DEFAULT_FORMAT_ID, BUNDLED_FONTS, SYSTEM_FONTS,
     STYLE_DEFS, DEFAULT_STYLES, DEFAULT_CHAR_STYLES, charStyleDecl, charStylesCss, DEFAULT_SETTINGS, GENRE_PRESETS,
-    uid, newProject, normalizeProject, mergeSettings, applyGenrePreset, emptyCatalog,
+    uid, newProject, normalizeProject, nfcDeep, mergeSettings, applyGenrePreset, emptyCatalog,
     toUnit, fromUnit, MM, KDP, autoBleed, OUTPUT_SHEETS, outputSheetSize, markGeometry, CEDET, isCedet, applyCedet, CAPTION_STYLES, TOC_STYLES, HEADING_PRESETS,
     FREE_LAYOUT, applyFreeLayout, applyFormatOverrides
   };

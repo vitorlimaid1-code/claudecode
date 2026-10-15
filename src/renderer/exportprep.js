@@ -1,4 +1,4 @@
-/* global App */
+/* global App, Ficha */
 // Converte o livro numa estrutura neutra (blocos) para DOCX/ODT/TXT e em XHTML para EPUB 3.
 (function () {
   const D = App.D;
@@ -336,8 +336,9 @@ h1.tb-black { background: #000; color: #fff; } h1.tb-white { border: 1px solid #
     const cat = project.catalog;
     const esc = App.escape;
     const copyright = [
-      `<p>${esc(cat.rights || `© ${m.year} ${m.author}. Todos os direitos reservados.`).replace(/\n/g, '<br/>')}</p>`,
-      ...(cat.credits || []).filter(c => c.name).map(c => `<p><b>${esc(c.role)}:</b> ${esc(c.name)}</p>`),
+      ...Ficha.rightsFor(cat, m).split(/\n{2,}/).map(x => `<p>${esc(x).replace(/\n/g, '<br/>')}</p>`),
+      ...Ficha.credits(cat, cat.autoNames).map(c => `<p><b>${esc(c.role)}:</b> ${esc(c.name)}</p>`),
+      ...(cat.company !== false ? [`<p>${Ficha.COMPANY.map(esc).join('<br/>')}</p>`] : []),
       m.isbn ? `<p>ISBN ${esc(m.isbn)}</p>` : '',
       m.edition ? `<p>${esc(m.edition)}</p>` : ''
     ].join('');
@@ -350,11 +351,11 @@ h1.tb-black { background: #000; color: #fff; } h1.tb-white { border: 1px solid #
     // metadados completos: assuntos, colaboradores, série, direitos e autor na forma de catálogo
     const roles = { translator: 'Tradução', illustrator: 'Ilustrações' };
     const contributors = Object.entries(roles).filter(([k]) => cat[k]).map(([k, role]) => ({ name: cat[k], role }))
-      .concat((cat.credits || []).filter(c => c && c.name && c.name.trim()).map(c => ({ name: c.name.trim(), role: c.role || 'Colaboração' })));
+      .concat(Ficha.credits(cat, cat.autoNames).filter(c => !(c.role === 'Tradução' && cat.translator)).map(c => ({ name: c.name, role: c.role || 'Colaboração' })));
     const extra = {
       subjects: String(cat.subjects || '').split(/[\n;]+/).map(x => x.trim()).filter(Boolean),
       contributors, series: cat.series || '', fileAs: cat.authorEntry ? cat.authorEntry.replace(/,?\s*\d{4}-?\s*$/, '').trim() : '',
-      rights: (cat.rights || `© ${m.year || ''} ${m.author || ''}. Todos os direitos reservados.`).replace(/\s+/g, ' ').trim()
+      rights: Ficha.rightsFor(cat, m).split(/\n{2,}/).slice(0, 2).join(' ').replace(/\s+/g, ' ').trim()
     };
     // imagens extras antes da página de rosto (página inteira)
     const preImages = ((project.ebook && project.ebook.preImages) || []).map(id => project.assets[id] && project.assets[id].dataUrl).filter(Boolean);

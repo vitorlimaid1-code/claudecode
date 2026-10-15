@@ -1057,8 +1057,8 @@
       }
     });
     ed.addEventListener('paste', e => {
-      const html = e.clipboardData.getData('text/html');
-      const text = e.clipboardData.getData('text/plain');
+      const html = e.clipboardData.getData('text/html').normalize('NFC');
+      const text = e.clipboardData.getData('text/plain').normalize('NFC');
       const files = Array.from(e.clipboardData.files || []);
       if (!html && !text && !files.length) return;
       e.preventDefault();

@@ -372,6 +372,24 @@ async function compose(appRoot, cover, assets, geometry, opts) {
   }
   // código de barras do ISBN (prova de cor; no PDF ele é redesenhado em vetor 100% K por cima)
   const bc = barcodeFor(cover, g, opts.meta);
+  // logotipo da editora (o da página de rosto) e QR code do site no pé da quarta capa
+  const br = cover.brand && cover.brand.enabled !== false ? cover.brand : (cover.brand ? null : {});
+  if (br) {
+    const la = br.logoAsset && assets[br.logoAsset];
+    let aspect = 2;
+    if (la) { try { const sz = nativeImage.createFromDataURL(la.dataUrl).getSize(); if (sz.width && sz.height) aspect = sz.width / sz.height; } catch (e) { /* tamanho padrão */ } }
+    const L = CoverGeometry.brand(g, cover, aspect, bc && bc.lay.ok ? { x: bc.x, y: bc.y, w: bc.lay.w, h: bc.lay.h } : null);
+    const put = async (dataUrl, r, label) => {
+      const R = { x: Math.round((r.x - offX) * pxmm), y: Math.round((r.y - offY) * pxmm), w: Math.max(1, Math.round(r.w * pxmm)), h: Math.max(1, Math.round(r.h * pxmm)) };
+      const src = await imageToCmykFitted(dataUrl, profBuf, Object.assign({}, cover, { dpi, enhance: false, sharpen: false }), R.w, R.h, 'stretch');
+      blit(dst, DW, DH, src, R.x, R.y);
+      notes.push(`${label}: ${(Math.round(r.w * 10) / 10).toString().replace('.', ',')} × ${(Math.round(r.h * 10) / 10).toString().replace('.', ',')} mm`);
+    };
+    if (L && L.logo && la) await put(la.dataUrl, L.logo, 'Logotipo da editora na quarta capa');
+    if (L && L.qr) {
+      try { await put(await require('qrcode').toDataURL(L.qr.text, { margin: 1, width: 1000, errorCorrectionLevel: 'M' }), { x: L.qr.x, y: L.qr.y, w: L.qr.s, h: L.qr.s }, 'QR code ' + L.qr.text); } catch (e) { notes.push('QR code não gerado: ' + e.message); }
+    }
+  }
   if (bc && bc.lay.ok) {
     const X = mm => Math.round((mm - offX) * pxmm), Y = mm => Math.round((mm - offY) * pxmm);
     const box = (x, y, w, h, k) => { for (let yy = Math.max(0, Y(y)); yy < Math.min(DH, Y(y + h)); yy++) for (let xx = Math.max(0, X(x)); xx < Math.min(DW, X(x + w)); xx++) { const i = (yy * DW + xx) * 4; dst[i] = 0; dst[i + 1] = 0; dst[i + 2] = 0; dst[i + 3] = k; } };

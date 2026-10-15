@@ -58,6 +58,7 @@ let allowClose = false;
 let pendingOpenPath = null;
 let fonts = null;
 let library = null;
+let remoteAssets = null;
 
 function appUrl(rel) { return 'app://local/' + rel.replace(/\\/g, '/'); }
 function userFile(name) { return path.join(app.getPath('userData'), name); }
@@ -372,9 +373,9 @@ async function importPath(filePath) {
 ipcMain.handle('import:file', async () => {
   const res = await dialog.showOpenDialog(mainWindow, { title: 'Importar manuscrito', filters: IMPORT_FILTERS, properties: ['openFile'] });
   if (res.canceled || !res.filePaths.length) return null;
-  return importPath(res.filePaths[0]);
+  return require('./shared/defaults').nfcDeep(await importPath(res.filePaths[0]));
 });
-ipcMain.handle('import:path', (e, filePath) => importPath(filePath));
+ipcMain.handle('import:path', async (e, filePath) => require('./shared/defaults').nfcDeep(await importPath(filePath)));
 
 // Melhoramento: EPUBs do Project Gutenberg -> DOCX no padrão do livro, na pasta Downloads
 ipcMain.handle('enh:pick', async () => {
@@ -382,7 +383,7 @@ ipcMain.handle('enh:pick', async () => {
   return res.canceled ? [] : res.filePaths;
 });
 ipcMain.handle('enh:read', async (e, filePath) => {
-  try { return Object.assign(await importAny(filePath), { name: path.basename(filePath, path.extname(filePath)), size: fs.statSync(filePath).size }); } catch (err) { return { error: String(err && err.message || err) }; }
+  try { return Object.assign(require('./shared/defaults').nfcDeep(await importAny(filePath)), { name: path.basename(filePath, path.extname(filePath)), size: fs.statSync(filePath).size }); } catch (err) { return { error: String(err && err.message || err) }; }
 });
 ipcMain.handle('enh:target', (e, base, ext, nextTo) => {
   // nextTo: arquivo de origem — o DOCX fica na mesma pasta dele (para substituir o EPUB)
@@ -470,7 +471,12 @@ ipcMain.handle('image:analyze', (e, dataUrl) => {
 });
 
 // Bibliotecas de imagens
-ipcMain.handle('lib:list', () => library.list());
+ipcMain.handle('lib:list', () => {
+  // filetes da Casa Vertigem que faltarem: baixados em segundo plano (aparecem na próxima abertura da lista)
+  if (remoteAssets) remoteAssets.ensureRules(library).catch(() => {});
+  return library.list();
+});
+ipcMain.handle('seal:logo', (e, id) => (remoteAssets ? remoteAssets.sealLogo(String(id || '')) : { error: 'indisponível' }));
 ipcMain.handle('lib:addDialog', async (e, kind) => {
   const res = await dialog.showOpenDialog(mainWindow, { title: kind === 'separadores' ? 'Adicionar separadores (PNG recomendado)' : 'Adicionar imagens à biblioteca', filters: [{ name: 'Imagens', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'] }], properties: ['openFile', 'multiSelections'] });
   if (res.canceled) return null;
@@ -502,7 +508,24 @@ ipcMain.handle('fonts:remove', (e, family) => { fonts.removeFamily(family); retu
 ipcMain.handle('fonts:css', (e, families) => { if (!fonts.system) fonts.scanSystem(); return fonts.fontFaceCss(families); });
 
 // ---------------------------------------------------------------- livro / renderização
+// rodízio dos créditos da ficha (revisão em ordem, tradução sorteada): muda a cada exportação; a prévia
+// mostra os nomes da exportação atual
+const creditsFile = () => userFile('creditos-rodizio.json');
+const creditsNow = () => require('./shared/ficha').names(readJson(creditsFile(), { n: 0, t: 0 }));
+function creditsNext() {
+  const F = require('./shared/ficha');
+  const st = readJson(creditsFile(), { n: -1, t: 0 });
+  let t = Math.floor(Math.random() * F.TRANSLATORS.length);
+  if (F.TRANSLATORS.length > 1 && t === st.t) t = (t + 1 + Math.floor(Math.random() * (F.TRANSLATORS.length - 1))) % F.TRANSLATORS.length;
+  const next = { n: (Number(st.n) || 0) + 1, t };
+  try { fs.mkdirSync(path.dirname(creditsFile()), { recursive: true }); fs.writeFileSync(creditsFile(), JSON.stringify(next)); } catch (e) { /* ok */ }
+  return F.names(next);
+}
+ipcMain.handle('credits:next', () => creditsNext());
+ipcMain.handle('credits:now', () => creditsNow());
+
 async function bookPayload(project, opts) {
+  if (!(project.catalog && project.catalog.autoNames)) opts = Object.assign({}, opts || {}, { autoNames: creditsNow() });
   const book = await buildBook(project, opts);
   if (!fonts.system) fonts.scanSystem();
   const extra = book.fonts.filter(f => !book.bundledFonts.includes(f));
@@ -939,7 +962,7 @@ async function runExport(req) {
     const files = [];
     const { pdf, pages } = await renderPdf(project, opts);
     files.push({ name: opts.fileBase ? `${safeName(opts.fileBase, 140)}.pdf` : `${base}-miolo.pdf`, data: pdf });
-    if (opts.includeCover && project.cover) files.push({ name: opts.fileBase ? `${safeName(opts.fileBase.replace('_MIOLO_', '_CAPA_'), 140)}.pdf` : `${base}-capa-cmyk.pdf`, data: (await cmyk.buildCoverPdf(APP_ROOT, project.cover, project.assets || {}, project.meta, CoverGeometry.geometry(project.cover), { bleed: true })).pdf });
+    if (opts.includeCover && project.cover) files.push({ name: opts.fileBase ? `${safeName(opts.fileBase.replace('_MIOLO_', '_CAPA_'), 140)}.pdf` : `${base}-capa-cmyk.pdf`, data: (await cmyk.buildCoverPdf(APP_ROOT, coverOut(project), project.assets || {}, project.meta, CoverGeometry.geometry(project.cover), { bleed: true })).pdf });
     if (opts.includeEpub && req.epub) files.push({ name: `${base}.epub`, data: await exporters.exportEpub(Object.assign({ uuid: crypto.randomUUID(), coverJpeg: ebookCover(req.epub.cover) }, req.epub), project.assets || {}) });
     if (req.report) files.push({ name: 'relatorio-pre-impressao.txt', data: Buffer.from('﻿' + req.report, 'utf8') });
     if (req.specs) files.push({ name: 'especificacoes-tecnicas.txt', data: Buffer.from('﻿' + req.specs, 'utf8') });
@@ -951,7 +974,7 @@ async function runExport(req) {
     // capa para gráfica: sempre PDF CMYK (PDF/X-1a) com o perfil ICC escolhido
     const file = opts.target || await askSavePath('Exportar capa para gráfica (PDF CMYK)', opts.fileBase ? `${safeName(opts.fileBase, 140)}${opts.bleed === false ? '-sem-sangria' : ''}.pdf` : `${base}-capa-cmyk${opts.bleed === false ? '-sem-sangria' : ''}.pdf`, [{ name: 'PDF', extensions: ['pdf'] }]);
     if (!file) return null;
-    const cover = project.cover || {};
+    const cover = coverOut(project);
     const r = await cmyk.buildCoverPdf(APP_ROOT, cover, project.assets || {}, project.meta, CoverGeometry.geometry(cover), { bleed: opts.bleed !== false });
     fs.writeFileSync(file, r.pdf);
     return { files: [file], report: r.report };
@@ -963,7 +986,7 @@ async function runExport(req) {
 }
 
 ipcMain.handle('export:run', async (e, req) => {
-  try { return await runExport(req); } catch (err) {
+  try { return await runExport(require('./shared/defaults').nfcDeep(req)); } catch (err) {
     dialog.showErrorBox('Falha na exportação', String(err && err.stack || err));
     return null;
   }
@@ -980,10 +1003,21 @@ async function renderCover(project, opts) {
   return encodeImage(img, fmt, dpi, opts.quality);
 }
 
+// capa com a marca da editora: o logotipo é o mesmo da página de rosto
+function coverOut(project) {
+  const c = project.cover || {};
+  return Object.assign({}, c, { brand: Object.assign({}, CoverGeometry.BRAND, c.brand || {}, { logoAsset: (project.titlePage || {}).logo || null }) });
+}
 async function renderCoverPdf(project, opts) {
+  const c = coverOut(project);
+  const brand = {};
+  const la = c.brand.logoAsset && (project.assets || {})[c.brand.logoAsset];
+  if (c.brand.enabled !== false) {
+    if (la) { brand.logoUrl = la.dataUrl; try { const sz = require('electron').nativeImage.createFromDataURL(la.dataUrl).getSize(); brand.aspect = sz.width / sz.height; } catch (e) { /* padrão */ } }
+    if (c.brand.qr !== false && c.brand.qrText) { try { brand.qrUrl = await require('qrcode').toDataURL(String(c.brand.qrText), { margin: 1, width: 1000, errorCorrectionLevel: 'M' }); } catch (e) { /* sem QR */ } }
+  }
   return withRenderWindow(async win => {
-    const c = project.cover || {};
-    await win.webContents.executeJavaScript(`window.renderCover(${JSON.stringify({ cover: c, assets: project.assets })}, ${JSON.stringify({ bleed: opts.bleed !== false, guides: false, part: opts.part || 'all', print: true })})`, true);
+    await win.webContents.executeJavaScript(`window.renderCover(${JSON.stringify({ cover: c, assets: project.assets, brand })}, ${JSON.stringify({ bleed: opts.bleed !== false, guides: false, part: opts.part || 'all', print: true })})`, true);
     return win.webContents.printToPDF({ printBackground: true, preferCSSPageSize: true, margins: { marginType: 'none' } });
   }, { page: 'src/renderer/cover.html?print', width: 1600, height: 1200 });
 }
@@ -1153,6 +1187,8 @@ if (!process.env.SMOKE_TEST && !app.requestSingleInstanceLock()) {
   app.whenReady().then(async () => {
     fonts = new FontManager(app.getPath('userData'));
     library = new ImageLibrary(APP_ROOT, app.getPath('userData'));
+    remoteAssets = require('./main/remote-assets').createRemoteAssets(APP_ROOT, app.getPath('userData'));
+    library.extraBuiltin = () => remoteAssets.bundledRules(library.builtinDir);
     registerAppProtocol();
     blockNetwork(session.defaultSession);
     if (process.env.SMOKE_TEST) {

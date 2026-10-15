@@ -29,13 +29,20 @@
     const safe = Number(c.safety) || 5;
     if (c.barcode && P.back) parts.push(`<div class="cv-barcode" style="left:${mm(P.back[0] + P.back[1] - safe - 50)};top:${mm(g.totalH - g.outer - safe - 30)};width:50mm;height:30mm">Código de barras (ISBN)</div>`);
     const bcfg = c.isbnBarcode;
+    let bcRect = null;
     if (bcfg && bcfg.enabled && String(bcfg.isbn || '').trim() && P.back && window.Isbn) {
       const lay = window.Isbn.layout(bcfg.isbn, bcfg);
       if (lay.ok) {
         const pos = window.Isbn.place(g, lay, bcfg);
+        bcRect = { x: pos.x, y: pos.y, w: lay.w, h: lay.h };
         parts.push(`<div class="cv-isbn" style="position:absolute;left:${mm(pos.x)};top:${mm(pos.y)};width:${mm(lay.w)};height:${mm(lay.h)}">${window.Isbn.toSvg(lay).replace(/width="[^"]+" height="[^"]+"/, 'width="100%" height="100%"')}</div>`);
       } else parts.push(`<div class="cv-barcode" style="left:${mm(g.backTrim[0] + g.backTrim[1] - 12 - 37.5)};top:${mm(g.outer + g.H - 12 - 30)};width:37.5mm;height:30mm">ISBN inválido:<br>${lay.error.replace(/</g, '&lt;')}</div>`);
     }
+    // logotipo da editora e QR code do site no pé da quarta capa (data.brand: imagens já prontas)
+    const br = data.brand || {};
+    const L = (br.logoUrl || br.qrUrl) && CoverGeometry.brand ? CoverGeometry.brand(g, c, br.aspect, bcRect) : null;
+    if (L && L.logo && br.logoUrl) parts.push(`<img class="cv-brand" src="${br.logoUrl}" style="position:absolute;left:${mm(L.logo.x)};top:${mm(L.logo.y)};width:${mm(L.logo.w)};height:${mm(L.logo.h)};object-fit:contain">`);
+    if (L && L.qr && br.qrUrl) parts.push(`<img class="cv-brand" src="${br.qrUrl}" style="position:absolute;left:${mm(L.qr.x)};top:${mm(L.qr.y)};width:${mm(L.qr.s)};height:${mm(L.qr.s)}">`);
     const guides = [];
     // linhas da sangria e do corte (opcionais; antes vinham junto com as guias)
     if (opts.bleedLines !== undefined ? opts.bleedLines : opts.guides) {

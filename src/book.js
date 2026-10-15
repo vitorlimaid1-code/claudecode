@@ -1,6 +1,7 @@
 // Monta o HTML e o CSS paginável (Paged.js) a partir de um projeto de livro.
 const { normalizeProject, BUNDLED_FONTS, autoBleed, CEDET, charStylesCss } = require('./shared/defaults');
 const CatalogParse = require('./shared/catalog-parse');
+const Ficha = require('./shared/ficha');
 const X = require('./book-extras');
 const PageFrames = require('./shared/frames');
 const TocThemes = require('./shared/tocthemes');
@@ -535,11 +536,13 @@ function invertName(name) {
 function catalogHtml(project, ctx) {
   const { meta, catalog: c, settings: s } = project;
   const parts = [];
-  const credits = (c.credits || []).filter(x => x && x.name && x.name.trim());
+  // créditos: os digitados valem; revisão (rodízio), tradução (sorteio), diagramação e capa vêm do padrão
+  const credits = Ficha.credits(c, c.autoNames || ctx.autoNames);
   if (credits.length) {
     parts.push(`<div class="cat-credits">${credits.map(x => `<div><span class="cat-role">${esc(x.role)}:</span> ${esc(x.name)}</div>`).join('')}</div>`);
   }
-  parts.push(`<div class="cat-rights">${multiline(c.rights || `© ${meta.year || ''} ${meta.author || ''}\nTodos os direitos reservados. Nenhuma parte desta obra pode ser reproduzida sem autorização prévia, exceto em citações breves com indicação da fonte.`)}</div>`);
+  if (c.company !== false) parts.push(`<div class="cat-company">${Ficha.COMPANY.map((x, i) => `<div${i ? '' : ' class="cat-company-name"'}>${esc(x)}</div>`).join('')}</div>`);
+  parts.push(`<div class="cat-rights">${Ficha.rightsFor(c, meta).split(/\n{2,}/).map(x => `<p>${multiline(x)}</p>`).join('')}</div>`);
   if (c.enabled !== false) {
     if (c.mode === 'manual') {
       if (c.manualText && c.manualText.trim()) {
@@ -981,14 +984,16 @@ ${pageNames}
 .title-page .tp-brand { margin-top: 12mm; display: flex; flex-direction: column; align-items: center; gap: 3mm; }
 .title-page .tp-imprint { font-size: 0.8em; letter-spacing: 0.06em; line-height: 1.5; }
 .title-page .tp-place { font-size: 0.85em; }
-.copyright-page { font-size: 7.5pt; line-height: 1.4; text-align: left; height: ${(contentH - 2).toFixed(1)}mm; display: flex; flex-direction: column; justify-content: flex-end; gap: 3mm; hyphens: manual; }
+.copyright-page { font-size: ${num(project.catalog && project.catalog.fontSize, 9)}pt; line-height: 1.4; text-align: left; height: ${(contentH - 2).toFixed(1)}mm; display: flex; flex-direction: column; justify-content: flex-end; gap: 3mm; hyphens: manual; }
 .copyright-page .cat-role { font-weight: 700; }
 .copyright-page.cat-pos-top { justify-content: flex-start; }
 .cat-style-plain .cat-box { border: 0; padding: 0; }
 .cat-style-double .cat-box { border: 2pt double currentColor; }
 .cat-style-rounded .cat-box { border-radius: 2.5mm; }
 .cat-style-cbl .cat-box { border-width: 0.75pt; }
-.cat-style-compact { font-size: 6.8pt; line-height: 1.3; }
+.cat-style-compact { font-size: 0.88em; line-height: 1.3; }
+.cat-rights p { margin: 0 0 0.6em; text-align: justify; } .cat-rights p:last-child { margin-bottom: 0; }
+.cat-company { line-height: 1.35; } .cat-company-name { font-weight: 700; letter-spacing: 0.02em; }
 .cat-style-compact .cat-box { padding: 1.5mm 2mm; }
 .cat-box { border: 0.5pt solid currentColor; padding: 2.5mm 3mm; }
 .cat-head { text-align: center; font-weight: 700; margin-bottom: 1.5mm; }
@@ -1342,7 +1347,7 @@ async function buildBook(rawProject, opts) {
   const bleed = effectiveBleed(s);
   const ctx = { assets: project.assets || {}, settings: s, contentH, colW, bleed, missing: [], figures: [], qrImages: [],
     numbering: s.captionNumbering !== false, counters: { fig: 0, graf: 0, tab: 0, quad: 0 }, lists: { fig: [], graf: [], tab: [], quad: [] },
-    refs: {}, index: new Map(), indexCache: project.indexCache || {}, markBlocks: !!(opts && opts.markBlocks), frontNum: s.frontNumbering === 'roman' && project.kind !== 'magazine' && project.kind !== 'newspaper' };
+    refs: {}, index: new Map(), indexCache: project.indexCache || {}, markBlocks: !!(opts && opts.markBlocks), autoNames: (opts && opts.autoNames) || null, frontNum: s.frontNumbering === 'roman' && project.kind !== 'magazine' && project.kind !== 'newspaper' };
 
   // QR codes da ficha catalográfica (gerados localmente)
   const qrs = (project.catalog.qrcodes || []).filter(q => q && q.text);

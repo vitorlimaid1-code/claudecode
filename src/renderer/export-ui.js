@@ -242,6 +242,8 @@
     App.progress.expect('Exportando o livro', ({ pdf: 'PDF', epub: 'EPUB', mobi: 'MOBI (Kindle)', package: 'Pacote de produção', docx: 'Word', odt: 'OpenDocument', txt: 'Texto', png: 'Imagens PNG', jpeg: 'Imagens JPEG', tiff: 'Imagens TIFF' })[o.kind] || o.kind);
     try {
       const proj = projectForExport();
+      // créditos da ficha: revisão em rodízio e tradução sorteada, novos a cada exportação
+      try { proj.catalog.autoNames = await api.creditsNext(); } catch (e) { /* mantém os atuais */ }
       const req = { kind: o.kind, project: proj, opts: { spreads: !!o.spreads, outline: !!o.outline, tagged: o.purpose === 'digital', dpi: o.dpi || 300, quality: o.quality || 92, bleed: !!o.imageBleed, color: o.purpose === 'digital' ? 'rgb' : (o.color || 'rgb'), colorProfile: o.colorProfile || 'fogra39', range: rangeSpec(), noProfile: !!o.noProfile && o.color === 'gray', fileBase: o.cedet && (o.kind === 'pdf' || o.kind === 'package') ? cedetFileName('MIOLO') : '', cedet: !!o.cedet, includeCover: !!o.includeCover, includeEpub: !!o.includeEpub, includeProject: !!o.includeProject, suffix: o.purpose === 'digital' ? '-digital' : '' } };
       if (o.kind === 'epub' || o.kind === 'mobi' || (o.kind === 'package' && o.includeEpub)) {
         const coverDataUrl = await ebookCoverFor(o);

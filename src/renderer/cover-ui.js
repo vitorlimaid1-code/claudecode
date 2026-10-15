@@ -124,6 +124,23 @@
     );
   }
 
+  // logotipo (o da página de rosto) e QR code do site para a prévia da capa
+  const qrCache = {}, aspectCache = {};
+  async function brandData(c) {
+    const b = Object.assign({}, CoverGeometry.BRAND, c.brand || {});
+    if (!b.enabled) return null;
+    const out = {};
+    const lg = App.project.titlePage.logo;
+    if (b.logo !== false && lg && App.project.assets[lg]) {
+      out.logoUrl = App.assetUrl(lg);
+      if (!aspectCache[out.logoUrl]) aspectCache[out.logoUrl] = await new Promise(res => { const im = new Image(); im.onload = () => res(im.naturalWidth / im.naturalHeight || 2); im.onerror = () => res(2); im.src = out.logoUrl; });
+      out.aspect = aspectCache[out.logoUrl];
+    }
+    const t = String(b.qrText || '').trim();
+    if (b.qr !== false && t) out.qrUrl = qrCache[t] || (qrCache[t] = await api.qrDataUrl(t));
+    return out;
+  }
+
   async function drawPreview() {
     if (proof) return showProof();
     if (!frame || !frame.contentWindow || !frame.contentWindow.renderCover) return;
@@ -131,7 +148,7 @@
     const assets = {};
     Object.values(c.images).forEach(it => { if (it && App.project.assets[it.asset]) assets[it.asset] = { dataUrl: App.assetUrl(it.asset) }; });
     const cc = Object.assign({}, c, { isbnBarcode: Object.assign({}, c.isbnBarcode, { isbn: (c.isbnBarcode && c.isbnBarcode.isbn) || App.project.meta.isbn }) });
-    const r = await frame.contentWindow.renderCover({ cover: cc, assets }, { bleed: guideState.bleed, guides: guideState.guides, bleedLines: guideState.bleedLines });
+    const r = await frame.contentWindow.renderCover({ cover: cc, assets, brand: await brandData(c) }, { bleed: guideState.bleed, guides: guideState.guides, bleedLines: guideState.bleedLines });
     const box = $('#coverStage');
     if (box) frame.contentWindow.setCoverZoom(Math.min(1.5, (box.clientWidth - 40) / r.wpx, (box.clientHeight - 40) / r.hpx));
   }
@@ -145,6 +162,9 @@
     Object.values(c.images).forEach(it => { if (it && App.project.assets[it.asset]) assets[it.asset] = App.project.assets[it.asset]; });
     const cc = JSON.parse(JSON.stringify(c));
     if (cc.isbnBarcode && !cc.isbnBarcode.isbn) cc.isbnBarcode.isbn = App.project.meta.isbn;
+    const lg = App.project.titlePage.logo;
+    cc.brand = Object.assign({}, CoverGeometry.BRAND, c.brand || {}, { logoAsset: lg || null });
+    if (lg && App.project.assets[lg]) assets[lg] = App.project.assets[lg];
     proof = await api.coverProof(cc, assets);
     $('#toast').classList.remove('show');
     if (proof && proof.error) { App.toast('Erro: ' + proof.error, 6000); proof = null; return; }
@@ -233,6 +253,24 @@
     }
     if (c.hardcover) out.push('O manual Cedet trata de capa em cartão 250 g (brochura); a capa dura não faz parte do padrão.');
     return out;
+  }
+
+  function brandCard(c, on) {
+    c.brand = Object.assign({}, CoverGeometry.BRAND, c.brand || {});
+    const b = c.brand;
+    const reb = () => { proof = null; render(); };
+    const hasLogo = !!(App.project.titlePage.logo && App.project.assets[App.project.titlePage.logo]);
+    return App.card('Logotipo da editora e QR code do site', [
+      el('label', { class: 'chk' }, [on(b, 'enabled', 'checkbox', { onChange: reb }), ' Logotipo à esquerda e QR code à direita, no pé da capa']),
+      App.field('Onde', on(b, 'panel', 'select', { options: [{ value: 'back', label: 'Quarta capa (contracapa)' }, { value: 'front', label: 'Capa (frente)' }], onChange: reb })),
+      el('label', { class: 'chk' }, [on(b, 'logo', 'checkbox', { onChange: reb }), ' Logotipo (o mesmo da página de rosto)']),
+      App.field('Largura do logotipo (mm)', on(b, 'logoWidth', 'number', { step: 1, min: 8, max: 60 })),
+      el('label', { class: 'chk' }, [on(b, 'qr', 'checkbox', { onChange: reb }), ' QR code']),
+      App.field('Endereço do QR code', on(b, 'qrText', 'text', { onChange: () => { proof = null; redraw(); } })),
+      App.field('Tamanho do QR code (mm)', on(b, 'qrSize', 'number', { step: 1, min: 12, max: 40 }), 'Mínimo recomendado: 15 mm para a leitura pelo celular'),
+      App.field('Distância dos cortes (mm)', on(b, 'margin', 'number', { step: 0.5, min: 3 })),
+      !hasLogo ? el('p', { class: 'small warn', text: 'Nenhum logotipo na página de rosto: escolha um em Créditos e ficha → Editora e logotipo.' }) : null
+    ], 'O QR code fica ao lado do código de barras, sem encostar nele. Em capas escuras, prefira um logotipo claro.', 'span-all');
   }
 
   function barcodeCard(c, on) {
@@ -375,6 +413,7 @@
           ])
         ], 'Cada imagem preenche toda a sua parte até a borda da sangria, sem faixas brancas (o excesso é recortado pelo centro; ou escolha “Esticar”). Imagens CMYK (JPEG) mantêm seus valores; imagens RGB são convertidas com o perfil ICC escolhido abaixo, respeitando o perfil embutido na imagem.', 'span-all'),
         App.card('Cor de fundo (áreas sem imagem)', [f('Capa', on(c.bg, 'front', 'color')), f('Lombada', on(c.bg, 'spine', 'color')), f('Contracapa', on(c.bg, 'back', 'color'))]),
+        brandCard(c, on),
         barcodeCard(c, on),
         App.card('Saída para gráfica — PDF CMYK', [
           f('Perfil de cor (ICC)', on(c, 'profile', 'select', { options: [{ value: 'fogra39', label: 'ISO Coated v2 (ECI) — FOGRA39 · couchê, offset Brasil/Europa' }, { value: 'gracol', label: 'GRACoL 2013 (CRPC6) · couchê, padrão EUA/KDP' }].concat(c.customIcc ? [{ value: 'custom', label: 'Carregado: ' + c.customIcc.desc }] : []), onChange: () => { proof = null; render(); } }), c.cedet ? 'O Cedet recomenda U.S. Web Coated (SWOP) v2: carregue o arquivo .icc do perfil (ele não pode ser distribuído com o programa).' : 'Use o perfil indicado pela sua gráfica.', 'wide'),

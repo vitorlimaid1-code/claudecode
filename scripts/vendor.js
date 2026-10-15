@@ -10,6 +10,11 @@ const out = path.join(root, 'src', 'renderer', 'vendor');
 const FONTS = ['eb-garamond', 'crimson-pro', 'libre-baskerville', 'lora', 'merriweather', 'cormorant-garamond', 'playfair-display', 'josefin-sans', 'montserrat'];
 const WEIGHTS = ['400', '400-italic', '700', '700-italic'];
 const SUBSETS = ['latin', 'latin-ext'];
+// faixas Unicode do Google Fonts/Fontsource para cada subconjunto
+const UNICODE_RANGES = {
+  latin: 'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD',
+  'latin-ext': 'U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF'
+};
 // pesos extras (fino e extra-grosso) usados pelos modelos de sumário e de título
 const EXTRA = { 'cormorant-garamond': ['300', '300-italic'], 'crimson-pro': ['300', '300-italic'], merriweather: ['300', '300-italic', '900'], 'playfair-display': ['900', '900-italic'] };
 
@@ -82,6 +87,12 @@ for (const font of FONTS) {
       const cssFile = path.join(pkg, `${sub}-${w}.css`);
       if (!fs.existsSync(cssFile)) continue;
       let text = fs.readFileSync(cssFile, 'utf8');
+      // faixa de caracteres de cada subconjunto (latin / latin-ext): os arquivos por subconjunto não a trazem e,
+      // sem ela, a face latin-ext (declarada depois) assumia letras como “Ã” e o til saía deslocado
+      if (!/unicode-range/.test(text)) {
+        const range = UNICODE_RANGES[sub];
+        if (range) text = text.replace(/(src:[^;]*;)/, `$1\n  unicode-range: ${range};`);
+      }
       // Mantém só o woff2 e reescreve o caminho
       text = text.replace(/src:\s*url\(\.\/files\/([^)]+\.woff2)\)\s*format\('woff2'\)[^;]*;/g, (m, file) => {
         fs.copyFileSync(path.join(pkg, 'files', file), path.join(fontOut, file));

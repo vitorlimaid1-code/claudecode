@@ -315,7 +315,7 @@ window.App = (function () {
     const isLen = opts.len;
     const show = v => (isLen ? +D.toUnit(Number(v) || 0, App.unit).toFixed(App.unit === 'mm' ? 2 : 3) : v);
     if (type === 'textarea') { input = el('textarea', { rows: opts.rows || 3, placeholder: opts.placeholder || '' }); input.value = obj[key] || ''; }
-    else if (type === 'checkbox') { input = el('input', { type: 'checkbox' }); input.checked = !!obj[key]; }
+    else if (type === 'checkbox') { input = el('input', { type: 'checkbox' }); input.checked = obj[key] === undefined && opts.fallback !== undefined ? !!opts.fallback : !!obj[key]; }
     else if (type === 'color') { input = el('input', { type: 'color' }); input.value = /^#[0-9a-f]{6}$/i.test(obj[key] || '') ? obj[key] : (opts.fallback || '#000000'); }
     else if (type === 'select') {
       input = el('select');
@@ -330,7 +330,7 @@ window.App = (function () {
       if (input.value !== String(obj[key] == null ? '' : obj[key]) && obj[key]) { input.appendChild(el('option', { value: obj[key], text: obj[key] + ' (indisponível)' })); input.value = obj[key]; }
     } else if (type === 'number') {
       input = el('input', { type: 'number', step: isLen && App.unit !== 'mm' ? 'any' : (opts.step || 1), min: opts.min !== undefined ? show(opts.min) : undefined, max: opts.max !== undefined ? show(opts.max) : undefined });
-      input.value = obj[key] === '' || obj[key] == null ? '' : show(obj[key]);
+      input.value = obj[key] === '' || obj[key] == null ? (opts.fallback != null ? show(opts.fallback) : '') : show(obj[key]);
     } else { input = el('input', { type: 'text', placeholder: opts.placeholder || '' }); input.value = obj[key] == null ? '' : obj[key]; }
     if (opts.disabled) input.disabled = true;
     const evt = type === 'checkbox' || type === 'select' || type === 'color' ? 'change' : 'input';

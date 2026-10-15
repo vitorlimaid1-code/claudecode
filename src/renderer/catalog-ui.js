@@ -1,4 +1,4 @@
-/* global App */
+/* global App, Ficha */
 // Galeria de modelos de ficha catalográfica (prontos + salvos pelo usuário) e a "ficha fixa",
 // que é aplicada automaticamente a todo livro novo.
 (function () {
@@ -228,6 +228,65 @@
     });
     setTimeout(() => add.focus(), 40);
   }
+  // ---------------------------------------------------------------- assuntos e CDD (janelas de escolha)
+  function pickSubjects(rerender) {
+    const c = App.project.catalog;
+    let sel = String(c.subjects || '').split(/[\n;]+/).map(x => x.trim()).filter(Boolean);
+    const all = Ficha.SUBJECTS.concat(sel.filter(x => !Ficha.SUBJECTS.includes(x)));
+    const prev = el('p', { class: 'small cat-prev' });
+    const grid = el('div', { class: 'pick-grid' });
+    const draw = () => {
+      grid.innerHTML = '';
+      all.forEach(x => {
+        const i = sel.indexOf(x);
+        grid.appendChild(el('button', { class: 'pick-chip' + (i >= 0 ? ' on' : ''), onclick: () => { const k = sel.indexOf(x); if (k >= 0) sel.splice(k, 1); else sel.push(x); draw(); } }, [i >= 0 ? el('b', { text: String(i + 1) }) : null, x]));
+      });
+      prev.textContent = sel.length ? 'Na ficha: ' + sel.map((x, i) => `${i + 1}. ${x}.`).join(' ') + ' I. Título.' : 'Escolha ao menos um assunto (na ordem de importância).';
+    };
+    const add = el('input', { type: 'text', placeholder: 'Outro assunto (Enter para incluir)' });
+    add.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const v = add.value.trim(); if (v && !all.includes(v)) all.push(v); if (v && !sel.includes(v)) sel.push(v); add.value = ''; draw(); } });
+    draw();
+    App.modal({
+      title: 'Assuntos da ficha catalográfica',
+      body: el('div', {}, [el('p', { class: 'muted small', text: 'Clique na ordem de importância: o número mostra a posição na ficha. Clique de novo para tirar.' }), grid, add, prev]),
+      buttons: [{ label: 'Cancelar' }, { label: 'Aplicar', primary: true, onClick: () => { c.subjects = sel.join('; '); App.changed('Assuntos da ficha'); rerender(); } }]
+    });
+  }
+  function pickCdd(rerender) {
+    const c = App.project.catalog;
+    let cur = String(c.cdd || '').trim();
+    const list = el('div', { class: 'pick-list' });
+    const q = el('input', { type: 'search', placeholder: 'Procurar (ex.: russa, história)' });
+    const custom = el('input', { type: 'text', placeholder: 'Ou digite o código', value: cur });
+    const draw = () => {
+      const t = q.value.trim().toLowerCase();
+      list.innerHTML = '';
+      Ficha.CDD.filter(x => !t || (x.label + ' ' + x.code).toLowerCase().includes(t)).forEach(x => list.appendChild(el('button', { class: 'pick-row' + (cur === x.code ? ' on' : ''), onclick: () => { cur = x.code; custom.value = x.code; draw(); } }, [el('b', { text: x.code }), el('span', { text: x.label })])));
+    };
+    q.addEventListener('input', draw);
+    custom.addEventListener('input', () => { cur = custom.value.trim(); draw(); });
+    draw();
+    App.modal({
+      title: 'CDD — Classificação Decimal de Dewey',
+      body: el('div', {}, [el('p', { class: 'muted small', text: 'Códigos usuais por gênero e origem da obra. A ficha oficial deve ser conferida por bibliotecário(a).' }), q, list, custom]),
+      buttons: [{ label: 'Cancelar' }, { label: 'Aplicar', primary: true, onClick: () => { c.cdd = cur; App.changed('CDD da ficha'); rerender(); } }]
+    });
+  }
+
+  // selo editorial: nome em “Esta edição é publicada por …” (e na editora da ficha) e logotipo no rosto
+  async function chooseSeal(id, rerender) {
+    const m = App.project.meta;
+    const sl = Ficha.SEALS.find(x => x.id === id);
+    m.seal = sl ? sl.id : '';
+    if (!sl) { App.changed('Selo removido'); rerender(); return; }
+    m.publisher = sl.name;
+    if (!m.city) m.city = 'Rio de Janeiro';
+    App.changed(`Selo: ${sl.name}`);
+    const r = await api.sealLogo(sl.id);
+    if (r && r.dataUrl) await chooseLogo({ id: 'seal:' + sl.id, name: sl.name, dataUrl: r.dataUrl }, rerender);
+    else { App.toast(`Selo “${sl.name}” aplicado na ficha. O logotipo não pôde ser baixado agora${r && r.error ? ' (' + r.error + ')' : ''}: conecte-se à internet uma vez e escolha o selo de novo.`, 7000); rerender(); }
+  }
+
   function publisherCard(rerender) {
     const holder = el('div', { class: 'card span-all' }, [el('h3', { text: 'Editora e logotipo' }), el('p', { class: 'muted small', text: 'Carregando…' })]);
     loadPubs().then(() => {
@@ -239,9 +298,13 @@
       const imprint = el('textarea', { rows: 2 });
       imprint.value = tp.imprint || IMPRINT;
       imprint.addEventListener('input', () => { tp.imprint = imprint.value; App.changed(null); clearTimeout(imprint._t); imprint._t = setTimeout(() => App.commit('Texto abaixo do logotipo'), 900); });
+      const sealSel = el('select', { class: 'pub-select', onchange: e => chooseSeal(e.target.value, rerender) }, [el('option', { value: '', text: '— escolha o selo editorial —' })].concat(Ficha.SEALS.map(x => el('option', { value: x.id, text: x.name, selected: m.seal === x.id }))));
       holder.innerHTML = '';
       holder.append(
         el('h3', { text: 'Editora e logotipo' }),
+        el('div', { class: 'pub-top' }, [
+          el('label', { class: 'field' }, [el('span', { class: 'flabel', text: 'Selo editorial (logotipo no rosto e na capa; “Esta edição é publicada por …” na ficha)' }), sealSel])
+        ]),
         el('div', { class: 'pub-top' }, [
           el('label', { class: 'field' }, [el('span', { class: 'flabel', text: 'Editora' }), sel]),
           el('button', { text: 'Editoras…', title: 'Cadastrar, editar ou excluir editoras', onclick: () => managePublishers(rerender) })
@@ -263,5 +326,5 @@
     return holder;
   }
 
-  App.catalogUi = { gallery, STYLES, BUILTIN, publisherCard, managePublishers };
+  App.catalogUi = { gallery, STYLES, BUILTIN, publisherCard, managePublishers, pickSubjects, pickCdd, chooseSeal };
 })();

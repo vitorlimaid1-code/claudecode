@@ -65,6 +65,20 @@ Tela própria, aberta pelo botão **Tradução** no topo (ou na tela de boas-vin
 - **Editoras…** abre a lista de editoras: adicione (Enter), edite nome e cidade, exclua e **Salvar** — a lista fica guardada para todos os livros. Escolhendo a editora no seletor, a ficha catalográfica e a página de rosto se atualizam na hora, e a prévia vai até a ficha.
 - **Logotipos da editora**: envie um ou vários (ficam salvos para os próximos livros). Clique num logotipo para aplicá-lo na **página de rosto, abaixo do título**, com “Impresso no Brasil” e “Sorriso, MT” (texto editável), largura e posição ajustáveis.
 
+### Ficha catalográfica da Casa Vertigem
+- **Letra maior**: a página de créditos passou de 7,5 pt para **9 pt** (ajustável em “Tamanho do texto da página de créditos”).
+- **Créditos automáticos** (podem ser desligados): **Revisão** em rodízio entre Juliana Hasegawa, Camila Loreto, Isadora S. Vieira, Juliana Costa Monteiro e Ricardo N. Bragança — muda a cada exportação, na ordem; **Tradução** sorteada a cada exportação entre Isabela Vieira Machado, Isaias Pedroso Santana, Camila Borges Vieira, Santana Rosa Silveira e Matheus da Silva Cunha (opcional); **Diagramação** e **Capa**: Vitor Zindacta (via Casa Vertigem Hub). Um nome digitado para a mesma função tem prioridade. A prévia mostra os nomes da exportação atual.
+- **Dados da empresa**: CASA VERTIGEM EDITORA DE LIVROS LTDA, CNPJ 13.539.864/0001-28, Rua Santa Clara 205/404 – Copacabana, RJ/RJ, CEP 22041-011.
+- **Direitos autorais**: texto completo com © 2026, o nome do autor (o de *Dados e páginas iniciais*) e “Esta edição é publicada por” + o **selo editorial** escolhido. O texto antigo é trocado automaticamente.
+- **Selos editoriais** (*Editora e logotipo*): Aliança do Reino, Ôssário, Cultura das Letras, Obsessiva, Espaço Capital Editora, Casa Vertigem, Saber Central, Papel de Brincar, Casa Azul, Nébula, Nova Academia, Cultura das Letras Edições e Prime Classics. Escolher o selo preenche a editora da ficha e coloca o logotipo na página de rosto (e na capa). Os logotipos vêm no instalador; se faltar algum, o app baixa uma vez e guarda uma cópia.
+- **CDD** e **Assuntos** (indispensáveis, destacados quando vazios): janelas de escolha com os códigos usuais (literatura geral, brasileira, americana, britânica, inglesa, francesa, alemã, russa, japonesa, contemporânea, não ficção, acadêmicos, autoajuda, história, filosofia, receitas…) e os assuntos mais usados (Terror, Suspense, Romance, Literatura brasileira, Literatura contemporânea, Literatura universal…), na ordem de importância.
+
+### Capa: logotipo e QR code
+- No pé da **quarta capa** (ou da capa), o **logotipo** da página de rosto à esquerda e um **QR code** para www.casavertigem.com.br à direita, ao lado do código de barras sem encostar nele. Tamanhos, endereço, margens e lado são ajustáveis; vale na prévia, na prova de cor e no PDF CMYK.
+
+### Filetes ornamentais
+- 12 filetes da Casa Vertigem na biblioteca de imagens (categoria **Separadores**), para usar sob o título dos capítulos.
+
 ### Paginação rápida
 - O livro é paginado **por capítulos, em paralelo**, em processos separados: a janela nunca trava e as primeiras páginas aparecem em cerca de um segundo. Ao editar, só o capítulo alterado é paginado de novo. A exportação usa o mesmo caminho (mesmo resultado da tela).
 - Páginas fora da tela não são redesenhadas: livros de centenas de páginas rolam sem travar.

@@ -94,6 +94,8 @@ class ImageLibrary {
     const out = [];
     let manifest = { separadores: [], corpo: [] };
     try { manifest = JSON.parse(fs.readFileSync(path.join(this.builtinDir, 'manifest.json'), 'utf8')); } catch (e) { /* sem biblioteca */ }
+    // filetes da Casa Vertigem que vieram com o instalador (fora do manifesto)
+    if (this.extraBuiltin) { try { const have = new Set((manifest.separadores || []).map(x => x.file)); manifest.separadores = (manifest.separadores || []).concat(this.extraBuiltin().filter(x => !have.has(x.file))); } catch (e) { /* ok */ } }
     const meta = this.readMeta();
     KINDS.forEach(kind => {
       (manifest[kind] || []).forEach(it => {

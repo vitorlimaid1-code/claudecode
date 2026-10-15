@@ -575,8 +575,8 @@
       e.preventDefault();
       const c = chapterOfNode(host);
       if (!c || c.locked || !activate(c)) return;
-      const html = e.clipboardData.getData('text/html');
-      const text = e.clipboardData.getData('text/plain');
+      const html = e.clipboardData.getData('text/html').normalize('NFC');
+      const text = e.clipboardData.getData('text/plain').normalize('NFC');
       const files = Array.from(e.clipboardData.files || []);
       // texto simples de uma linha: entra na página na hora
       if (!html && !files.length && text && !/[\r\n]/.test(text)) { d.execCommand('insertText', false, text); return; }

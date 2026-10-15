@@ -1,4 +1,4 @@
-/* global App, BookText */
+/* global App, BookText, Ficha */
 // Painéis: capítulos (seleção múltipla, bloqueio, edição em massa), dados do livro, ficha,
 // páginas finais, formato/diagramação e notas de rodapé.
 (function () {
@@ -435,12 +435,16 @@
         ], '', 'span-all');
       })(),
       card('Créditos do desenvolvimento do livro', [
+        el('label', { class: 'chk' }, [bind(c, 'autoCredits', 'checkbox', { fallback: true, onChange: rerender }), ' Créditos automáticos da Casa Vertigem (revisão em rodízio, tradução sorteada a cada exportação, diagramação e capa)']),
+        c.autoCredits !== false ? el('label', { class: 'chk' }, [bind(c, 'autoTranslation', 'checkbox', { fallback: true }), ' Incluir o crédito de tradução']) : null,
+        el('label', { class: 'chk' }, [bind(c, 'company', 'checkbox', { fallback: true }), ' Dados da empresa na ficha (Casa Vertigem Editora de Livros Ltda., CNPJ e endereço)']),
+        c.autoCredits !== false ? (() => { const n = el('p', { class: 'small muted', text: 'Nomes desta exportação: …' }); api.creditsNow().then(a => { n.textContent = `Nomes da exportação atual: revisão — ${a.review}; tradução — ${c.translator || a.translation}. Na próxima exportação, a revisão passa para o nome seguinte e a tradução é sorteada de novo. Um nome digitado abaixo para a mesma função tem prioridade.`; }); return n; })() : null,
         credits,
         el('div', { class: 'inline wrap' }, roles.map(r => el('button', { class: 'chip', text: '+ ' + r, onclick: () => { c.credits.push({ role: r, name: '' }); App.changed('Crédito adicionado'); rerender(); } }))
           .concat([el('button', { class: 'chip', text: '+ Outro', onclick: () => { c.credits.push({ role: '', name: '' }); rerender(); } })]))
       ], '', 'span-all'),
       card('Direitos e contato', [
-        field('Texto de direitos autorais', bind(c, 'rights', 'textarea', { rows: 3, placeholder: `© ${m.year} ${m.author}\nTodos os direitos reservados.` }), '', 'wide'),
+        field('Texto de direitos autorais', bind(c, 'rights', 'textarea', { rows: 6, placeholder: Ficha.rights(m) }), 'Vazio = texto padrão (mostrado em cinza): © 2026, o autor do livro e o selo escolhido em “Editora e logotipo”.', 'wide'),
         field('Contato / endereço da editora', bind(c, 'contact', 'textarea', { rows: 2 }), '', 'wide'),
         field('Crédito de distribuição', bind(c, 'distribution', 'textarea', { rows: 6, placeholder: App.project.settings.standard === 'cedet' ? D.CEDET.distribution : 'Opcional' }), App.project.settings.standard === 'cedet' ? 'CEDET: obrigatório. Vazio = texto oficial do manual (mostrado acima, em cinza).' : 'Ex.: dados da distribuidora', 'wide'),
         App.project.settings.standard === 'cedet' ? el('div', { class: 'field' }, [el('span', { class: 'flabel', text: ' ' }), el('button', { class: 'small-btn', text: 'Inserir o crédito oficial do Cedet', onclick: () => { c.distribution = D.CEDET.distribution; App.changed('Crédito de distribuição'); App.hooks.viewRender[App.view] && App.hooks.viewRender[App.view](); } })]) : null
@@ -450,6 +454,7 @@
         field('Modo', bind(c, 'mode', 'select', { options: [{ value: 'fields', label: 'Montar a partir dos campos' }, { value: 'manual', label: 'Texto manual (colar ficha pronta do bibliotecário)' }], onChange: rerender })),
         field('Aparência', bind(c, 'style', 'select', { options: App.catalogUi.STYLES })),
         field('Posição na página', bind(c, 'position', 'select', { options: [{ value: 'bottom', label: 'No pé da página (padrão)' }, { value: 'top', label: 'No alto da página' }] })),
+        field('Tamanho do texto da página de créditos (pt)', bind(c, 'fontSize', 'number', { step: 0.5, min: 7, max: 12, fallback: 9 })),
         c.mode === 'manual' ? field('Ficha catalográfica (texto completo)', bind(c, 'manualText', 'textarea', { rows: 9 }), '', 'wide') : null,
         c.mode !== 'manual' ? field('Entrada principal (autor)', bind(c, 'authorEntry', 'text', { placeholder: 'SOBRENOME, Nome, 1980-' })) : null,
         c.mode !== 'manual' ? field('Título do livro', bind(m, 'title', 'text')) : null,
@@ -465,8 +470,8 @@
         c.mode !== 'manual' ? field('Quantidade de páginas', bind(c, 'pagesOverride', 'text', { placeholder: App.lastRender ? `automático (${App.lastRender.pages})` : 'automático' })) : null,
         c.mode !== 'manual' ? field('Série / coleção', bind(c, 'series', 'text')) : null,
         c.mode !== 'manual' ? field('ISBN', bind(m, 'isbn', 'text')) : null,
-        c.mode !== 'manual' ? field('Assuntos (separados por ;)', bind(c, 'subjects', 'text', { placeholder: 'Ficção brasileira; Romance' })) : null,
-        c.mode !== 'manual' ? field('CDD', bind(c, 'cdd', 'text')) : null,
+        c.mode !== 'manual' ? el('div', { class: 'field' + (String(c.subjects || '').trim() ? '' : ' need') }, [el('span', { class: 'flabel', text: 'Assuntos (indispensáveis)' }), el('div', { class: 'inline' }, [bind(c, 'subjects', 'text', { placeholder: 'Escolha na lista →' }), el('button', { class: 'small-btn primary', text: 'Escolher…', onclick: () => App.catalogUi.pickSubjects(rerender) })])]) : null,
+        c.mode !== 'manual' ? el('div', { class: 'field' + (String(c.cdd || '').trim() ? '' : ' need') }, [el('span', { class: 'flabel', text: 'CDD (indispensável)' }), el('div', { class: 'inline' }, [bind(c, 'cdd', 'text', { placeholder: 'Escolha na lista →' }), el('button', { class: 'small-btn primary', text: 'Escolher…', onclick: () => App.catalogUi.pickCdd(rerender) })])]) : null,
         c.mode !== 'manual' ? field('CDU', bind(c, 'cdu', 'text')) : null,
         c.mode !== 'manual' ? field('Cutter', bind(c, 'cutter', 'text')) : null,
         c.mode !== 'manual' ? field('Notas', bind(c, 'notes', 'textarea', { rows: 2 }), '', 'wide') : null,

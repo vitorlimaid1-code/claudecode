@@ -26,6 +26,9 @@ jobs:
       - name: Teste (gera um PDF de exemplo)
         run: npm test
 
+      - name: Baixar logotipos dos selos e filetes da Casa Vertigem
+        run: node scripts/fetch-assets.js
+
       - name: Gerar instalador, versão portátil e ZIP
         run: npm run dist:win
 
