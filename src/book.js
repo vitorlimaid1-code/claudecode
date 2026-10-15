@@ -1436,7 +1436,7 @@ async function buildBook(rawProject, opts) {
       justify: !!s.fineJustify,
       notesMode: project.kind === 'magazine' || project.kind === 'newspaper' ? 'footnote' : (s.notesMode || 'footnote'),
       frontRoman: !!ctx.frontNum,
-      folio: s.standard === 'cedet' && s.pageNumbers !== 'center' && s.pageNumbers !== 'none' ? 'outer' : s.pageNumbers,
+      folio: s.pageNumbers,
       lastPage: { enabled: !!s.lastPageAdjust, minLines: Math.max(1, num(s.lastPageMinLines, 3)) },
       colW: ctx.colW
     },

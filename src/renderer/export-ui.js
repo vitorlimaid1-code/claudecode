@@ -127,8 +127,8 @@
     if (s.header !== 'none' && Number(s.marginTop) < 27) issues.push({ level: 'warn', type: 'cedet', msg: 'CEDET: com cabeçalho, use margem superior de pelo menos 27 mm para o cabeçalho também ficar dentro da margem de segurança de 20 mm.', fix: 'cedet' });
     if (s.pageNumbers !== 'none' && !(Number(s.folioGap) > 0) && Number(s.marginBottom) < 46) issues.push({ level: 'warn', type: 'cedet', msg: 'CEDET: o número da página fica centrado na margem inferior e pode ficar a menos de 20 mm do corte. Reaplique o modelo CEDET (número logo abaixo do texto).', fix: 'cedet' });
     if (s.pageNumbers === 'top-outer') issues.push({ level: 'info', type: 'cedet', msg: 'CEDET: a numeração no topo não é aceita; ela sai no canto inferior externo.' });
-    if (s.pageNumbers === 'left') issues.push({ level: 'error', type: 'cedet', msg: 'CEDET: com o número à esquerda em todas as páginas, nas páginas ímpares ele fica no canto interno (perto da lombada), o que o manual não aceita. Use o canto inferior externo ou o centro (Formato e diagramação › Cabeçalho, numeração e notas).', fix: 'cedet' });
-    if (s.pageNumbers === 'none') issues.push({ level: 'error', type: 'cedet', msg: 'CEDET: o miolo deve ter numeração de páginas (canto inferior externo ou centro inferior).' });
+    if (s.pageNumbers === 'left') issues.push({ level: 'warn', type: 'cedet', msg: 'CEDET: o número está à esquerda em todas as páginas (padrão da editora). O manual do Cedet pede o canto inferior externo ou o centro; nas páginas ímpares o número fica no canto interno, perto da lombada — confirme com a equipe de Editoras Parceiras se aceitam.' });
+    if (s.pageNumbers === 'none') issues.push({ level: 'error', type: 'cedet', msg: 'CEDET: o miolo deve ter numeração de páginas.' });
     // imagens e marcações coloridas: o miolo sai só com tinta preta
     const used = new Set();
     proj.chapters.forEach(c => { String(c.html || '').replace(/data-asset="([^"]+)"/g, (m, id) => { used.add(id); return m; }); if (c.openingImage && c.openingImage.asset) used.add(c.openingImage.asset); });

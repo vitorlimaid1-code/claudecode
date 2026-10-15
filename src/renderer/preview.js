@@ -483,7 +483,8 @@
         const n = Number(pg.dataset.pageNumber);
         if (n >= firstN) return;
         const leftP = pg.classList.contains('pagedjs_left_page');
-        const box = folio === 'center' ? 'bottom-center' : folio === 'top-outer' ? (leftP ? 'top-left' : 'top-right') : (leftP ? 'bottom-left' : 'bottom-right');
+        // o número fica sempre na caixa inferior esquerda (à esquerda; no canto externo, alinhado à direita nas ímpares)
+        const box = folio === 'center' ? 'bottom-center' : folio === 'top-outer' ? (leftP ? 'top-left' : 'top-right') : 'bottom-left';
         css += `\n.pagedjs_page[data-page-number="${n}"] .pagedjs_margin-${box} > .pagedjs_margin-content::after { content: "${romanLower(n)}" !important; }`;
       });
     }
