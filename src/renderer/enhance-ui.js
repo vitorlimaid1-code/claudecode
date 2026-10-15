@@ -201,20 +201,10 @@
     });
     if (toc.length) log(`· sumário/índice do PDF removido (página${toc.length > 1 ? 's' : ''} ${toc.join(', ')})`);
     if (pages.length - keep.length - toc.length > 0) log(`· ${pages.length - keep.length - toc.length} página(s) em branco removida(s)`);
-    // título e autor: os do arquivo ou, na falta, a maior linha das primeiras páginas (folha de rosto)
-    const meta = Object.assign({}, res.meta || {});
-    if (!meta.title) {
-      let best = null;
-      keep.slice(0, 4).forEach(p => p.lines.forEach(l => { const t = T(l); if (t.length >= 2 && t.length <= 80 && !BOILER_RE.test(t) && !BookText.chapterMark(t, 'H1') && l.size > body * 1.2 && (!best || l.size > best.l.size)) best = { l, t, p }; }));
-      if (best) {
-        meta.title = best.t;
-        if (!meta.author) {
-          const name = /^[A-ZÀ-Ú][\p{L}.'’-]+(\s+(de|da|do|dos|das|e|[A-ZÀ-Ú][\p{L}.'’-]*)){1,5}$/u;
-          const a = best.p.lines.map(T).find(t => t !== best.t && name.test(t) && !BOILER_RE.test(t) && !TOC_HEAD_RE.test(t) && !BookText.chapterMark(t, 'H1'));
-          if (a) meta.author = a;
-        }
-      }
-    }
+    // título e autor da obra (para o DOCX e o nome do arquivo salvo)
+    const found = guessPdfTitle(keep, body, res.meta || {}, res.name || '');
+    const meta = Object.assign({}, res.meta || {}, { title: found.title, author: found.author || (res.meta || {}).author || '' });
+    if (found.title) log(`· título reconhecido: “${found.title}” (${found.source})${meta.author ? ' · autor: ' + meta.author : ''}`);
     res.meta = meta;
     // texto reconstruído (parágrafos, títulos, notas, sem cabeçalhos e números de página)
     const box = document.createElement('div');
@@ -231,14 +221,113 @@
     return box.innerHTML;
   }
 
+  // ---------------------------------------------------------------- título da obra no PDF
+  const SMALL_WORDS = new Set(['a', 'à', 'ao', 'aos', 'as', 'às', 'com', 'da', 'das', 'de', 'do', 'dos', 'e', 'em', 'na', 'nas', 'no', 'nos', 'o', 'os', 'ou', 'para', 'pela', 'pelas', 'pelo', 'pelos', 'por', 'sem', 'sob', 'um', 'uma', 'à', 'del', 'di', 'du', 'la', 'le', 'of', 'the', 'and']);
+  const ROMAN_T = /^(?=[ivxlcdm]+$)m{0,4}(cm|cd|d?c{0,3})(xc|xl|l?x{0,3})(ix|iv|v?i{0,3})$/i;
+  // “DOM CASMURRO” → “Dom Casmurro”; “MEMÓRIAS PÓSTUMAS DE BRÁS CUBAS” → “Memórias Póstumas de Brás Cubas”
+  function titleCase(t) {
+    t = clean(t);
+    const letters = t.replace(/[^\p{L}]/gu, '');
+    if (!letters || letters !== letters.toUpperCase()) return t; // já tem maiúsculas e minúsculas: fica como está
+    return t.toLowerCase().split(' ').map((w, i) => {
+      if (ROMAN_T.test(w)) return w.toUpperCase();
+      if (i > 0 && SMALL_WORDS.has(w)) return w;
+      return w.replace(/^([("“«'‘]*)(\p{L})/u, (m, a, b) => a + b.toUpperCase()).replace(/-(\p{L})/gu, (m, b) => '-' + b.toUpperCase());
+    }).join(' ');
+  }
+  const PERSON_RE = /^[A-ZÀ-Ú][\p{L}.'’-]+(\s+(de|da|do|dos|das|e|[A-ZÀ-Ú][\p{L}.'’-]*)){1,5}$/u;
+  const NOT_TITLE_RE = /^(romance|romances|novela|novelas|contos?|poesias?|poemas?|crônicas?|teatro|drama|com[ée]dia|trag[ée]dia|obra completa|obras completas|volume|vol\.|tomo|livro|edi[çc][ãa]o|\d+[ªa]? edi[çc][ãa]o|pref[áa]cio|apresenta[çc][ãa]o|introdu[çc][ãa]o|[íi]ndice|sum[áa]rio|fim|nota|notas|biografia|cap[íi]tulo\b.*|parte\b.*|primeira parte|segunda parte|cole[çc][ãa]o\b.*|s[ée]rie\b.*|vers[ãa]o\b.*|fonte\b.*|digitaliza.*|texto\b.*|autor\b.*|editora\b.*|rio de janeiro.*|s[ãa]o paulo.*|lisboa.*|bras[íi]lia.*|belo horizonte.*|porto alegre.*)\.?$/i;
+  // nome de arquivo útil? (“dom_casmurro” sim; “bv000215”, “ua00064a”, “texto1” não)
+  function nameFromFile(n) {
+    n = String(n || '').replace(/\.[a-z0-9]{2,4}$/i, '').trim();
+    if (!n || /^[a-z]{1,4}[-_]?\d{3,}[a-z]?$/i.test(n) || /^\d+$/.test(n) || /^(texto|livro|documento|arquivo|download|ebook|e-book|book|pdf|doc)[-_ ]?\d*$/i.test(n)) return '';
+    const t = n.replace(/[_]+/g, ' ').replace(/(\p{Ll})(\p{Lu})/gu, '$1 $2').replace(/\s+/g, ' ').trim();
+    return t.split(' ').length >= 1 && /\p{L}{3,}/u.test(t) ? titleCase(t.toUpperCase()) : '';
+  }
+  const norm = t => clean(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  // O título costuma ser a primeira linha de destaque do arquivo (folha de rosto), depois dos avisos do acervo.
+  // Pontua as linhas das primeiras páginas (tamanho da letra, caixa alta, posição, não parecer nome de pessoa,
+  // gênero ou cidade), junta título em duas linhas e confere com os dados do PDF e o nome do arquivo.
+  function guessPdfTitle(pages, body, meta, fileName) {
+    const T = BookText.pdfLineText;
+    const cands = [];
+    let order = 0;
+    let stop = false;
+    for (const p of pages.slice(0, 3)) {
+      if (stop) break;
+      const lines = p.lines.slice().sort((a, b) => b.y - a.y);
+      let longRun = 0;
+      for (let k = 0; k < lines.length; k++) {
+        const l = lines[k], t = T(l);
+        if (!t || BOILER_RE.test(t)) continue; // avisos e créditos do acervo não contam
+        // o texto corrido (ou o primeiro capítulo) começou: o que vier depois não é mais folha de rosto
+        if (BookText.chapterMark(t, 'H1') && cands.length === 0) { stop = true; break; }
+        const letters0 = t.replace(/[^\p{L}]/gu, '');
+        const textish = l.size <= body * 1.05 && letters0 !== letters0.toUpperCase() && (t.length > 45 || /^[a-zà-ú]/.test(t));
+        if (textish) { if (++longRun >= 2) { stop = cands.length === 0; break; } continue; }
+        order++;
+        if (t.length < 2 || t.length > 90 || t.split(' ').length > 14) continue;
+        if (BOILER_RE.test(t) || TOC_HEAD_RE.test(t) || BookText.chapterMark(t, 'H1') || NOT_TITLE_RE.test(t)) continue;
+        if (/^[\d\s.,/–—-]+$/.test(t) || /^\(?\d{3,4}\)?$/.test(t) || /^[ivxlcdm]+$/i.test(t)) continue;
+        if (/[.;:]$/.test(t) && t.split(' ').length > 6) continue;
+        const letters = t.replace(/[^\p{L}]/gu, '');
+        if (letters.length < 2) continue;
+        const upper = letters === letters.toUpperCase();
+        const byLine = /^(de|por|by)\s+\S/i.test(t); // “de Machado de Assis”: autor
+        const person = byLine || (PERSON_RE.test(t) && !upper && t.split(' ').length <= 5);
+        let score = (l.size / body) * 3 + (upper ? 1.5 : 0) - order * 0.25 - (byLine ? 4 : person ? 1.5 : 0) - (t.length > 60 ? 1 : 0);
+        cands.push({ l, t, p, k, lines, score, upper, person });
+      }
+      if (cands.length >= 6) break;
+    }
+    let best = cands.slice().sort((a, b) => b.score - a.score)[0] || null;
+    let title = '';
+    if (best) {
+      title = best.t;
+      // título em duas (ou três) linhas seguidas do mesmo tamanho
+      for (let k = best.k + 1, n = 0; k < best.lines.length && n < 2; k++, n++) {
+        const nx = best.lines[k], prev = best.lines[k - 1], t2 = T(nx);
+        if (!t2 || Math.abs(nx.size - best.l.size) > 0.6 || prev.y - nx.y > best.l.size * 2.2) break;
+        if (BOILER_RE.test(t2) || NOT_TITLE_RE.test(t2) || (PERSON_RE.test(t2) && !/^[^a-zà-ú]+$/.test(t2)) || (title + ' ' + t2).length > 110) break;
+        title += ' ' + t2;
+      }
+    }
+    // dados do PDF: valem quando o título gravado aparece nas primeiras páginas (ou quando não há outro)
+    const firstText = norm(pages.slice(0, 3).map(p => p.lines.map(T).join(' ')).join(' '));
+    const mt = clean(meta.title || '');
+    const fileT = nameFromFile(fileName);
+    let source = 'folha de rosto';
+    if (mt && (!title || firstText.includes(norm(mt))) && norm(mt).length >= 3) { title = mt; source = 'dados do PDF'; }
+    else if (title && fileT && norm(fileT) === norm(title)) source = 'folha de rosto e nome do arquivo';
+    else if (!title && fileT) { title = fileT; source = 'nome do arquivo'; }
+    else if (!title) source = '';
+    // autor: nome de pessoa perto do título (antes ou depois), ou o dos dados do PDF
+    let author = clean(meta.author || '');
+    if (!author && best) {
+      const near = best.lines.slice(Math.max(0, best.k - 3), best.k + 5).map(T).filter(t => t && norm(t) !== norm(best.t) && !title.includes(t));
+      const a = near.map(t => t.replace(/^(de|por|by)\s+/i, '')).find(t => PERSON_RE.test(t) && !BOILER_RE.test(t) && !NOT_TITLE_RE.test(t) && !BookText.chapterMark(t, 'H1'));
+      if (a) author = titleCase(a);
+    }
+    return { title: titleCase(title), author, source };
+  }
+
   // ---------------------------------------------------------------- um livro
   async function processOne(item, sec) {
     const log = (m, k) => addLog(sec, `${item.name} — ${m}`, k);
     item.status = 'run'; renderList(sec);
     if (sec.kind === 'pdf') {
       const { proj } = await loadBook(item.path, item.name, log, { images: false });
-      const next = sec.opt.next.checked;
-      item.out = await saveDocx(proj, log, '', next ? { nextTo: item.path, name: item.path.split(/[\\/]/).pop().replace(/\.pdf$/i, '') } : null, { noTitlePage: true });
+      // o DOCX recebe o nome da obra (título reconhecido); substituir: na pasta do PDF, e o PDF vai para a Lixeira
+      const title = clean(proj.meta.title) || item.name;
+      const replace = sec.opt.replace.checked;
+      const here = replace || sec.opt.next.checked;
+      item.out = await saveDocx(proj, log, '', { nextTo: here ? item.path : null, name: title }, { noTitlePage: true });
+      log(`arquivo salvo com o título da obra: ${item.out.split(/[\\/]/).pop()}`);
+      if (replace) {
+        const r = await api.enhReplace(item.path, item.out);
+        if (r && r.ok) log('PDF original substituído pelo DOCX (o PDF foi para a Lixeira)', 'ok');
+        else log('atenção: ' + ((r && r.msg) || 'o PDF foi mantido'), 'bad');
+      }
       item.status = 'ok';
       return;
     }
@@ -359,7 +448,7 @@
     running = SECT.epub.running || SECT.pdf.running;
     renderControls(sec);
     const t0 = Date.now();
-    const where = sec.kind === 'pdf' ? (sec.opt.next.checked ? 'cada DOCX na pasta do seu PDF (o PDF é mantido)' : 'saída em ' + dlDir) : (sec.opt.replace.checked ? 'cada DOCX substitui o seu EPUB, na mesma pasta' : 'saída em ' + dlDir);
+    const where = sec.kind === 'pdf' ? (sec.opt.replace.checked ? 'cada DOCX substitui o seu PDF, na mesma pasta, com o título da obra' : sec.opt.next.checked ? 'cada DOCX na pasta do seu PDF, com o título da obra (o PDF é mantido)' : 'saída em ' + dlDir) : (sec.opt.replace.checked ? 'cada DOCX substitui o seu EPUB, na mesma pasta' : 'saída em ' + dlDir);
     addLog(sec, `Início: ${todo.length} livro(s) · ${where}`);
     let ok = 0;
     for (const item of todo) {
@@ -475,19 +564,26 @@
     });
     // PDF: o DOCX vai para a pasta do PDF (padrão, lembrado) ou para Downloads; o PDF nunca é apagado
     const P = SECT.pdf;
+    P.opt.replace = el('input', { type: 'checkbox', id: 'pdfReplace', checked: pref('enh.pdfReplace', true) });
     P.opt.next = el('input', { type: 'checkbox', id: 'pdfNext', checked: pref('enh.pdfNext', true) });
     P.opt.open = el('input', { type: 'checkbox', id: 'pdfOpen', checked: true });
     const pWhere = el('span', { class: 'muted small' });
-    const showP = () => { pWhere.textContent = P.opt.next.checked ? 'Salvo na pasta de cada PDF (o PDF é mantido)' : 'Salvo em: ' + dlDir; };
-    remember('enh.pdfNext', P.opt.next, showP); showP();
+    const nextLbl = el('label', { class: 'chk', title: 'O PDF original é mantido.' }, [P.opt.next, ' Salvar o DOCX na pasta de cada PDF (o PDF é mantido)']);
+    const showP = () => {
+      nextLbl.style.display = P.opt.replace.checked ? 'none' : '';
+      pWhere.textContent = P.opt.replace.checked ? 'Salvo na pasta de cada PDF, no lugar dele, com o título da obra' : P.opt.next.checked ? 'Salvo na pasta de cada PDF, com o título da obra (o PDF é mantido)' : 'Salvo em: ' + dlDir + ', com o título da obra';
+    };
+    remember('enh.pdfNext', P.opt.next, showP); remember('enh.pdfReplace', P.opt.replace, showP); showP();
     const pdfNode = section(P, {
       drop: 'Enviar livros em PDF (Domínio Público)',
       dropHint: 'Clique ou arraste aqui um ou vários arquivos .pdf baixados do dominiopublico.gov.br (modo em massa: um após o outro)',
       opts: [
-        el('label', { class: 'chk', title: 'O PDF original nunca é apagado nem alterado.' }, [P.opt.next, ' Salvar o DOCX na pasta de cada PDF, com o mesmo nome (o PDF é mantido)']),
+        el('label', { class: 'chk', title: 'O DOCX é gravado na pasta do PDF com o título da obra; só depois de conferido o PDF vai para a Lixeira (dá para recuperar de lá).' }, [P.opt.replace, ' Substituir o PDF original pelo DOCX, salvo com o título da obra (o PDF vai para a Lixeira)']),
+        nextLbl,
         el('label', { class: 'chk' }, [P.opt.open, ' Mostrar a pasta ao terminar'])
       ],
       what: [
+        'reconhece o título da obra (folha de rosto, dados do PDF ou nome do arquivo) e salva o DOCX com esse nome — ex.: “Dom Casmurro.docx”',
         'reconstrói os parágrafos do PDF (junta as linhas, desfaz hifenizações, tira cabeçalhos, rodapés e números de página)',
         'remove capa, folha de rosto, avisos e créditos do acervo (Biblioteca Virtual do Estudante, Ministério da Cultura, NEAD, eBooksBrasil…), apresentação e o sumário/índice do PDF',
         'remove as páginas pós-textuais (FIM, biografia, cronologia, outras obras, índice, notas finais)',

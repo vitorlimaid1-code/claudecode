@@ -226,7 +226,7 @@ function writeFileAtomic(filePath, content) {
   fs.writeFileSync(tmp, content);
   fs.renameSync(tmp, filePath);
 }
-function safeName(s, max) { return (String(s || 'livro').replace(/[\\/:*?"<>|]+/g, '').trim() || 'livro').slice(0, max || 80); }
+function safeName(s, max) { return (String(s || 'livro').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '').replace(/\s+/g, ' ').trim().slice(0, max || 80).replace(/[. ]+$/, '') || 'livro'); }
 
 ipcMain.handle('project:open', async (e, filePath) => {
   if (!filePath) {
@@ -417,12 +417,14 @@ ipcMain.handle('enh:downloads', () => app.getPath('downloads'));
 // e só depois de conferir que o DOCX existe, não está vazio e ficou na mesma pasta
 ipcMain.handle('enh:replace', async (e, src, docx) => {
   try {
-    if (!src || !/\.epub$/i.test(src) || !fs.existsSync(src)) return { ok: false, msg: 'arquivo de origem não encontrado' };
-    if (!docx || !/\.docx$/i.test(docx) || !fs.existsSync(docx) || fs.statSync(docx).size < 1000) return { ok: false, msg: 'o DOCX não foi conferido; o EPUB foi mantido' };
-    if (path.resolve(path.dirname(src)) !== path.resolve(path.dirname(docx))) return { ok: false, msg: 'o DOCX não está na pasta do EPUB; o EPUB foi mantido' };
+    const kind = /\.pdf$/i.test(src || '') ? 'PDF' : 'EPUB';
+    if (!src || !/\.(epub|pdf)$/i.test(src) || !fs.existsSync(src)) return { ok: false, msg: 'arquivo de origem não encontrado' };
+    if (!docx || !/\.docx$/i.test(docx) || !fs.existsSync(docx) || fs.statSync(docx).size < 1000) return { ok: false, msg: `o DOCX não foi conferido; o ${kind} foi mantido` };
+    if (path.resolve(path.dirname(src)) !== path.resolve(path.dirname(docx))) return { ok: false, msg: `o DOCX não está na pasta do ${kind}; o ${kind} foi mantido` };
+    if (path.resolve(src) === path.resolve(docx)) return { ok: false, msg: `o ${kind} foi mantido` };
     await shell.trashItem(src);
     return { ok: true };
-  } catch (err) { return { ok: false, msg: 'não foi possível mandar o EPUB para a Lixeira (' + String(err.message || err) + '); ele foi mantido' }; }
+  } catch (err) { return { ok: false, msg: 'não foi possível mandar o original para a Lixeira (' + String(err.message || err) + '); ele foi mantido' }; }
 });
 
 // ---------------------------------------------------------------- tradução (tela própria)

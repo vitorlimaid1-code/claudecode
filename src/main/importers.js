@@ -270,7 +270,7 @@ async function importPdf(filePath) {
   let meta = {};
   try {
     const info = (await doc.getMetadata()).info || {};
-    const ok = t => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t && !/microsoft|word|\.(docx?|rtf|odt|pdf|txt)$|untitled|sem t[íi]tulo|^(usu[áa]rio|user|admin|administrador|owner|propriet[áa]rio|autor|author|pc|default)\b/i.test(t) && t.length < 160 ? t : ''; };
+    const ok = t => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t && !/microsoft|word|\.(docx?|rtf|odt|pdf|txt)$|untitled|sem t[íi]tulo|^(usu[áa]rio|user|admin|administrador|owner|propriet[áa]rio|autor|author|pc|default|anonymous|an[ôo]nimo|unknown|desconhecido|reportlab|adobe|acrobat|pdf|cliente|dell|hp|lenovo|positivo)\b/i.test(t) && t.length < 160 ? t : ''; };
     meta = { title: ok(info.Title), author: ok(info.Author) };
   } catch (e) { /* sem metadados */ }
   return { kind: 'pdf', pages, meta };
