@@ -2,6 +2,7 @@
 const { normalizeProject, BUNDLED_FONTS, autoBleed, CEDET, charStylesCss } = require('./shared/defaults');
 const CatalogParse = require('./shared/catalog-parse');
 const Ficha = require('./shared/ficha');
+const FolioShapes = require('./shared/folio');
 const X = require('./book-extras');
 const PageFrames = require('./shared/frames');
 const TocThemes = require('./shared/tocthemes');
@@ -716,7 +717,8 @@ function buildHtml(project, ctx) {
     // trecho em colunas logo no início do capítulo: só ele recebe a letra capitular
     const chHtml = String(c.html || '').replace(/^(\s*<div class="cols)"/, '$1 cols-open"');
     let body = markLongBoxes(markShortTables(origTables(numberTables(processBody(anchorHeadings(ctx.markBlocks ? markBlocks(chHtml) : chHtml, c.id, heads), ctx), ctx), ctx)));
-    heads.forEach(h => tocItems.push({ id: h.id, label: '', title: h.title, level: h.level }));
+    // “Título” no texto abre página nova como um capítulo: entra no sumário no mesmo nível dos capítulos
+    heads.forEach(h => tocItems.push({ id: h.id, label: '', title: h.title, level: settings.headingsLikeChapter !== false && project.kind !== 'magazine' && project.kind !== 'newspaper' ? Math.max(1, h.level - 1) : h.level }));
     // notas no fim do capítulo, no fim do livro ou na margem externa (em vez do rodapé)
     if (notesMode !== 'footnote' && settings.footnotesVisible !== false) {
       const r = X.convertNotes(body, notesMode, ctx, i);
@@ -841,7 +843,7 @@ function buildCss(project, ctx) {
   else if (!periodical && s.header === 'chapter-chapter') { leftHeader = 'string(chaptitle)'; rightHeader = 'string(chaptitle)'; }
 
   // CEDET: numeração só no canto inferior externo ou no centro inferior (nunca no topo nem no lado interno)
-  const pn = s.standard === 'cedet' && s.pageNumbers !== 'center' && s.pageNumbers !== 'none' ? 'outer' : s.pageNumbers;
+  const pn = s.standard === 'cedet' && !['center', 'none', 'left'].includes(s.pageNumbers) ? 'outer' : s.pageNumbers;
   // folioGap: o número fica logo abaixo da mancha (dentro da margem de segurança) em vez de centrado na margem
   const folioPos = num(s.folioGap, 0) > 0 ? ` vertical-align: top; padding-top: ${num(s.folioGap, 0)}mm;` : '';
   const H = S.header;
@@ -858,15 +860,26 @@ function buildCss(project, ctx) {
   if (hrOn) {
     const C = color(hr.color, '#6b6b6b'), mi = num(s.marginInner, 22);
     const spine = hr.spine !== false && hr.style !== 'curta';
-    const PG = side => `.pagedjs_page.pagedjs_${side}_page:has(.pagedjs_margin-top .hasContent) .pagedjs_area`;
+    const PG = side => `.pagedjs_page.pagedjs_${side}_page:not([data-frame]):has(.pagedjs_margin-top .hasContent) .pagedjs_area`;
     const pos = side => hr.style === 'curta' ? 'left: 35%; right: 35%;' : side === 'left' ? `left: 0; right: ${spine ? -mi : 0}mm;` : `left: ${spine ? -mi : 0}mm; right: 0;`;
     ['left', 'right'].forEach(side => {
       headerRuleCss += `${PG(side)}::before { content: ''; position: absolute; pointer-events: none; top: -${hrGap}mm; transform: translateY(-100%); ${pos(side)} ${HeaderRules.decl(hr.style, C, hr.weight, side)} }\n`;
     });
-    if (hr.style === 'ornamento') headerRuleCss += `.pagedjs_page:has(.pagedjs_margin-top .hasContent) .pagedjs_area::after { content: '◆'; position: absolute; top: -${hrGap}mm; left: 50%; transform: translate(-50%, -50%); font-size: 5.5pt; line-height: 1; color: ${C}; background: ${color(s.pageColor, '#fff')}; padding: 0 1.4mm; }\n`;
+    if (hr.style === 'ornamento') headerRuleCss += `.pagedjs_page:not([data-frame]):has(.pagedjs_margin-top .hasContent) .pagedjs_area::after { content: '◆'; position: absolute; top: -${hrGap}mm; left: 50%; transform: translate(-50%, -50%); font-size: 5.5pt; line-height: 1; color: ${C}; background: ${color(s.pageColor, '#fff')}; padding: 0 1.4mm; }\n`;
   }
   const numStyle = `font-family: ${fontStack(P.font || body.font)}; font-size: ${num(P.size, 9.5)}pt; color: ${color(P.color, '#000')}; text-transform: none; letter-spacing: 0; font-style: normal;`;
 
+  // abertura do capítulo (:first): sem cabeçalho, mas com o número (antes ficava sem nenhum dos dois)
+  const firstFolio = s.folioOnOpenings === false ? '' : pn === 'left' ? `@bottom-left { content: counter(page); ${numStyle}${folioPos} }` : pn === 'center' ? `@bottom-center { content: counter(page); ${numStyle}${folioPos} }` : pn === 'outer' ? `@bottom-left { content: counter(page); ${numStyle}${folioPos} }` : '';
+  // número dentro de uma forma (bloco, naipes, estrela…): vai no ::after da caixa do número
+  // [classe do lado da página (ou vazio), caixa de margem]
+  const folioBoxes = pn === 'left' ? [['', 'bottom-left']] : pn === 'center' ? [['', 'bottom-center']] : pn === 'top-outer' ? [['.pagedjs_left_page', 'top-left'], ['.pagedjs_right_page', 'top-right']] : pn === 'outer' ? [['', 'bottom-left']] : [];
+  const fd = FolioShapes.decl({ shape: s.pageNumberShape || 'plain', bg: s.pageNumberBg, fg: s.pageNumberFg, size: s.pageNumberShapeSize });
+  let folioCss = fd && folioBoxes.length ? `${folioBoxes.map(([side, box]) => `.pagedjs_page${side}:not(.pagedjs_blank_page) .pagedjs_margin-${box} > .pagedjs_margin-content::after`).join(', ')} { ${fd} }` : '';
+  // alinhamento do número dentro da caixa (à direita na caixa da direita, ao centro na do meio)
+  if (folioBoxes.length) folioCss += `\n${folioBoxes.map(([side, box]) => `.pagedjs_page${side} .pagedjs_margin-${box} > .pagedjs_margin-content`).join(', ')} { width: 100%; text-align: ${pn === 'center' ? 'center' : 'left'}; }` + (pn === 'top-outer' ? `\n.pagedjs_page.pagedjs_right_page .pagedjs_margin-top-right > .pagedjs_margin-content { text-align: right; }` : '');
+  if (pn === 'outer') folioCss += `\n.pagedjs_page.pagedjs_right_page .pagedjs_margin-bottom-left > .pagedjs_margin-content { width: 100%; text-align: right; }`;
+  // no rodapé externo, a abertura recebe as duas caixas: fica só a do lado de fora
   function marginRules(name, extra, textColor, noHeader) {
     const L = [];
     const R = [];
@@ -874,14 +887,16 @@ function buildCss(project, ctx) {
     const hr = pn === 'top-outer' ? '@top-center' : '@top-right';
     L.push(`${hl} { content: ${noHeader ? 'none' : leftHeader}; ${boxStyle} }`);
     R.push(`${hr} { content: ${noHeader ? 'none' : rightHeader}; ${boxStyle} }`);
-    if (pn === 'outer') { L.push(`@bottom-left { content: counter(page); ${numStyle}${folioPos} }`); R.push(`@bottom-right { content: counter(page); ${numStyle}${folioPos} }`); }
+    // canto externo: uma caixa só (a da esquerda, que ocupa o rodapé inteiro), alinhada à direita nas páginas ímpares
+    if (pn === 'outer') { L.push(`@bottom-left { content: counter(page); ${numStyle}${folioPos} }`); R.push(`@bottom-left { content: counter(page); ${numStyle}${folioPos} }`); }
     if (pn === 'center') { L.push(`@bottom-center { content: counter(page); ${numStyle}${folioPos} }`); R.push(`@bottom-center { content: counter(page); ${numStyle}${folioPos} }`); }
+    if (pn === 'left') { L.push(`@bottom-left { content: counter(page); ${numStyle}${folioPos} }`); R.push(`@bottom-left { content: counter(page); ${numStyle}${folioPos} }`); }
     if (pn === 'top-outer') { L.push(`@top-left { content: counter(page); ${numStyle} vertical-align: bottom; padding-bottom: 4mm; }`); R.push(`@top-right { content: counter(page); ${numStyle} vertical-align: bottom; padding-bottom: 4mm; }`); }
     if (textColor) { const add = x => x.replace(/; \}/g, `; color: ${textColor}; }`); L.splice(0, L.length, ...L.map(add)); R.splice(0, R.length, ...R.map(add)); }
     return `
 @page ${name}:left { ${extra || ''} ${L.join(' ')} }
 @page ${name}:right { ${extra || ''} ${R.join(' ')} }
-@page ${name}:first { @top-left { content: none; } @top-center { content: none; } @top-right { content: none; } }`;
+@page ${name}:first { @top-left { content: none; } @top-center { content: none; } @top-right { content: none; } ${firstFolio} }`;
   }
 
   const pageNames = chapters.map((c, i) => `.chapter[data-chapter="${i}"] { page: ch${i}; }`).join('\n');
@@ -1139,6 +1154,12 @@ ${s.smallCapsFirstLine ? `.chapter:not(.chapter-cont) .chapter-body > p:first-ch
 .chapter-body h3 { ${styleDecl(S.h3, body)} line-height: ${num(S.h3.lineHeight, 1.2)}; hyphens: manual; text-indent: 0; }
 .chapter-body h4 { ${styleDecl(S.h4, body)} line-height: ${num(S.h4.lineHeight, 1.2)}; hyphens: manual; text-indent: 0; }
 ${s.keepHeadingsWithNext ? '.chapter-body h2, .chapter-body h3, .chapter-body h4 { break-after: avoid; break-inside: avoid; }' : ''}
+${s.headingsLikeChapter !== false && !periodical ? `/* “Título” no texto: a mesma letra do título do capítulo, começando em página nova; “Subtítulo”: a mesma
+   letra, em negrito, centralizado, no fluxo do texto, com espaço moderado antes e depois */
+.chapter-body > h2 { font-family: ${fontStack(S.chapterTitle.font || body.font)}; font-size: ${num(S.chapterTitle.size, 22)}pt; font-weight: ${S.chapterTitle.bold ? 700 : 400}; font-style: ${S.chapterTitle.italic ? 'italic' : 'normal'}; text-transform: ${S.chapterTitle.uppercase ? 'uppercase' : 'none'}; letter-spacing: ${num(S.chapterTitle.letterSpacing, 0)}em; font-variant-caps: normal; color: ${color(S.chapterTitle.color, '#000')}; text-align: center; line-height: 1.15; margin: ${mm(S.chapterTitle.spaceBefore)} 0 ${mm(Math.max(6, num(S.chapterTitle.spaceAfter, 6)))} 0; padding: 0; break-before: page; break-after: avoid; }
+.chapter-body > h2:first-child { break-before: auto; }
+.chapter[data-cols]:not([data-cols="1"]) .chapter-body > h2 { break-before: auto; }
+.chapter-body > h3 { font-family: ${fontStack(S.chapterTitle.font || body.font)}; font-size: ${Math.max(num(S.h3.size, 12), num(body.size, 11) + 1.5)}pt; font-weight: 700; font-style: normal; text-transform: none; letter-spacing: 0; font-variant-caps: normal; color: ${color(S.chapterTitle.color, '#000')}; text-align: center; line-height: 1.25; margin: 5mm 0 2.5mm 0; padding: 0; break-after: avoid; }` : ''}
 .chapter-body blockquote { ${styleDecl(S.quote, body)} }
 .chapter-body blockquote p { text-indent: 0; margin: 0 0 0.3em; }
 .chapter-body p.phrase { ${styleDecl(S.phrase, body)} text-indent: 0; break-inside: avoid; }
@@ -1240,6 +1261,9 @@ ${s.footnoteNumbering === 'chapter' ? '.chapter:not(.chapter-cont) { counter-res
 ${Overlays.css()}
 /* filete sob o cabeçalho */
 ${headerRuleCss}
+${folioCss}
+${s.frameHidesHeader === false ? '' : `/* página com moldura: sem o cabeçalho (nome da obra e do autor) e sem o filete, para não brigar com a moldura */
+${(pn === 'top-outer' ? ['top-center'] : ['top-left', 'top-center', 'top-right']).map(b => `.pagedjs_page[data-frame] .pagedjs_margin-${b} > .pagedjs_margin-content::after`).join(', ')} { content: none !important; }`}
 ${TocThemes.css(project.front.tocTheme, { mt: num(s.marginTop, 20), mb: num(s.marginBottom, 22), mi: num(s.marginInner, 22), mo: num(s.marginOuter, 16), bleed: ctx.bleed, contentH: ctx.contentH, colW: ctx.colW, color: project.front.tocColor })}
 
 /* ---------- notas de fim e notas laterais ---------- */

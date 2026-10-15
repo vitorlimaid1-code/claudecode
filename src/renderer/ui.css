@@ -572,3 +572,16 @@ body.ws-book .nav-item[data-ws="periodical"] { display: none !important; }
 .pl-thumb svg { width: 100%; height: 100%; display: block; }
 .pl-tile strong { font-size: 13px; margin-top: 4px; }
 .pl-cols { font-size: 11px; color: #7c3aed; font-weight: 600; }
+
+/* galeria do número da página */
+.fol-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; margin: 6px 0 8px; }
+.fol-tile { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px 8px; border-radius: 10px; height: auto; white-space: normal; background: #fff; color: #222; }
+.fol-tile.on { box-shadow: 0 0 0 2.5px #a855f7; border-color: transparent; }
+.fol-tile small { font-size: 10.5px; line-height: 1.2; text-align: center; color: #555; }
+.fol-num { min-height: 22px; }
+
+/* configurações / atualização */
+.settings-modal { min-width: 420px; display: flex; flex-direction: column; gap: 10px; }
+.upd-bar { height: 8px; border-radius: 99px; background: rgba(127,127,127,.2); overflow: hidden; }
+.upd-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #6d28d9, #c026d3); transition: width .2s; }
+.upd-notes { white-space: pre-wrap; max-height: 160px; overflow: auto; }

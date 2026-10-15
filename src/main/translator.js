@@ -45,7 +45,8 @@ const OR_URL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1'
 const OR_DEFAULT_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b:free';
 const GG_URL = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta'; // (trocável só para testes)
 const GG_DEFAULT_MODEL = 'gemini-2.5-flash';
-const PROVIDERS = ['openrouter', 'google', 'ollama'];
+const PROVIDERS = ['openrouter', 'google', 'gtrans', 'ollama'];
+const GT_URL = process.env.GTRANSLATE_BASE_URL || 'https://translate.googleapis.com'; // Google Tradutor (gratuito, sem chave)
 
 function createTranslator({ userFile, safeStorage }) {
   const cfgFile = userFile('tradutor.json');
@@ -57,7 +58,7 @@ function createTranslator({ userFile, safeStorage }) {
   function config() {
     const c = read();
     const key = dec(c.key);
-    return {
+    const o = {
       // o Claude saiu da tela por enquanto: quem estava nele passa para o OpenRouter (o motor principal)
       provider: PROVIDERS.includes(c.provider) || (c.provider === 'mock' && process.env.TRANSLATE_MOCK) ? c.provider : (process.env.TRANSLATE_MOCK ? 'mock' : 'openrouter'),
       model: c.model || 'claude-opus-5-5',
@@ -70,16 +71,19 @@ function createTranslator({ userFile, safeStorage }) {
       ggModel: c.ggModel || GG_DEFAULT_MODEL,
       hasGgKey: !!dec(c.ggKey) || !!process.env.GEMINI_API_KEY,
       ggKeyHint: (k => (k ? k.slice(0, 6) + '…' + k.slice(-4) : process.env.GEMINI_API_KEY ? 'variável GEMINI_API_KEY' : ''))(dec(c.ggKey)),
+      aiReview: c.aiReview !== false,
       glue: c.glue !== false,
       hasKey: !!key || !!process.env.ANTHROPIC_API_KEY,
       keyHint: key ? key.slice(0, 7) + '…' + key.slice(-4) : process.env.ANTHROPIC_API_KEY ? 'variável ANTHROPIC_API_KEY' : '',
       models: MODELS.map(m => ({ id: m.id, name: m.name })),
       mock: !!process.env.TRANSLATE_MOCK
     };
+    o.effective = effectiveProvider(o);
+    return o;
   }
   function setConfig(patch) {
     const c = read();
-    ['provider', 'model', 'effort', 'ollamaUrl', 'ollamaModel', 'orModel', 'ggModel', 'glue'].forEach(k => { if (patch[k] !== undefined) c[k] = patch[k]; });
+    ['provider', 'model', 'effort', 'ollamaUrl', 'ollamaModel', 'orModel', 'ggModel', 'aiReview', 'glue'].forEach(k => { if (patch[k] !== undefined) c[k] = patch[k]; });
     if (patch.apiKey !== undefined) c.key = patch.apiKey ? enc(String(patch.apiKey).trim()) : null;
     if (patch.orKey !== undefined) c.orKey = patch.orKey ? enc(String(patch.orKey).trim()) : null;
     if (patch.ggKey !== undefined) c.ggKey = patch.ggKey ? enc(String(patch.ggKey).trim()) : null;
@@ -208,9 +212,86 @@ function createTranslator({ userFile, safeStorage }) {
     ].filter(Boolean).join('\n\n');
   }
 
+  // ---------------------------------------------------------------- Google Tradutor (gratuito, sem chave)
+  // Os blocos HTML vão em lotes (até ~4.500 caracteres); as marcas (ênfases, notas) são preservadas pelo modo html.
+  async function gtFetch(url, opts) {
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), 60000);
+    try { return await fetch(url, Object.assign({ signal: ac.signal }, opts)); } catch (e) { throw Object.assign(new Error('Sem conexão com o Google Tradutor (verifique a internet).'), { retry: true }); } finally { clearTimeout(t); }
+  }
+  const isLang = x => typeof x === 'string' && /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(x);
+  async function gtBatch(blocks) {
+    const body = blocks.map(b => 'q=' + encodeURIComponent(b)).join('&');
+    const r = await gtFetch(`${GT_URL}/translate_a/t?client=gtx&sl=auto&tl=pt&hl=pt-BR&format=html`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8', 'user-agent': 'Mozilla/5.0' }, body });
+    if (r.status === 429) throw Object.assign(new Error('O Google Tradutor pediu uma pausa (muitos pedidos); aguardando para tentar de novo.'), { retry: true });
+    if (r.status >= 500) throw Object.assign(new Error(`Google Tradutor indisponível (${r.status}).`), { retry: true });
+    if (!r.ok) throw Object.assign(new Error(`Google Tradutor respondeu ${r.status}.`), { retry: true });
+    let j;
+    try { j = JSON.parse(await r.text()); } catch (e) { throw Object.assign(new Error('Resposta inesperada do Google Tradutor.'), { retry: true }); }
+    // formatos: ["texto","en"] (um bloco), ["t1","t2"], [["t1","en"],["t2","en"]]
+    let items;
+    if (blocks.length === 1 && Array.isArray(j) && typeof j[0] === 'string' && isLang(j[1]) && j.length === 2) items = [[j[0], j[1]]];
+    else items = (Array.isArray(j) ? j : [j]).map(x => (Array.isArray(x) ? x : [x, '']));
+    if (items.length !== blocks.length) throw Object.assign(new Error('O Google Tradutor devolveu um número diferente de blocos.'), { retry: true });
+    return items.map(x => ({ text: String(x[0] || ''), lang: isLang(x[1]) ? x[1] : '' }));
+  }
+  async function gtranslateLines(lines) {
+    const out = lines.slice();
+    const idx = lines.map((l, i) => (l.trim() && !/^\[\[FIG:\d+\]\]$/.test(l.trim()) ? i : -1)).filter(i => i >= 0);
+    let lang = '';
+    for (let k = 0; k < idx.length;) {
+      const batch = [];
+      let size = 0;
+      while (k < idx.length && (batch.length === 0 || size + lines[idx[k]].length < 4500) && batch.length < 40) { batch.push(idx[k]); size += lines[idx[k]].length; k++; }
+      const res = await gtBatch(batch.map(i => lines[i]));
+      res.forEach((r, n) => { out[batch[n]] = r.text.replace(/\n+/g, ' ').trim() || lines[batch[n]]; if (!lang && r.lang) lang = r.lang; });
+    }
+    return { lines: out, lang };
+  }
+  const LANG_NAMES = { en: 'inglês', fr: 'francês', es: 'espanhol', it: 'italiano', de: 'alemão', ru: 'russo', ja: 'japonês', zh: 'chinês', 'zh-CN': 'chinês', la: 'latim', nl: 'holandês', pl: 'polonês', sv: 'sueco', da: 'dinamarquês', no: 'norueguês', cs: 'tcheco', el: 'grego', hu: 'húngaro', fi: 'finlandês', ko: 'coreano', ar: 'árabe', he: 'hebraico', tr: 'turco', pt: 'português' };
+  // revisão por IA da tradução do Google (quando há chave do OpenRouter ou do Gemini)
+  const aiAvailable = cfg => (dec(read().orKey) || process.env.OPENROUTER_API_KEY) ? 'openrouter' : (dec(read().ggKey) || process.env.GEMINI_API_KEY) ? 'google' : '';
+  const REVIEW = `Você recebe um trecho de livro no idioma original e a tradução automática dele para o português do Brasil, feita pelo Google Tradutor. Reescreva a tradução como um tradutor literário sênior e preparador de textos: corrija sentido, coesão e coerência, ritmo, regência, concordância e escolhas de vocabulário, mantendo a voz do autor, sem omitir nem acrescentar conteúdo. Mantenha exatamente os mesmos blocos HTML, na mesma ordem e quantidade, um por linha, com as mesmas tags; linhas [[FIG:n]] ficam iguais.`;
+  async function aiReview(provider, req, draft) {
+    const user = [`Livro: ${req.title || ''}${req.author ? ' — ' + req.author : ''}`, req.glossary && req.glossary.length ? 'Glossário a manter:\n' + req.glossary.map(([a, b]) => `${a} → ${b}`).join('\n') : '', `ORIGINAL:\n${req.html}`, `TRADUÇÃO AUTOMÁTICA A REVISAR:\n${draft}`].filter(Boolean).join('\n\n');
+    const system = SYSTEM + '\n\nTAREFA DESTE PEDIDO\n' + REVIEW;
+    const res = provider === 'openrouter' ? await openrouter([{ role: 'system', content: system }, { role: 'user', content: user }], 32000) : await gemini(system, user, 32000);
+    const out = parse(res.text);
+    const n = s2 => String(s2 || '').split('\n').filter(x => x.trim()).length;
+    if (!out.body || n(out.body) !== n(draft)) throw new Error('a revisão mudou a quantidade de blocos');
+    return Object.assign(out, { usage: res.usage && res.usage.prompt_tokens !== undefined ? { input_tokens: res.usage.prompt_tokens || 0, output_tokens: res.usage.completion_tokens || 0 } : (res.usage || {}), model: res.model });
+  }
+  async function translateGoogleFree(req, onProgress) {
+    const cfg = config();
+    if (onProgress) onProgress(0);
+    const lines = String(req.html || '').split('\n');
+    const g = await gtranslateLines(lines);
+    const draft = g.lines.join('\n');
+    if (onProgress) onProgress(draft.length);
+    const lang = req.first && g.lang ? (LANG_NAMES[g.lang] || g.lang) : '';
+    const ai = cfg.aiReview ? aiAvailable(cfg) : '';
+    if (ai) {
+      try {
+        const out = await aiReview(ai, req, draft);
+        return Object.assign(out, { lang: out.lang || lang, model: 'Google Tradutor + revisão ' + (out.model || ai), stop: 'end_turn', price: { in: 0, out: 0 } });
+      } catch (e) {
+        return { body: draft, notes: [`Revisão por IA indisponível neste trecho (${String(e.message || e).slice(0, 120)}); ficou a tradução do Google com as correções do sistema.`], glossary: [], lang, usage: {}, model: 'Google Tradutor', stop: 'end_turn', price: { in: 0, out: 0 } };
+      }
+    }
+    return { body: draft, notes: [], glossary: [], lang, usage: {}, model: 'Google Tradutor', stop: 'end_turn', price: { in: 0, out: 0 } };
+  }
+  // motor que realmente vai trabalhar: sem a chave do motor escolhido, o tradutor não para — usa o Google Tradutor
+  function effectiveProvider(cfg) {
+    if (cfg.provider === 'openrouter' && !cfg.hasOrKey) return 'gtrans';
+    if (cfg.provider === 'google' && !cfg.hasGgKey) return 'gtrans';
+    return cfg.provider;
+  }
+
   // um trecho: devolve { body, notes, glossary, lang, usage, model, stop }
   async function translate(req, onProgress) {
-    const cfg = config();
+    const cfg0 = config();
+    const cfg = Object.assign({}, cfg0, { provider: effectiveProvider(cfg0) });
+    if (cfg.provider === 'gtrans') return translateGoogleFree(req, onProgress);
     const msg = userMessage(req);
     if (cfg.provider === 'mock') return mock(req, onProgress);
     if (cfg.provider === 'ollama') {
@@ -276,7 +357,21 @@ function createTranslator({ userFile, safeStorage }) {
 
   // parecer final da tradução (a partir das notas e números do processamento)
   async function report(req) {
-    const cfg = config();
+    const cfg0 = config();
+    const cfg = Object.assign({}, cfg0, { provider: effectiveProvider(cfg0) });
+    if (cfg.provider === 'gtrans') {
+      // parecer pela IA de revisão, se houver chave; senão, um parecer feito a partir dos números
+      const ai = aiAvailable(cfg);
+      if (ai) cfg.provider = ai;
+      else {
+        const st = req.stats || {};
+        return {
+          parecer: `Tradução automática feita pelo Google Tradutor${req.lang ? ' a partir do ' + req.lang : ''} e preparada pelo sistema para o padrão editorial brasileiro: diálogos com travessão, Novo Acordo Ortográfico, dicionário de estilo e pontuação editorial. Para um acabamento literário (tom, ritmo, coesão e coerência revisados por IA), informe uma chave do OpenRouter ou do Google Gemini em Configurações da tradução.`,
+          changes: ['Tradução automática bloco a bloco, preservando títulos, ênfases e notas de rodapé.', 'Diálogos convertidos para o travessão no padrão brasileiro.', 'Formas do português europeu trocadas pelas do Brasil.'],
+          corrections: ['Novo Acordo Ortográfico (acentos, hífen, trema).', 'Pontuação editorial: aspas curvas, reticências e travessões.', 'Dicionário de estilo: pleonasmos e falsos cognatos.'].concat(st.fixes ? [`${st.fixes} correções automáticas no total.`] : [])
+        };
+      }
+    }
     const prompt = `Você é o editor responsável pela tradução abaixo. Com base nas notas editoriais do tradutor e nos números do processamento, escreva para o cliente, em português do Brasil, três seções com estes títulos exatos, cada um sozinho na linha:
 ### PARECER
 (um parágrafo de 5 a 8 linhas sobre a qualidade, o tom e a adequação editorial da tradução)
@@ -312,7 +407,15 @@ ${(req.notes || []).slice(0, 120).map(n => '- ' + n).join('\n') || '(sem notas)'
   }
 
   async function test() {
-    const cfg = config();
+    const cfg0 = config();
+    const cfg = Object.assign({}, cfg0, { provider: effectiveProvider(cfg0) });
+    if (cfg.provider === 'gtrans') {
+      try {
+        const r = await gtBatch(['<p>Hello, world.</p>']);
+        const ai = cfg0.aiReview ? aiAvailable(cfg0) : '';
+        return { ok: true, msg: `Google Tradutor funcionando (“${r[0].text.replace(/<[^>]+>/g, '')}”)${cfg0.provider !== 'gtrans' ? ' — sem a chave do motor escolhido, a tradução usa o Google Tradutor' : ''}${ai ? ' · revisão por IA: ' + (ai === 'openrouter' ? 'OpenRouter' : 'Google Gemini') : ' · sem revisão por IA (informe uma chave do OpenRouter ou do Gemini para ativar)'}` };
+      } catch (e) { return { ok: false, msg: String(e.message || e) }; }
+    }
     if (cfg.provider === 'mock') return { ok: true, msg: 'Modo de simulação (teste).' };
     if (cfg.provider === 'openrouter') {
       const key = orKey();
@@ -374,7 +477,7 @@ ${(req.notes || []).slice(0, 120).map(n => '- ' + n).join('\n') || '(sem notas)'
     return { body: req.html, notes: ['Nota de simulação: trecho mantido para teste do fluxo.'], glossary: [['Toto', 'Totó']], lang: req.first ? 'inglês (simulação)' : '', usage: { input_tokens: Math.round(req.html.length / 4), output_tokens: Math.round(req.html.length / 4) }, model: 'simulação', stop: 'end_turn', price: { in: 0, out: 0 } };
   }
 
-  return { config, setConfig, translate, report, test, SYSTEM };
+  return { config, setConfig, translate, report, test, SYSTEM, effectiveProvider };
 }
 
 module.exports = { createTranslator };

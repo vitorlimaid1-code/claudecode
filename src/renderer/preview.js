@@ -147,7 +147,7 @@
     document.querySelectorAll('.pagedjs_page').forEach(pg => {
       const sc = pg.querySelector('section[data-frame]');
       let id = sc ? sc.dataset.frame : frameAll;
-      if (pg.classList.contains('pagedjs_blank_page') || pg.classList.contains('pagedjs_fullbleed_page') || pg.querySelector('.immersion, .fullbleed, .book-cover, .pre-image')) id = '';
+      if (pg.classList.contains('pagedjs_blank_page') || pg.classList.contains('pagedjs_fullbleed_page') || pg.querySelector('.immersion, .fullbleed, .book-cover, .pre-image, .copyright-page')) id = ''; // (ficha catalográfica: sem moldura)
       if (id) pg.dataset.frame = id; else pg.removeAttribute('data-frame');
     });
     if (!options.segment) {
@@ -276,20 +276,68 @@
     used.forEach(h => { const st = document.createElement('style'); st.dataset.stageCss = h; st.textContent = stage.cssOf.get(h) || ''; document.head.appendChild(st); });
     return window.stageFinalize(currentBook);
   };
+  // refaz as faixas de margem (cabeçalho e rodapé) das páginas que mudaram de lado: quais caixas têm
+  // conteúdo agora (pelas regras do lado novo) e a largura de cada uma, como o Paged.js faria.
+  // Rápido em livros grandes: páginas do mesmo tipo (capítulo, lado, abertura) são lidas uma vez só, e
+  // todas as leituras vêm antes das escritas (sem recalcular o documento a cada página).
+  function refitMargins(pages) {
+    if (!pages.length) return;
+    const ROWS = ['top', 'bottom'], COLS = ['left', 'center', 'right'];
+    const has = el => { if (!el) return false; const c = el.querySelector(':scope > .pagedjs_margin-content'); const v = c ? getComputedStyle(c, '::after').content : 'none'; return !!v && v !== 'none' && v !== 'normal' && v !== '""'; };
+    const keyOf = pg => Array.from(pg.classList).filter(c => /_page$|_first_page$|named_page$/.test(c)).sort().join(' ');
+    const seen = new Map();
+    let W = 0;
+    // leituras
+    pages.forEach(pg => {
+      const k = keyOf(pg);
+      if (seen.has(k)) return;
+      const r = {};
+      ROWS.forEach(row => { r[row] = COLS.map(col => has(pg.querySelector(`.pagedjs_margin-${row}-${col}`))); });
+      seen.set(k, r);
+      if (!W) { const bar = pg.querySelector('.pagedjs_margin-bottom') || pg.querySelector('.pagedjs_margin-top'); if (bar) W = bar.offsetWidth; }
+    });
+    if (!(W > 0)) return;
+    const px = v => v.toFixed(3) + 'px';
+    // escritas
+    pages.forEach(pg => {
+      const r = seen.get(keyOf(pg));
+      if (!r) return;
+      ROWS.forEach(row => {
+        const bar = pg.querySelector(`.pagedjs_margin-${row}`);
+        if (!bar) return;
+        const [hL, hC, hR] = r[row];
+        COLS.forEach((col, n) => { const b = bar.querySelector(`.pagedjs_margin-${row}-${col}`); if (b) b.classList.toggle('hasContent', r[row][n]); });
+        let cols = null;
+        if (hC) cols = [W / 3, W / 3, W / 3];
+        else if (hL && hR) cols = [W / 2, 0, W / 2];
+        else if (hL) cols = [W, 0, 0];
+        else if (hR) cols = [0, 0, W];
+        if (cols) bar.style.gridTemplateColumns = cols.map(px).join(' ');
+      });
+    });
+  }
   // numeração absoluta, páginas pares à esquerda, sumário/índice/referências, notas laterais, camadas e guias
   window.stageFinalize = function (book) {
     book = book || currentBook || {};
     const box = stageContainer();
     const pages = Array.from(box.querySelectorAll(':scope > .pagedjs_page'));
+    const flipped = [];
     pages.forEach((pg, i) => {
       const n = i + 1;
       pg.dataset.pageNumber = String(n);
       pg.id = 'page-' + n;
       const right = n % 2 === 1;
+      // trecho paginado à parte que, no livro inteiro, cai do outro lado (capítulo começando em página
+      // par): o cabeçalho e o número continuavam medidos para o lado antigo (caixa com largura zero e
+      // invisível) e sumiam. Espelha as faixas de margem para o lado novo.
+      const was = pg.dataset.side || (pg.classList.contains('pagedjs_left_page') ? 'L' : pg.classList.contains('pagedjs_right_page') ? 'R' : '');
+      if (was && was !== (right ? 'R' : 'L')) flipped.push(pg);
+      pg.dataset.side = right ? 'R' : 'L';
       pg.classList.toggle('pagedjs_right_page', right);
       pg.classList.toggle('pagedjs_left_page', !right);
       pg.classList.toggle('pagedjs_first_page', n === 1);
     });
+    refitMargins(flipped);
     box.style.setProperty('--pagedjs-page-count', String(pages.length));
     const prev = document.getElementById('stage-counters');
     if (prev) prev.remove();

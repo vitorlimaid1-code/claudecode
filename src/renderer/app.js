@@ -260,7 +260,7 @@
     new: newBook, open: () => open(), save: () => save(false), saveAs: () => save(true),
     import: () => App.importer.fromDialog(), export: () => App.setView('export'), enhance: () => App.enhance.open(), translate: () => App.translate.open(),
     refresh: () => App.preview.schedule(true), help,
-    projectUndo: () => App.undo(), projectRedo: () => App.redo(), history: () => App.showHistory(),
+    projectUndo: () => App.undo(), projectRedo: () => App.redo(), history: () => App.showHistory(), settings: () => App.settingsUi && App.settingsUi.open(),
     library: () => App.library.toggle(), find: () => App.tools.find(),
     invisibles: () => { $('#editor').classList.toggle('show-invisibles'); }
   };

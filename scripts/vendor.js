@@ -57,6 +57,13 @@ const BUG4b = 'this.tick = requestAnimationFrame;';
 if (!paged.includes(BUG4b)) throw new Error('paged.js: quarto trecho (b) a corrigir não encontrado (versão diferente?)');
 paged = paged.replace(BUG4b, 'this.tick = cb => setTimeout(cb, 0);');
 
+// Correção da página nomeada: na primeira página de um capítulo (página nomeada), o Paged.js marcava a página com
+// "pagejs_named_page" (erro de digitação) em vez de "pagedjs_named_page"; as regras do capítulo (número da
+// página, margens da moldura, cor) não valiam na abertura, que saía sem número.
+const BUG_NP = 'page.classList.add("pagejs_named_page");';
+if (!paged.includes(BUG_NP)) throw new Error('paged.js: trecho da página nomeada não encontrado (versão diferente?)');
+paged = paged.replace(BUG_NP, 'page.classList.add("pagedjs_named_page"); page.classList.add("pagejs_named_page");');
+
 // Quinta correção (segurança): a busca de excesso da página roda num laço que, em casos raros de
 // elementos em linha na quebra, podia nunca terminar e congelar o aplicativo. O laço passa a ter um
 // limite (bem acima de qualquer página real); ao atingi-lo, segue com o excesso já encontrado.

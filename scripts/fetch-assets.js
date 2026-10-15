@@ -22,7 +22,12 @@ async function get(url, file) {
   const jobs = Ficha.SEALS.map(s => [s.url, path.join(root, 'assets', 'seals', s.id + '.png'), 'selo ' + s.name])
     .concat(Ficha.RULES.map(r => [r.url, path.join(root, 'assets', 'library', 'separadores', r.id + '.png'), r.name]));
   for (const [url, file, label] of jobs) {
-    try { console.log(`ok   ${label}: ${await get(url, file)}`); ok++; } catch (e) { console.log(`falha ${label}: ${e.message}`); fail++; }
+    let err = null;
+    // o servidor das imagens às vezes responde 404/5xx por instantes: tenta de novo, com pausas
+    for (let k = 0; k < 4; k++) {
+      try { console.log(`ok   ${label}: ${await get(url, file)}`); ok++; err = null; break; } catch (e) { err = e; await new Promise(r => setTimeout(r, 1500 * (k + 1))); }
+    }
+    if (err) { console.log(`falha ${label}: ${err.message}`); fail++; }
   }
   console.log(`fetch-assets: ${ok} baixado(s), ${fail} falha(s)`);
   if (process.argv.includes('--strict') && fail) process.exit(1);

@@ -13,7 +13,7 @@
   P.schedule = function (immediate) {
     if (!$('#autoRefresh').checked && !immediate) { $('#pageInfo').textContent = 'Alterações pendentes — clique em Atualizar'; return; }
     clearTimeout(timer);
-    timer = setTimeout(render, immediate ? 0 : 900);
+    timer = setTimeout(render, immediate ? 0 : 350); // espera curta: junta as teclas de uma digitação, sem demorar a repaginar
   };
 
   function opts() {

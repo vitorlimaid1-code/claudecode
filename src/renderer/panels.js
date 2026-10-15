@@ -3,6 +3,30 @@
 // páginas finais, formato/diagramação e notas de rodapé.
 (function () {
   const { el, $, api, D } = App;
+
+  // galeria do visual do número da página: forma (bloco, naipes, estrela…), cores e tamanho
+  function folioGallery(s, rerender) {
+    const F = window.FolioShapes;
+    if (!F) return null;
+    const shape = s.pageNumberShape || 'plain';
+    const bg = s.pageNumberBg || '#000000', fg = s.pageNumberFg || '#ffffff';
+    const tile = sh => {
+      const css = F.decl({ shape: sh.key, bg, fg, size: 7 }).replace(/(\d+(\.\d+)?)mm/g, (m, v) => (Number(v) * 3.2).toFixed(1) + 'px');
+      return el('button', { class: 'fol-tile' + (shape === sh.key ? ' on' : ''), title: sh.label, onclick: () => { s.pageNumberShape = sh.key; App.changed('Visual do número da página: ' + sh.label); rerender(); } }, [
+        el('span', { class: 'fol-num', style: css + ' font-family: Georgia, serif; font-size: ' + (sh.d ? 12 : 14) + 'px;', text: '27' }),
+        el('small', { text: sh.label })
+      ]);
+    };
+    return el('div', { class: 'field wide' }, [
+      el('span', { class: 'flabel', text: 'Visual do número da página' }),
+      el('div', { class: 'fol-grid' }, F.SHAPES.map(tile)),
+      el('div', { class: 'inline wrap' }, [
+        App.field('Cor da forma', App.bind(s, 'pageNumberBg', 'color', { fallback: '#000000', onChange: rerender })),
+        App.field('Cor do número', App.bind(s, 'pageNumberFg', 'color', { fallback: '#ffffff', onChange: rerender })),
+        App.field('Tamanho (mm)', App.bind(s, 'pageNumberShapeSize', 'number', { step: 0.5, min: 4, max: 16, fallback: 7, onChange: rerender }))
+      ])
+    ]);
+  }
   const bind = App.bind;
   const field = App.field;
   const card = App.card;
@@ -697,7 +721,11 @@
       card('Cabeçalho, numeração e notas', [
         field('Cabeçalho', bind(s, 'header', 'select', { options: [{ value: 'title-chapter', label: 'Título do livro / título do capítulo' }, { value: 'author-title', label: 'Autor / título do livro' }, { value: 'chapter-chapter', label: 'Título do capítulo nas duas páginas' }, { value: 'none', label: 'Sem cabeçalho' }], onChange: rerender })),
         App.headerRuleGallery ? App.headerRuleGallery(s, rerender) : null,
-        field('Número da página', bind(s, 'pageNumbers', 'select', { options: [{ value: 'outer', label: 'Rodapé, canto externo' }, { value: 'center', label: 'Rodapé, centralizado' }].concat(cedet ? [] : [{ value: 'top-outer', label: 'Topo, canto externo' }]).concat([{ value: 'none', label: 'Sem numeração' }]) }), cedet ? 'CEDET: canto inferior externo ou centro inferior; ímpares sempre à direita.' : ''),
+        field('Número da página', bind(s, 'pageNumbers', 'select', { options: [{ value: 'left', label: 'Rodapé, à esquerda (todas as páginas)' }, { value: 'outer', label: 'Rodapé, canto externo' }, { value: 'center', label: 'Rodapé, centralizado' }].concat(cedet ? [] : [{ value: 'top-outer', label: 'Topo, canto externo' }]).concat([{ value: 'none', label: 'Sem numeração' }]), onChange: rerender }), cedet ? 'O manual CEDET pede o canto inferior externo ou o centro inferior.' : ''),
+        s.pageNumbers !== 'none' ? folioGallery(s, rerender) : null,
+        el('label', { class: 'chk' }, [bind(s, 'folioOnOpenings', 'checkbox', { fallback: true }), ' Número também na abertura dos capítulos']),
+        el('label', { class: 'chk' }, [bind(s, 'frameHidesHeader', 'checkbox', { fallback: true }), ' Nas páginas com moldura, tirar o cabeçalho (obra e autor) e o filete']),
+        el('label', { class: 'chk' }, [bind(s, 'headingsLikeChapter', 'checkbox', { fallback: true }), ' “Título” no texto com a letra do título do capítulo e em página nova; “Subtítulo” na mesma letra, em negrito']),
         n('folioGap', 'Distância do número ao texto (mm)', 0.5, 0, 30, '0 = número centrado na margem inferior. CEDET: 3 mm, para ficar dentro dos 20 mm de segurança'),
         el('label', { class: 'chk' }, [bind(s, 'numberFromFirstChapter', 'checkbox'), ' Página 1 = primeiro capítulo']),
         field('Numeração das notas', bind(s, 'footnoteNumbering', 'select', { options: [{ value: 'book', label: 'Contínua no livro' }, { value: 'chapter', label: 'Reinicia a cada capítulo' }] })),

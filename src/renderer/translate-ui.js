@@ -147,7 +147,7 @@
     const notes = [];
     let lang = '';
     const totalChunks = proj.chapters.reduce((s, c) => s + chunks(chapterBlocks(c, [])).length, 0);
-    log(`${proj.chapters.length} capítulo(s) · ${fmt(srcWords)} palavras · ${totalChunks} trecho(s) para traduzir (${cfg.provider === 'ollama' ? 'Ollama · ' + cfg.ollamaModel : cfg.provider === 'openrouter' ? 'OpenRouter · ' + cfg.orModel : cfg.provider === 'google' ? 'Google Gemini · ' + cfg.ggModel : cfg.provider === 'mock' ? 'simulação' : (cfg.models.find(m => m.id === cfg.model) || {}).name || cfg.model})`);
+    log(`${proj.chapters.length} capítulo(s) · ${fmt(srcWords)} palavras · ${totalChunks} trecho(s) para traduzir (${cfg.effective === 'gtrans' ? 'Google Tradutor' + (cfg.aiReview && (cfg.hasOrKey || cfg.hasGgKey) ? ' + revisão por IA' : '') : cfg.provider === 'ollama' ? 'Ollama · ' + cfg.ollamaModel : cfg.provider === 'openrouter' ? 'OpenRouter · ' + cfg.orModel : cfg.provider === 'google' ? 'Google Gemini · ' + cfg.ggModel : cfg.provider === 'mock' ? 'simulação' : (cfg.models.find(m => m.id === cfg.model) || {}).name || cfg.model})`);
     const origTitle = proj.meta.title;
     let done = 0;
     for (let ci = 0; ci < proj.chapters.length; ci++) {
@@ -202,7 +202,7 @@
     if (!rep || rep.error || !rep.parecer) rep = localReport(stats, rep && rep.error);
     item.report = {
       file: item.path, out: item.out, title: proj.meta.title, originalTitle: origTitle, author: proj.meta.author, lang: lang || 'não identificado',
-      engine: cfg.provider === 'ollama' ? `Ollama · ${cfg.ollamaModel} (local)` : cfg.provider === 'openrouter' ? `OpenRouter · ${cfg.orModel}` : cfg.provider === 'google' ? `Google Gemini · ${cfg.ggModel}` : cfg.provider === 'mock' ? 'Simulação (teste)' : `${(cfg.models.find(m => m.id === cfg.model) || {}).name || cfg.model} · esforço ${cfg.effort}`,
+      engine: cfg.effective === 'gtrans' ? `Google Tradutor${cfg.aiReview && (cfg.hasOrKey || cfg.hasGgKey) ? ' + revisão por IA (' + (cfg.hasOrKey ? 'OpenRouter' : 'Gemini') + ')' : ''} + correções do sistema` : cfg.provider === 'ollama' ? `Ollama · ${cfg.ollamaModel} (local)` : cfg.provider === 'openrouter' ? `OpenRouter · ${cfg.orModel}` : cfg.provider === 'google' ? `Google Gemini · ${cfg.ggModel}` : cfg.provider === 'mock' ? 'Simulação (teste)' : `${(cfg.models.find(m => m.id === cfg.model) || {}).name || cfg.model} · esforço ${cfg.effort}`,
       date: new Date().toLocaleString('pt-BR'), stats, cleaning: cleaning.filter(x => /removid|mantid|capítulo|nota/i.test(x)), notes, glossary: [...ctx.glossary.entries()], reps,
       tokens: { in: st.tokensIn, out: st.tokensOut, cost: st.cost }, parecer: rep.parecer, changes: rep.changes || [], corrections: rep.corrections || []
     };
@@ -225,8 +225,7 @@
     const todo = queue.filter(q => q.status === 'wait' || q.status === 'err');
     if (!todo.length) return App.toast('Envie um ou mais livros (EPUB, DOCX ou DOC).');
     cfg = await api.trConfig();
-    if (cfg.provider === 'openrouter' && !cfg.hasOrKey) { App.toast('Informe a chave do OpenRouter em Configurações da tradução (crie grátis em openrouter.ai/keys).', 6000); return; }
-    if (cfg.provider === 'google' && !cfg.hasGgKey) { App.toast('Informe a chave do Google Gemini em Configurações da tradução (crie em aistudio.google.com/apikey).', 6000); return; }
+    // sem a chave do motor escolhido, a tradução segue pelo Google Tradutor (gratuito, sem chave)
     if (cfg.provider === 'claude' && !cfg.hasKey) { App.toast('Informe a chave da API da Anthropic em Configurações da tradução (ou escolha Ollama, local).', 6000); return; }
     // conexão conferida antes da fila (chave errada ou sem internet não vira minutos de novas tentativas)
     const t = await api.trTest();
@@ -356,7 +355,7 @@ ${r.notes.length ? `<h2>Notas editoriais</h2><ul class="notes">${li(r.notes.slic
   async function renderConfig() {
     cfg = await api.trConfig();
     cfgBox.innerHTML = '';
-    const prov = el('select', {}, [['openrouter', 'OpenRouter — principal: modelos gratuitos (NVIDIA Nemotron 3 Ultra), precisa de internet'], ['google', 'Google Gemini — cota gratuita do Google AI Studio, precisa de internet'], ['ollama', 'Ollama — modelo local, funciona sem internet']].concat(cfg.mock ? [['mock', 'Simulação (teste)']] : []).map(([v, t]) => el('option', { value: v, text: t, selected: cfg.provider === v })));
+    const prov = el('select', {}, [['openrouter', 'OpenRouter — principal: modelos gratuitos (NVIDIA Nemotron 3 Ultra), precisa de internet'], ['google', 'Google Gemini — cota gratuita do Google AI Studio, precisa de internet'], ['gtrans', 'Google Tradutor — gratuito, sem chave (precisa de internet)'], ['ollama', 'Ollama — modelo local, funciona sem internet']].concat(cfg.mock ? [['mock', 'Simulação (teste)']] : []).map(([v, t]) => el('option', { value: v, text: t, selected: cfg.provider === v })));
     const key = el('input', { type: 'password', placeholder: cfg.hasKey ? `chave salva (${cfg.keyHint})` : 'sk-ant-…', autocomplete: 'off' });
     const model = el('select', {}, cfg.models.map(m => el('option', { value: m.id, text: m.name, selected: cfg.model === m.id })));
     const effort = el('select', {}, [['medium', 'Médio — mais rápido'], ['high', 'Alto — recomendado para literatura'], ['xhigh', 'Muito alto — máximo cuidado']].map(([v, t]) => el('option', { value: v, text: t, selected: cfg.effort === v })));
@@ -367,9 +366,10 @@ ${r.notes.length ? `<h2>Notas editoriais</h2><ul class="notes">${li(r.notes.slic
     const ggKey = el('input', { type: 'password', placeholder: cfg.hasGgKey ? `chave salva (${cfg.ggKeyHint})` : 'AIza…', autocomplete: 'off' });
     const ggModel = el('input', { type: 'text', value: cfg.ggModel, placeholder: 'gemini-2.5-flash' });
     const glue = el('input', { type: 'checkbox', checked: cfg.glue !== false });
+    const aiRev = el('input', { type: 'checkbox', checked: cfg.aiReview !== false });
     const status = el('span', { class: 'small muted' });
     const save = async () => {
-      const patch = { provider: prov.value, model: model.value, effort: effort.value, ollamaUrl: ourl.value.trim(), ollamaModel: omodel.value.trim(), orModel: orModel.value.trim() || undefined, ggModel: ggModel.value.trim() || undefined, glue: glue.checked };
+      const patch = { provider: prov.value, model: model.value, effort: effort.value, ollamaUrl: ourl.value.trim(), ollamaModel: omodel.value.trim(), orModel: orModel.value.trim() || undefined, ggModel: ggModel.value.trim() || undefined, aiReview: aiRev.checked, glue: glue.checked };
       if (key.value.trim()) patch.apiKey = key.value.trim();
       if (orKey.value.trim()) patch.orKey = orKey.value.trim();
       if (ggKey.value.trim()) patch.ggKey = ggKey.value.trim();
@@ -390,6 +390,8 @@ ${r.notes.length ? `<h2>Notas editoriais</h2><ul class="notes">${li(r.notes.slic
       cfg.provider === 'google' ? el('div', { class: 'tr-cfg-row' }, [el('label', { class: 'flabel', text: 'Modelo' }), ggModel, el('span', { class: 'small muted', text: 'Padrão: Gemini 2.5 Flash. O “Testar conexão” lista os modelos disponíveis para a sua chave, se este não estiver. Na cota gratuita há limite de pedidos por minuto e por dia (o tradutor espera e continua sozinho) e o Google pode usar o texto enviado para melhorar os seus produtos.' })]) : null,
       cfg.provider === 'ollama' ? el('div', { class: 'tr-cfg-2' }, [el('div', { class: 'tr-cfg-row' }, [el('label', { class: 'flabel', text: 'Endereço do Ollama' }), ourl]), el('div', { class: 'tr-cfg-row' }, [el('label', { class: 'flabel', text: 'Modelo instalado' }), omodel])]) : null,
       cfg.provider === 'ollama' ? el('p', { class: 'small muted', text: 'Instale o Ollama (ollama.com) e um modelo multilíngue (ex.: “ollama pull qwen2.5:14b”). Tudo roda no seu computador; a qualidade depende do modelo escolhido.' }) : null,
+      cfg.effective === 'gtrans' ? el('p', { class: 'small ' + (cfg.provider === 'gtrans' ? 'muted' : 'warn'), text: (cfg.provider === 'gtrans' ? '' : 'Sem a chave do motor escolhido, a tradução usa o Google Tradutor (gratuito). ') + 'O Google faz a tradução bruta, bloco a bloco (títulos, ênfases e notas preservados); depois ' + (cfg.hasOrKey || cfg.hasGgKey ? 'a IA (' + (cfg.hasOrKey ? 'OpenRouter' : 'Gemini') + ') revisa sentido, coesão, coerência e estilo, e ' : '') + 'o sistema aplica travessões, Novo Acordo Ortográfico, dicionário de estilo e pontuação.' }) : null,
+      cfg.effective === 'gtrans' ? el('label', { class: 'chk' }, [aiRev, ' Revisar a tradução do Google com IA (usa a chave do OpenRouter ou do Gemini, se houver)']) : null,
       el('label', { class: 'chk' }, [glue, ' Travessão colado na fala (—Olá — disse ele.)']),
       el('div', { class: 'inline wrap' }, [el('button', { class: 'primary', text: 'Salvar configurações', onclick: save }), el('button', { text: 'Testar conexão', onclick: async () => { await save(); status.textContent = 'Testando…'; const t = await api.trTest(); status.textContent = (t.ok ? '✓ ' : '✕ ') + t.msg; status.className = 'small ' + (t.ok ? 'good' : 'bad'); } }), status])
     );

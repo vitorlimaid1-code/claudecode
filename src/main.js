@@ -522,6 +522,12 @@ function creditsNext() {
   return F.names(next);
 }
 ipcMain.handle('credits:next', () => creditsNext());
+
+// atualização pelo GitHub (tela Configurações)
+let updater = null;
+const upd = () => updater || (updater = require('./main/updater').createUpdater({ app, shell, send: p => { try { mainWindow && mainWindow.webContents.send('update:progress', p); } catch (e) { /* ok */ } } }));
+ipcMain.handle('update:check', () => upd().check());
+ipcMain.handle('update:install', () => upd().install());
 ipcMain.handle('credits:now', () => creditsNow());
 
 async function bookPayload(project, opts) {

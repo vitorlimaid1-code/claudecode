@@ -53,10 +53,24 @@ jobs:
           path: dist/Casa-Vertigem-Hub-*-x64.zip
           if-no-files-found: error
 
-      - name: Criar release (somente em tags v*)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Versão do sistema
+        id: ver
+        shell: pwsh
+        run: |
+          $v = node -p "require('./package.json').version"
+          "v=$v" >> $env:GITHUB_OUTPUT
+
+      # cada versão nova vira uma Release (v<versão>): é dela que a tela Configurações → Atualizar baixa o instalador
+      - name: Publicar a versão para a atualização automática
+        if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/claude/kind-edison-1d7mv8' || github.ref == 'refs/heads/main')
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.ver.outputs.v }}
+          name: Casa Vertigem Hub ${{ steps.ver.outputs.v }}
+          target_commitish: ${{ github.sha }}
+          body: ${{ github.event.head_commit.message }}
+          make_latest: true
+          overwrite_files: true
           files: |
             dist/*.exe
             dist/*.zip

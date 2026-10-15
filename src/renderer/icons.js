@@ -32,6 +32,7 @@
     blocks: '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/>',
     textbox: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 15h10M7 11h6"/><path d="m3 17 5-5 4 4"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>',
     undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
     redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/>',
     moon: '<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4 6.5 6.5 0 0 0 20 14.5Z"/>',
@@ -41,7 +42,7 @@
   };
   const svg = name => `<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name] || P.book}</svg>`;
   const NAV = { titles: 'heading', blocks: 'blocks', boxes: 'textbox', pagelayouts: 'layout', frontimages: 'cover', immersion: 'mountain', book: 'info', catalog: 'credits', back: 'pen', layout: 'layout', typo: 'sparkles', stylelib: 'palette', styles: 'pilcrow', fonts: 'font', assets: 'images', layers: 'layers', notes: 'note', tools: 'check', cover: 'book', export: 'export', poetry: 'feather', periodical: 'news', kdp: 'kdp', appearance: 'contrast', reset: 'reset' };
-  const CMD = { enhance: 'sparkles', translate: 'globe', new: 'file', open: 'folder', save: 'save', import: 'upload', projectUndo: 'undo', projectRedo: 'redo', history: 'clock', library: 'library', export: 'export' };
+  const CMD = { enhance: 'sparkles', translate: 'globe', new: 'file', open: 'folder', save: 'save', import: 'upload', projectUndo: 'undo', projectRedo: 'redo', history: 'clock', library: 'library', settings: 'gear', export: 'export' };
   function apply() {
     document.querySelectorAll('.nav-item').forEach(b => {
       const k = b.dataset.view ? NAV[b.dataset.view] : b.id === 'navTitles' ? 'heading' : null;
