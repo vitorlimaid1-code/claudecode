@@ -622,19 +622,12 @@ function catalogHtml(project, ctx) {
   if (c.contact) parts.push(`<div class="cat-contact">${multiline(c.contact)}</div>`);
   return `<section class="front copyright-page cat-style-${esc(c.style || 'box')} cat-pos-${c.position === 'top' ? 'top' : 'bottom'}" id="ficha">${parts.join('')}</section>`;
 }
-// endereço da editora: o mesmo impresso na ficha catalográfica (contato ou crédito de distribuição)
-function inviteAddress(project) {
-  const c = project.catalog || {};
-  const s = project.settings || {};
-  if (String(c.contact || '').trim()) return String(c.contact).replace(/\r\n?/g, '\n').trim();
-  const dist = String(c.distribution || (s.standard === 'cedet' ? CEDET.distribution : '')).replace(/\r\n?/g, '\n').trim();
-  return dist.split('\n').filter((l, i) => !(i === 0 && /^distribui[çc][ãa]o\b/i.test(l.trim()))).join('\n').trim();
-}
 function inviteHtml(project, ctx) {
   const inv = project.back.invite || {};
   const site = String(inv.site || 'www.casavertigem.com.br').trim();
   const ig = String(inv.instagram || 'casavertigem').replace(/^@/, '').trim();
-  const addr = inviteAddress(project);
+  // endereço da editora (nunca o do Cedet, que fica só na ficha catalográfica)
+  const addr = String(inv.address || '').replace(/\r\n?/g, '\n').trim();
   return `<section class="back-matter invite-page" id="convite">
     <div class="invite">
       <div class="invite-orn">❦</div>

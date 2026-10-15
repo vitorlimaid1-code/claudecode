@@ -562,7 +562,8 @@
         el('label', { class: 'chk' }, [bind(b.invite, 'enabled', 'checkbox'), ' Incluir a página-convite no fim do livro (ligada em todos os livros)']),
         field('Site', bind(b.invite, 'site', 'text', { placeholder: 'www.casavertigem.com.br' })),
         field('Instagram (QR code)', bind(b.invite, 'instagram', 'text', { placeholder: 'casavertigem' })),
-        el('p', { class: 'muted small', text: 'Página elegante, sempre a última do livro e de todos os PDFs: convida o leitor a conhecer outros títulos no site, traz o QR code do Instagram e o endereço da editora — o mesmo da ficha catalográfica (contato da ficha ou, no padrão Cedet, o crédito de distribuição).' })
+        field('Endereço da editora', bind(b.invite, 'address', 'textarea', { rows: 3 })),
+        el('p', { class: 'muted small', text: 'Página elegante, sempre a última do livro e de todos os PDFs: convida o leitor a conhecer outros títulos no site, traz o QR code do Instagram e o endereço da Casa Vertigem. O endereço do Cedet aparece só na ficha catalográfica.' })
       ], '', 'span-all')
     ]));
   };

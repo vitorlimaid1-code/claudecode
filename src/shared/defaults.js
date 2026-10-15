@@ -560,6 +560,8 @@
     '<p>Tudo acontece no seu computador. Nenhum texto é enviado para a internet: o projeto é salvo como um arquivo <i>.livro</i> na pasta que você escolher.</p>'
   ].join('');
 
+  const INVITE_ADDRESS = 'Casa Vertigem Editora de Livros\nRua Santa Clara, 205/404\nCopacabana, Rio de Janeiro/RJ — CEP 22041-011';
+
   function emptyCatalog() {
     return {
       enabled: true,
@@ -622,8 +624,9 @@
       back: {
         bio: { enabled: false, title: 'Sobre o autor', html: '', photo: null, photoWidth: 35 },
         extra: { enabled: false, title: 'Do mesmo autor', html: '' },
-        // página-convite no fim de todo livro: outros títulos da casa, site, QR do Instagram e endereço da ficha
-        invite: { enabled: true, site: 'www.casavertigem.com.br', instagram: 'casavertigem' }
+        // página-convite no fim de todo livro: outros títulos da casa, site, QR do Instagram e endereço da editora
+        // (o endereço do Cedet fica só na ficha catalográfica)
+        invite: { enabled: true, site: 'www.casavertigem.com.br', instagram: 'casavertigem', address: INVITE_ADDRESS }
       },
       chapters: [{ id: uid(), title: 'O começo', numbered: true, html: SAMPLE_TEXT, locked: false, style: {}, separator: 'default', openingImage: null }],
       assets: {},
