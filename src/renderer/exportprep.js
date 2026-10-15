@@ -367,7 +367,7 @@ h1.tb-black { background: #000; color: #fff; } h1.tb-white { border: 1px solid #
     };
     // imagens extras antes da página de rosto (página inteira)
     const preImages = ((project.ebook && project.ebook.preImages) || []).map(id => project.assets[id] && project.assets[id].dataUrl).filter(Boolean);
-    return { meta: m, extra, docs, css: epubCss(s), copyright: copyright + '<p class="cv-credit">Livro digital produzido com Casa Vertigem Hub — Casa Vertigem.</p>', cover, preImages, tocTitle: project.front.tocTitle };
+    return { meta: m, extra, docs, css: epubCss(s), copyright: opts && opts.noCopyright ? '' : copyright + '<p class="cv-credit">Livro digital produzido com Casa Vertigem Hub — Casa Vertigem.</p>', cover, preImages, tocTitle: project.front.tocTitle };
   }
 
   App.exportPrep = { buildDoc, buildEpub, blocksOf };

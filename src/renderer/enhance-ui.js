@@ -202,8 +202,9 @@
     }
     res.meta = res.meta || {};
     log(`${(res.docs || []).length} arquivo(s) internos · “${decode(res.meta.title) || name}”${res.meta.author ? ' · ' + decode(res.meta.author) : ''}`);
-    const html = cleanGutenberg(res, m => log(m));
-    let chapters = BookText.htmlToChapters(html, decode(res.meta.title) || item.name);
+    // conversão de formato (Ferramentas): sem a limpeza do Gutenberg, o arquivo fica inteiro
+    const html = opts.clean === false ? (res.docs || []).map(d => d.html).join('\n') : cleanGutenberg(res, m => log(m));
+    let chapters = BookText.htmlToChapters(html, decode(res.meta.title) || name);
     const det = chapters.detected;
     chapters = chapters.filter(c => c.html.replace(/<[^>]+>/g, '').trim() || /<img/.test(c.html));
     if (!chapters.length) throw new Error('nenhum capítulo encontrado depois da limpeza');

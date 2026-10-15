@@ -1,1 +1,1 @@
-export { pipeline, env, AutoTokenizer, AutoModelForSeq2SeqLM } from '@huggingface/transformers';
+export { pipeline, env, AutoTokenizer, AutoModelForSeq2SeqLM, RawImage } from '@huggingface/transformers';

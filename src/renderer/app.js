@@ -258,7 +258,7 @@
 
   const commands = {
     new: newBook, open: () => open(), save: () => save(false), saveAs: () => save(true),
-    import: () => App.importer.fromDialog(), export: () => App.setView('export'), enhance: () => App.enhance.open(), translate: () => App.translate.open(),
+    import: () => App.importer.fromDialog(), export: () => App.setView('export'), enhance: () => App.enhance.open(), translate: () => App.translate.open(), toolbox: () => App.toolbox.open(),
     refresh: () => App.preview.schedule(true), help,
     projectUndo: () => App.undo(), projectRedo: () => App.redo(), history: () => App.showHistory(), settings: () => App.settingsUi && App.settingsUi.open(),
     library: () => App.library.toggle(), find: () => App.tools.find(),
@@ -341,7 +341,8 @@
         card('folder', 'Abrir um projeto', 'Continuar um livro salvo (.livro)', () => runCommand('open')),
         card('plus', 'Começar do zero', 'Livro, revista ou jornal em branco', () => runCommand('new')),
         card('sparkles', 'Melhoramento', 'EPUBs do Gutenberg → DOCX no padrão, um ou vários', () => App.enhance.open()),
-        card('globe', 'Tradução', 'Qualquer idioma → português do Brasil, em DOCX no padrão', () => App.translate.open())
+        card('globe', 'Tradução', 'Qualquer idioma → português do Brasil, em DOCX no padrão', () => App.translate.open()),
+        card('images', 'Ferramentas', 'Converter imagens e textos de qualquer formato e remover fundo', () => App.toolbox.open())
       ]),
       el('button', { class: 'wl-skip', text: 'Entrar no aplicativo →', onclick: go() }),
       el('p', { class: 'wl-foot', text: 'Tudo fica no seu computador e funciona sem internet — só a tradução (OpenRouter ou Google) usa a internet.' })

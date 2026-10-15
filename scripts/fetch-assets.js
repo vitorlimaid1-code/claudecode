@@ -29,6 +29,24 @@ async function get(url, file) {
     }
     if (err) { console.log(`falha ${label}: ${err.message}`); fail++; }
   }
+  // modelo de remoção de fundo (MODNet, Apache-2.0): vem no instalador para funcionar sem internet
+  const BG = require('../src/main/bgremove').MODELS.modnet;
+  for (const f of BG.files) {
+    const file = path.join(root, 'assets', 'models', ...BG.id.split('/'), f);
+    if (fs.existsSync(file)) { console.log('ok   modelo ' + f + ': já existe'); continue; }
+    let err = null;
+    for (let k = 0; k < 4; k++) {
+      try {
+        const r = await fetch(`https://huggingface.co/${BG.id}/resolve/main/${f}`, { headers: { 'user-agent': 'Casa Vertigem Hub (build)' } });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const buf = Buffer.from(await r.arrayBuffer());
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, buf);
+        console.log(`ok   modelo ${f}: ${(buf.length / 1024).toFixed(0)} KB`); ok++; err = null; break;
+      } catch (e) { err = e; await new Promise(r => setTimeout(r, 1500 * (k + 1))); }
+    }
+    if (err) { console.log(`falha modelo ${f}: ${err.message} (o app baixa na primeira vez)`); fail++; }
+  }
   console.log(`fetch-assets: ${ok} baixado(s), ${fail} falha(s)`);
   if (process.argv.includes('--strict') && fail) process.exit(1);
 })();

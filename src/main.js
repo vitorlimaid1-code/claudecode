@@ -1,6 +1,6 @@
 // Processo principal do Casa Vertigem Hub (antigo Diagramador de Livros).
 // Tudo roda localmente: nenhuma requisição de rede é permitida.
-const { app, BrowserWindow, Menu, dialog, ipcMain, protocol, session, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, protocol, session, shell, utilityProcess } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -1218,6 +1218,11 @@ if (!process.env.SMOKE_TEST && !app.requestSingleInstanceLock()) {
     library.extraBuiltin = () => remoteAssets.bundledRules(library.builtinDir);
     registerAppProtocol();
     blockNetwork(session.defaultSession);
+    // tela Ferramentas: conversores de imagem e de texto, remoção de fundo
+    require('./main/tools').registerTools({
+      ipcMain, dialog, app, utilityProcess, getWindow: () => mainWindow, rasterizePdf, safeName,
+      bg: require('./main/bgremove').createBgRemover({ modelsDir: userFile('modelos'), bundledDir: path.join(APP_ROOT, 'assets', 'models'), workerUrl: appUrl('src/mt/bg.html'), preload: path.join(__dirname, 'mt', 'bg-preload.js') })
+    });
     if (process.env.SMOKE_TEST && process.env.MT_SELFTEST) {
       // conferência do tradutor offline (janela oculta, WebAssembly e modelo da pasta de dados)
       const r = await tr().offline.test();

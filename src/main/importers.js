@@ -289,10 +289,45 @@ async function importAny(filePath) {
   else if (ext === '.html' || ext === '.htm' || ext === '.xhtml') res = { kind: 'html', html: await importText(filePath) };
   else if (ext === '.md' || ext === '.markdown') res = { kind: 'markdown', text: await importText(filePath) };
   else if (ext === '.rtf') res = { kind: 'text', text: rtfToText(await importText(filePath)) };
+  else if (ext === '.fb2') res = fb2ToHtml(await importText(filePath));
   else res = { kind: 'text', text: await importText(filePath) };
   res.name = name;
   res.ext = ext;
   return res;
+}
+
+// FictionBook 2 (FB2) -> HTML: títulos, parágrafos, ênfases, poemas, citações, notas e ilustrações
+function fb2ToHtml(xml) {
+  const tag = (s, t) => { const m = new RegExp(`<${t}[^>]*>([\\s\\S]*?)</${t}>`, 'i').exec(s); return m ? m[1] : ''; };
+  const plain = s => String(s || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const info = tag(xml, 'title-info');
+  const author = plain([tag(tag(info, 'author'), 'first-name'), tag(tag(info, 'author'), 'middle-name'), tag(tag(info, 'author'), 'last-name')].join(' '));
+  const title = plain(tag(info, 'book-title'));
+  const lang = plain(tag(info, 'lang'));
+  // ilustrações embutidas (binary) e notas (body name="notes")
+  const bins = {};
+  xml.replace(/<binary[^>]*id="([^"]+)"[^>]*content-type="([^"]+)"[^>]*>([\s\S]*?)<\/binary>/gi, (m, id, type, b64) => { bins[id] = `data:${type};base64,${b64.replace(/\s+/g, '')}`; return ''; });
+  const notes = {};
+  const notesBody = /<body[^>]*name="(?:notes|comments)"[^>]*>([\s\S]*?)<\/body>/i.exec(xml);
+  if (notesBody) notesBody[1].replace(/<section[^>]*id="([^"]+)"[^>]*>([\s\S]*?)<\/section>/gi, (m, id, inner) => { notes[id] = plain(inner.replace(/<title>[\s\S]*?<\/title>/i, '')); return ''; });
+  const bodies = (xml.match(/<body(?![^>]*name="(?:notes|comments)")[^>]*>[\s\S]*?<\/body>/gi) || []);
+  let html = bodies.join('\n')
+    .replace(/<\/?body[^>]*>/gi, '')
+    .replace(/<a[^>]*(?:l|xlink):href="#([^"]+)"[^>]*type="note"[^>]*>[\s\S]*?<\/a>/gi, (m, id) => (notes[id] ? `<span class="footnote">${notes[id]}</span>` : ''))
+    .replace(/<a[^>]*type="note"[^>]*(?:l|xlink):href="#([^"]+)"[^>]*>[\s\S]*?<\/a>/gi, (m, id) => (notes[id] ? `<span class="footnote">${notes[id]}</span>` : ''))
+    .replace(/<image[^>]*(?:l|xlink):href="#([^"]+)"[^>]*\/?>/gi, (m, id) => (bins[id] ? `<p><img src="${bins[id]}" alt=""></p>` : ''))
+    .replace(/<title>([\s\S]*?)<\/title>/gi, (m, t) => `<h1>${plain(t)}</h1>`)
+    .replace(/<subtitle>([\s\S]*?)<\/subtitle>/gi, '<h2>$1</h2>')
+    .replace(/<epigraph>([\s\S]*?)<\/epigraph>/gi, '<blockquote class="epigraph">$1</blockquote>')
+    .replace(/<cite>([\s\S]*?)<\/cite>/gi, '<blockquote>$1</blockquote>')
+    .replace(/<text-author>([\s\S]*?)<\/text-author>/gi, '<p class="attribution">$1</p>')
+    .replace(/<poem>([\s\S]*?)<\/poem>/gi, (m, p) => p.replace(/<stanza>([\s\S]*?)<\/stanza>/gi, (mm, st) => `<p class="poem">${(st.match(/<v>([\s\S]*?)<\/v>/gi) || []).map(v => v.replace(/<\/?v>/gi, '')).join('<br>')}</p>`))
+    .replace(/<empty-line\s*\/>/gi, '<p><br></p>')
+    .replace(/<emphasis>/gi, '<i>').replace(/<\/emphasis>/gi, '</i>')
+    .replace(/<strong>/gi, '<b>').replace(/<\/strong>/gi, '</b>')
+    .replace(/<strikethrough>/gi, '<s>').replace(/<\/strikethrough>/gi, '</s>')
+    .replace(/<\/?(section|annotation)[^>]*>/gi, '\n');
+  return { kind: 'html', html, meta: { title, author, language: lang } };
 }
 
 // RTF simples -> texto (sem formatação)

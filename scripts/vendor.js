@@ -121,7 +121,7 @@ console.log('vendor: Paged.js e', FONTS.length, 'famílias de fontes copiadas pa
   const tf = path.join(nm, '@huggingface', 'transformers', 'package.json');
   const ortDir = path.join(nm, 'onnxruntime-web', 'dist');
   if (!fs.existsSync(tf) || !fs.existsSync(ortDir)) { console.warn('vendor: @huggingface/transformers ausente — tradutor offline indisponível nesta compilação'); return; }
-  const stamp = 'transformers ' + require(tf).version + ' / ort ' + require(path.join(nm, 'onnxruntime-web', 'package.json')).version;
+  const stamp = 'transformers ' + require(tf).version + ' / ort ' + require(path.join(nm, 'onnxruntime-web', 'package.json')).version + ' / ' + require('crypto').createHash('md5').update(fs.readFileSync(path.join(__dirname, 'mt-entry.mjs'))).digest('hex').slice(0, 8);
   const stampFile = path.join(mtOut, 'VERSION.txt');
   const files = ['ort-wasm-simd-threaded.asyncify.mjs', 'ort-wasm-simd-threaded.asyncify.wasm'];
   if (fs.existsSync(stampFile) && fs.readFileSync(stampFile, 'utf8') === stamp && fs.existsSync(path.join(mtOut, 'transformers.js')) && files.every(f => fs.existsSync(path.join(mtOut, f)))) return;
