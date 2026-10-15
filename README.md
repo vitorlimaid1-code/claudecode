@@ -108,7 +108,9 @@ Tela própria, aberta pelo botão **Ferramentas** no topo (ou na tela de boas-vi
 - **Título e Subtítulo no texto**: “Título” usa a mesma letra do título do capítulo, começa em página nova e entra no sumário; “Subtítulo” usa a mesma letra, em negrito, centralizado, no fluxo do texto e com espaço moderado.
 
 ### Configurações e atualização
-- Botão **Configurações** no topo: mostra a versão instalada e, em **Atualizar agora**, baixa do GitHub o instalador da versão mais recente (ou a versão portátil, quando o app roda portátil) e o abre; configurações, bibliotecas e livros são mantidos. Cada compilação publica a versão em *Releases*.
+- Botão **Configurações** no topo abre uma tela própria com duas partes:
+  - **Atualização**: consulta a versão publicada nos *Releases* do GitHub (API oficial), baixa o instalador direto do link oficial do GitHub (ou a versão portátil, quando o app roda portátil), confere tamanho e assinatura SHA-256 publicados pelo GitHub e abre o instalador. Um **registro** mostra cada etapa — consulta, arquivos disponíveis, endereço do download, progresso a cada 10% com velocidade e tempo restante, conclusão, conferência e abertura do instalador. Arquivo que não confere é descartado. Configurações, bibliotecas e livros são mantidos.
+  - **Manuais**: um manual para cada ferramenta, separado por categoria (Primeiros passos, Editor e texto, Páginas iniciais e finais, Design e formato, Imagens e elementos, Prévia e verificação, Exportação, Capa, Módulos, Melhoramento, Tradução, Ferramentas, Sistema), com busca sem acentos. Cada manual diz para que serve, onde fica, como usar, como funciona por dentro, como se comporta e quando não se comporta (limites).
 
 ### Filetes ornamentais
 - 12 filetes da Casa Vertigem na biblioteca de imagens (categoria **Separadores**), para usar sob o título dos capítulos.
