@@ -115,7 +115,7 @@
     if (det) { p.settings.chapterNumbering = det.style === 'words' ? 'arabic' : det.style; p.settings.chapterLabel = det.labeled ? 'Capítulo' : ''; }
     p.front.toc = true;
     p.front.tocMode = 'auto';
-    if (!p.settings.pageNumbers || p.settings.pageNumbers === 'none') p.settings.pageNumbers = 'left';
+    if (!p.settings.pageNumbers || p.settings.pageNumbers === 'none') p.settings.pageNumbers = 'center';
     P.log('Aplicando o tema padrão: estilos, margens, títulos, numeração de páginas e sumário automático');
     App.editorChapterId = null;
     App.changed(`Importação de “${res.name}” (${chs.length} capítulos)`);

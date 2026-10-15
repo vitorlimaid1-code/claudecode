@@ -138,7 +138,7 @@
     settings: {
       standard: 'cedet', marginTop: 28, marginBottom: 28, marginInner: 23, marginOuter: 20, safety: 20,
       bleedAuto: true, bleedTop: 5, bleedBottom: 5, bleedOuter: 5, bleedInner: 0, cropMarks: false, folioGap: 3,
-      pageNumbers: 'left', numberFromFirstChapter: false, pageColor: '#ffffff',
+      pageNumbers: 'center', numberFromFirstChapter: false, pageColor: '#ffffff',
       outputSheet: { mode: 'marks', w: 210, h: 297, marks: true, markOffset: 5, markLen: 5, markWeight: 0.25 }
     },
     distribution: 'DISTRIBUIÇÃO\nCEDET — Centro de Desenvolvimento Profissional e Tecnológico\nAv. Comendador Aladino Selmi, 4682 — Condomínio GR2, galpão 8\nCEP: 13069-096 — Vila San Martin, Campinas-SP\nTelefones: (19) 3249-0580 / 3327-2257\ne-mail: livros@cedet.com.br',
@@ -191,8 +191,8 @@
     const ok = fmt && fmt.group === GC ? fmt : PAGE_FORMATS.find(p => p.id === DEFAULT_FORMAT_ID);
     const prevNumbers = settings.pageNumbers;
     Object.assign(settings, JSON.parse(JSON.stringify(CEDET.settings)), { pageFormat: ok.id, pageWidth: ok.width, pageHeight: ok.height });
-    // número da página sempre no rodapé, à esquerda (decisão da editora; ver o aviso na pré-impressão CEDET)
-    settings.pageNumbers = prevNumbers === 'none' ? 'none' : 'left';
+    // número da página sempre no centro do rodapé (aceito pelo manual do Cedet)
+    settings.pageNumbers = prevNumbers === 'none' ? 'none' : 'center';
     if (settings.styles) ['body', 'chapterTitle', 'chapterLabel', 'h2', 'h3', 'header', 'pageNumber', 'footnote', 'quote', 'toc'].forEach(k => { if (settings.styles[k]) settings.styles[k].color = '#000000'; });
     return settings;
   }
@@ -416,13 +416,13 @@
 
     header: 'title-chapter',
     // número da página: rodapé à esquerda, em branco dentro de um bloco preto (ou outra forma: naipes, estrela…)
-    pageNumbers: 'left',
+    pageNumbers: 'center',
     pageNumberShape: 'circle',
     pageNumberBg: '#000000',
     pageNumberFg: '#ffffff',
     pageNumberShapeSize: 7,
     folioOnOpenings: true,
-    folioV: 4,
+    folioV: 5,
     // página com moldura: some o cabeçalho (obra e autor) e o filete
     frameHidesHeader: true,
     // “Título” no texto = mesma fonte do título do capítulo, começando em página nova; “Subtítulo” = mesma fonte, em negrito
@@ -458,92 +458,92 @@
   const GENRE_PRESETS = {
     romance: {
       label: 'Romance', separatorLibrary: 'coracao-linhas',
-      settings: { dropCap: true, smallCapsFirstLine: false, header: 'title-chapter', pageNumbers: 'left', sceneBreak: '❦' },
+      settings: { dropCap: true, smallCapsFirstLine: false, header: 'title-chapter', pageNumbers: 'center', sceneBreak: '❦' },
       styles: { body: { font: 'EB Garamond', size: 11.5, lineHeight: 1.4, align: 'justify', indent: 1.5 }, chapterTitle: { font: 'Playfair Display', size: 22, italic: true, align: 'center', spaceBefore: 40 }, chapterLabel: { font: 'EB Garamond' } }
     },
     poesia: {
       label: 'Poesia', separatorLibrary: 'pena',
-      settings: { dropCap: false, header: 'none', pageNumbers: 'left', chapterNumbering: 'none', chapterStartRight: false, hyphenate: false, sceneBreak: '·' },
+      settings: { dropCap: false, header: 'none', pageNumbers: 'center', chapterNumbering: 'none', chapterStartRight: false, hyphenate: false, sceneBreak: '·' },
       styles: { body: { font: 'Cormorant Garamond', size: 12.5, lineHeight: 1.5, align: 'left', indent: 0 }, chapterTitle: { font: 'Cormorant Garamond', size: 18, italic: true, align: 'left', spaceBefore: 20 }, poem: { indentLeft: 0, size: 12.5 } }
     },
     terror: {
       label: 'Terror', separatorLibrary: 'espinhos',
-      settings: { dropCap: true, header: 'title-chapter', pageNumbers: 'left', chapterNumbering: 'roman', sceneBreak: '✝', pageColor: '#ffffff' },
+      settings: { dropCap: true, header: 'title-chapter', pageNumbers: 'center', chapterNumbering: 'roman', sceneBreak: '✝', pageColor: '#ffffff' },
       styles: { body: { font: 'Crimson Pro', size: 11.5, lineHeight: 1.35, align: 'justify' }, chapterTitle: { font: 'Cormorant Garamond', size: 26, uppercase: true, letterSpacing: 0.12, color: '#5a0d0d', spaceBefore: 45 }, chapterLabel: { color: '#5a0d0d' } }
     },
     suspense: {
       label: 'Suspense / policial', separatorLibrary: 'linha-dupla',
-      settings: { dropCap: false, header: 'title-chapter', pageNumbers: 'left', chapterNumbering: 'arabic', chapterLabel: '', sceneBreak: '■' },
+      settings: { dropCap: false, header: 'title-chapter', pageNumbers: 'center', chapterNumbering: 'arabic', chapterLabel: '', sceneBreak: '■' },
       styles: { body: { font: 'Libre Baskerville', size: 10, lineHeight: 1.5 }, chapterTitle: { font: 'Libre Baskerville', size: 30, bold: true, align: 'left', spaceBefore: 30 } }
     },
     fantasia: {
       label: 'Fantasia', separatorLibrary: 'arabesco',
-      settings: { dropCap: true, smallCapsFirstLine: true, header: 'title-chapter', pageNumbers: 'left', chapterNumbering: 'words', sceneBreak: '✦  ✦  ✦' },
+      settings: { dropCap: true, smallCapsFirstLine: true, header: 'title-chapter', pageNumbers: 'center', chapterNumbering: 'words', sceneBreak: '✦  ✦  ✦' },
       styles: { body: { font: 'EB Garamond', size: 11.5 }, chapterTitle: { font: 'Cormorant Garamond', size: 24, uppercase: true, letterSpacing: 0.1, spaceBefore: 45 } }
     },
     ficcaocientifica: {
       label: 'Ficção científica', separatorLibrary: 'orbita',
-      settings: { dropCap: false, header: 'title-chapter', pageNumbers: 'left', chapterNumbering: 'arabic', chapterLabel: '', sceneBreak: '◆' },
+      settings: { dropCap: false, header: 'title-chapter', pageNumbers: 'center', chapterNumbering: 'arabic', chapterLabel: '', sceneBreak: '◆' },
       styles: { body: { font: 'Lora', size: 10.5, lineHeight: 1.45 }, chapterTitle: { font: 'Lora', size: 20, uppercase: true, letterSpacing: 0.2, align: 'left', spaceBefore: 30 } }
     },
     contos: {
       label: 'Contos / crônicas', separatorLibrary: 'losango',
-      settings: { dropCap: true, header: 'chapter-chapter', pageNumbers: 'left', chapterNumbering: 'none', chapterStartRight: false },
+      settings: { dropCap: true, header: 'chapter-chapter', pageNumbers: 'center', chapterNumbering: 'none', chapterStartRight: false },
       styles: { body: { font: 'Crimson Pro', size: 12 }, chapterTitle: { font: 'Crimson Pro', size: 20, italic: true, spaceBefore: 30 } }
     },
     infantil: {
       label: 'Infantojuvenil', separatorLibrary: 'estrelas',
-      settings: { dropCap: true, header: 'none', pageNumbers: 'left', hyphenate: false, sceneBreak: '★' },
+      settings: { dropCap: true, header: 'none', pageNumbers: 'center', hyphenate: false, sceneBreak: '★' },
       styles: { body: { font: 'Merriweather', size: 12.5, lineHeight: 1.65, align: 'justify', indent: 1.2, spaceAfter: 1.5 }, chapterTitle: { font: 'Merriweather', size: 22, bold: true, color: '#1d4f8a', spaceBefore: 30 } }
     },
     autoajuda: {
       label: 'Autoajuda / negócios', separatorLibrary: 'linha-ponto',
-      settings: { dropCap: false, header: 'author-title', pageNumbers: 'left', sceneBreak: '—' },
+      settings: { dropCap: false, header: 'author-title', pageNumbers: 'center', sceneBreak: '—' },
       styles: { body: { font: 'Lora', size: 10.5, lineHeight: 1.5, align: 'justify', indent: 0, spaceAfter: 2 }, chapterTitle: { font: 'Playfair Display', size: 24, align: 'left', bold: true, spaceBefore: 25 }, h2: { font: 'Playfair Display', align: 'left', bold: true } }
     },
     biografia: {
       label: 'Biografia / memórias', separatorLibrary: 'folhas',
-      settings: { dropCap: true, header: 'title-chapter', pageNumbers: 'left' },
+      settings: { dropCap: true, header: 'title-chapter', pageNumbers: 'center' },
       styles: { body: { font: 'Libre Baskerville', size: 10, lineHeight: 1.5 }, chapterTitle: { font: 'Libre Baskerville', size: 19, italic: true, spaceBefore: 35 } }
     },
     religioso: {
       label: 'Religioso / espiritual', separatorLibrary: 'cruz-flor',
-      settings: { dropCap: true, header: 'title-chapter', pageNumbers: 'left' },
+      settings: { dropCap: true, header: 'title-chapter', pageNumbers: 'center' },
       styles: { body: { font: 'EB Garamond', size: 12, lineHeight: 1.45 }, chapterTitle: { font: 'Cormorant Garamond', size: 24, uppercase: true, letterSpacing: 0.1, spaceBefore: 40 } }
     },
     academico: {
       label: 'Acadêmico / técnico', separatorLibrary: null,
-      settings: { dropCap: false, header: 'author-title', pageNumbers: 'left', separator: 'none', chapterStartRight: false, chapterLabel: '' },
+      settings: { dropCap: false, header: 'author-title', pageNumbers: 'center', separator: 'none', chapterStartRight: false, chapterLabel: '' },
       styles: { body: { font: 'Libre Baskerville', size: 10, lineHeight: 1.5, indent: 1.25 }, chapterTitle: { font: 'Libre Baskerville', size: 17, align: 'left', bold: true, spaceBefore: 15 }, h2: { align: 'left', bold: true, size: 12.5 }, h3: { size: 11, bold: true, italic: false } }
     },
     naoficcao: {
       label: 'Não-ficção / ensaio', separatorLibrary: 'linha-fina-afinada',
-      settings: { dropCap: false, header: 'author-title', pageNumbers: 'left', sceneBreak: '—' },
+      settings: { dropCap: false, header: 'author-title', pageNumbers: 'center', sceneBreak: '—' },
       styles: { body: { font: 'Merriweather', size: 10, lineHeight: 1.5, align: 'justify', indent: 1.3 }, chapterTitle: { font: 'Merriweather', size: 20, bold: true, align: 'left', spaceBefore: 28 }, h2: { font: 'Merriweather', size: 13, bold: true, align: 'left' }, h3: { font: 'Merriweather', size: 11, bold: true, italic: false, align: 'left' } }
     },
     humanas: {
       label: 'Ciências humanas', separatorLibrary: 'linha-simples',
-      settings: { dropCap: false, header: 'author-title', pageNumbers: 'left', chapterLabel: 'Capítulo', sceneBreak: '*' },
+      settings: { dropCap: false, header: 'author-title', pageNumbers: 'center', chapterLabel: 'Capítulo', sceneBreak: '*' },
       styles: { body: { font: 'Crimson Pro', size: 11.5, lineHeight: 1.45, align: 'justify', indent: 1.5 }, chapterTitle: { font: 'Crimson Pro', size: 21, smallcaps: true, align: 'center', spaceBefore: 32 }, h2: { font: 'Crimson Pro', size: 14, italic: false, bold: true, align: 'left' }, h3: { font: 'Crimson Pro', size: 12, italic: true, align: 'left' }, quote: { size: 10.5, indentLeft: 12 }, reference: { size: 10 } }
     },
     historia: {
       label: 'História', separatorLibrary: 'art-deco',
-      settings: { dropCap: true, header: 'title-chapter', pageNumbers: 'left', sceneBreak: '❧' },
+      settings: { dropCap: true, header: 'title-chapter', pageNumbers: 'center', sceneBreak: '❧' },
       styles: { body: { font: 'Libre Baskerville', size: 10, lineHeight: 1.5, align: 'justify' }, chapterTitle: { font: 'Cormorant Garamond', size: 24, uppercase: true, letterSpacing: 0.08, spaceBefore: 36 }, h2: { font: 'Cormorant Garamond', size: 15, smallcaps: true } }
     },
     filosofia: {
       label: 'Filosofia', separatorLibrary: 'tres-losangos',
-      settings: { dropCap: false, header: 'chapter-chapter', pageNumbers: 'left', sceneBreak: '§' },
+      settings: { dropCap: false, header: 'chapter-chapter', pageNumbers: 'center', sceneBreak: '§' },
       styles: { body: { font: 'EB Garamond', size: 11.5, lineHeight: 1.5, align: 'justify', indent: 1.5 }, chapterTitle: { font: 'EB Garamond', size: 20, italic: true, align: 'center', spaceBefore: 38 }, h2: { font: 'EB Garamond', size: 13.5, smallcaps: true, align: 'center' } }
     },
     jornalismo: {
       label: 'Jornalismo / reportagem', separatorLibrary: 'linha-dupla',
-      settings: { dropCap: true, header: 'title-chapter', pageNumbers: 'left', sceneBreak: '■' },
+      settings: { dropCap: true, header: 'title-chapter', pageNumbers: 'center', sceneBreak: '■' },
       styles: { body: { font: 'Merriweather', size: 9.5, lineHeight: 1.5, align: 'justify', indent: 1.2 }, chapterTitle: { font: 'Playfair Display', size: 26, bold: true, align: 'left', spaceBefore: 22 }, h2: { font: 'Playfair Display', size: 14, bold: true, align: 'left' } }
     },
     culinaria: {
       label: 'Culinária / guias práticos', separatorLibrary: 'pontos',
-      settings: { dropCap: false, header: 'chapter-chapter', pageNumbers: 'left', chapterNumbering: 'none', sceneBreak: '•' },
+      settings: { dropCap: false, header: 'chapter-chapter', pageNumbers: 'center', chapterNumbering: 'none', sceneBreak: '•' },
       styles: { body: { font: 'Lora', size: 10.5, lineHeight: 1.5, align: 'justify', indent: 0, spaceAfter: 2 }, chapterTitle: { font: 'Playfair Display', size: 28, italic: true, align: 'center', spaceBefore: 20 }, h2: { font: 'Lora', size: 13, bold: true, align: 'left', uppercase: true, letterSpacing: 0.06 }, box: { background: '#f6efe2' } }
     }
   };
@@ -712,8 +712,8 @@
     if (!(ps.folioV >= 2) && p.chapters) { if (!ps.pageNumberShape || ps.pageNumberShape === 'block') ps.pageNumberShape = 'circle'; if (!ps.pageNumbers || ps.pageNumbers === 'outer') ps.pageNumbers = 'left'; ps.folioV = 2; }
     // CEDET: “à esquerda em todas as páginas” punha o número no canto interno das páginas ímpares,
     // o que o manual não aceita — passa para o canto externo
-    // número da página sempre à esquerda, em todas as páginas (nenhum à direita)
-    if (!(ps.folioV >= 4) && p.chapters) { if (ps.pageNumbers !== 'none') ps.pageNumbers = 'left'; ps.folioV = 4; }
+    // número da página sempre no centro do rodapé, em todas as páginas
+    if (!(ps.folioV >= 5) && p.chapters) { if (ps.pageNumbers !== 'none') ps.pageNumbers = 'center'; ps.folioV = 5; }
     mergeSettings(settings, ps);
     const chapters = Array.isArray(p.chapters)
       ? p.chapters.map(c => ({

@@ -732,7 +732,7 @@
       card('Cabeçalho, numeração e notas', [
         field('Cabeçalho', bind(s, 'header', 'select', { options: [{ value: 'title-chapter', label: 'Título do livro / título do capítulo' }, { value: 'author-title', label: 'Autor / título do livro' }, { value: 'chapter-chapter', label: 'Título do capítulo nas duas páginas' }, { value: 'none', label: 'Sem cabeçalho' }], onChange: rerender })),
         App.headerRuleGallery ? App.headerRuleGallery(s, rerender) : null,
-        field('Número da página', bind(s, 'pageNumbers', 'select', { options: [{ value: 'left', label: 'Rodapé, à esquerda (todas as páginas)' }, { value: 'none', label: 'Sem numeração' }], onChange: rerender }), 'O número fica sempre no rodapé, à esquerda, em todas as páginas — nenhum à direita.'),
+        field('Número da página', bind(s, 'pageNumbers', 'select', { options: [{ value: 'center', label: 'Rodapé, centralizado (todas as páginas)' }, { value: 'none', label: 'Sem numeração' }], onChange: rerender }), 'O número fica sempre no centro do rodapé, em todas as páginas (aceito pelo manual do Cedet).'),
         s.pageNumbers !== 'none' ? folioGallery(s, rerender) : null,
         el('label', { class: 'chk' }, [bind(s, 'folioOnOpenings', 'checkbox', { fallback: true }), ' Número também na abertura dos capítulos']),
         el('label', { class: 'chk' }, [bind(s, 'frameHidesHeader', 'checkbox', { fallback: true }), ' Nas páginas com moldura, tirar o cabeçalho (obra e autor) e o filete']),
