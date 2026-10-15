@@ -1230,13 +1230,25 @@ async function runSmokeTest() {
   const gr = await finishPrintPdf(pdf, project, { color: 'gray', noProfile: true });
   const d3 = await PDFDocument.load(gr.pdf);
   assert(gr.colorReport.onlyBlack && !d3.catalog.get(PDFName.of('OutputIntents')), 'miolo CEDET só preto ' + JSON.stringify(gr.colorReport));
-  const cc = Object.assign({}, cover, { cedet: true, flaps: 0, marks: { enabled: true }, spineMode: 'manual', spine: 12, isbnBarcode: { enabled: true, isbn: '978-85-333-0227-3', pos: 'br', dx: 12, dy: 12 } });
+  const cc = Object.assign({}, cover, { cedet: true, flaps: 0, marks: { enabled: true }, spineMode: 'manual', spine: 12, isbnBarcode: { enabled: true, isbn: '978-85-333-0227-3', pos: 'br', dx: 12, dy: 12, showIsbnText: false } });
   const gc = CoverGeometry.geometry(cc);
   const cv2 = await cmyk.buildCoverPdf(APP_ROOT, cc, project.assets, project.meta, gc, { bleed: true, dpi: 100 });
   if (process.env.SMOKE_SAVE) { fs.writeFileSync(out.replace(/\.pdf$/, '-cedet-miolo.pdf'), gr.pdf); fs.writeFileSync(out.replace(/\.pdf$/, '-cedet-capa.pdf'), cv2.pdf); }
   const d4 = await PDFDocument.load(cv2.pdf);
   const cmb = d4.getPage(0).getMediaBox(), ctb = d4.getPage(0).getTrimBox();
   assert(gc.bleed === 5 && gc.W === s.pageWidth && !gc.flap && cv2.report.barcode === '9788533302273' && cv2.report.marks && Math.abs(ctb.width - gc.trimTotalW * ptmm) < 0.05 && cmb.width > (gc.totalW + 9) * ptmm, 'capa CEDET ' + JSON.stringify([cmb, ctb, cv2.report]));
+  // código de barras no modelo do manual Cedet (3.3, figura 3): mínimo 31 × 19 mm, 2,5 mm livres, só preto
+  const IsbnM = require('./shared/isbn');
+  const bcl = IsbnM.layout('978-85-333-0227-3', { showIsbnText: false });
+  const lastBar = bcl.rects[bcl.rects.length - 1];
+  assert(bcl.ok && bcl.symbolW >= 31 && bcl.symbolH >= 19 && bcl.rects[0].x >= 2.5 && bcl.w - (lastBar.x + lastBar.w) >= 2.5 - 1e-9 && bcl.rects[0].y >= 2.5, 'código de barras Cedet ' + JSON.stringify([bcl.symbolW, bcl.symbolH]));
+  // instruções de cor de preenchimento de todos os fluxos (descomprimidos) da capa Cedet
+  const pdfTxt = cv2.pdf.toString('latin1');
+  let streams = pdfTxt;
+  for (const m of pdfTxt.matchAll(/stream\r?\n([\s\S]*?)endstream/g)) { try { streams += require('zlib').inflateSync(Buffer.from(m[1], 'latin1')).toString('latin1'); } catch (e) { /* não comprimido ou imagem */ } }
+  const bcOps = streams.match(/(^|\s)[\d.]+ [\d.]+ [\d.]+ [\d.]+ k(?=\s)/g) || [];
+  for (let i = 0; i < bcOps.length; i++) bcOps[i] = bcOps[i].trim();
+  assert(bcOps.includes('0 0 0 1 k') && bcOps.every(x => x === '0 0 0 1 k' || x === '0 0 0 0 k'), 'barras só em preto ' + bcOps.join(','));
   // calculadora de lombada do Cedet (planilha oficial): 244 p. Pólen Natural 80 + Triplex 250 = 14,2 mm; 246 p. → linha 248
   const cs = CoverGeometry.geometry({ cedet: true, pages: 244, trimW: 155, trimH: 230, bleedAuto: true });
   assert(cs.spine === 14.2 && CoverGeometry.geometry({ cedet: true, pages: 246, trimW: 155, trimH: 230 }).cedetCalc.pages === 248 && Math.abs(cs.totalW - (2 * 155 + 14.2 + 10)) < 0.01, 'calculadora Cedet ' + JSON.stringify(cs.cedetCalc));

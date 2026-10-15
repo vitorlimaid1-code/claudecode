@@ -11,7 +11,8 @@
   // Calculadora de lombada do Cedet: capa Triplex 250 e miolo Pólen Natural (B2B) 80, gramatura 75 g/m²
   const CEDET_COVER = CedetSpine.DEFAULT_COVER, CEDET_PAPER = CedetSpine.DEFAULT_PAPER, CEDET_GSM = 75;
   const paperName = t => String(t || '').replace(/POLÉN/g, 'PÓLEN').toLowerCase().replace(/(^|\s|\()(\S)/g, (m, a, b) => a + b.toUpperCase()).replace(/\(b2b\)/i, '(B2B)');
-  const barcodeDefaults = cedet => ({ enabled: !!cedet, isbn: '', pos: 'br', dx: 12, dy: 12, scale: 1, barHeight: 20, showIsbnText: true });
+  // Cedet (manual 3.3, figura 3): barras + números do ISBN logo abaixo, sem a linha “ISBN …” por cima
+  const barcodeDefaults = cedet => ({ enabled: !!cedet, isbn: '', pos: 'br', dx: 12, dy: 12, scale: 1, barHeight: 20, showIsbnText: !cedet });
 
   function defaults() {
     const s = App.project.settings;
@@ -38,6 +39,12 @@
       c.paper = 'cedetPolenNat80';
       c.cedetPaper = CEDET_PAPER;
       c.cedetCover = CEDET_COVER;
+      // código de barras do ISBN obrigatório na contracapa (manual 3.3), no modelo da figura 3, com o ISBN
+      // do pré-cadastro (o mesmo dos dados do livro e da ficha); a área branca reservada não substitui o código
+      c.isbnBarcode.enabled = true;
+      c.barcode = false;
+      if (!c.isbnBarcode.cedetV) { c.isbnBarcode.showIsbnText = false; c.isbnBarcode.scale = Math.max(1, Number(c.isbnBarcode.scale) || 1); c.isbnBarcode.cedetV = 1; }
+      if (c.isbnBarcode.isbn && App.project.meta.isbn && c.isbnBarcode.isbn.replace(/[^0-9X]/gi, '') !== App.project.meta.isbn.replace(/[^0-9X]/gi, '')) c.isbnBarcode.isbn = '';
       // lombada sempre automática pela calculadora (a versão anterior a fixava ao confirmar)
       if (c.spineFor && c.spineFor.source === 'calculadora') { c.spineMode = 'auto'; c.spineFor = null; }
       c.bleedAuto = true;
@@ -240,7 +247,7 @@
     if (c.spineMode === 'manual' && g.cedetCalc && g.cedetCalc.ok && Math.abs(Number(c.spine) - g.cedetCalc.spine) > 0.001) out.push(`A lombada foi digitada à mão (${App.fmtNum(c.spine)} mm) e difere da calculadora do Cedet (${App.fmtNum(g.cedetCalc.spine)} mm): clique em “Recalcular automaticamente” ou em “Confirmar medidas”.`);
     const b = c.isbnBarcode || {};
     const isbnTxt = b.isbn || App.project.meta.isbn;
-    if (!b.enabled || !isbnTxt) out.push('Sem código de barras do ISBN: o manual Cedet pede o código na contracapa (digite o ISBN quando tiver o número).');
+    if (!b.enabled || !isbnTxt) out.push('Falta o ISBN: o código de barras é obrigatório na contracapa (manual Cedet 3.3). Digite o ISBN do pré-cadastro no quadro do código de barras ou em Dados do livro.');
     else {
       const lay = window.Isbn.layout(isbnTxt, b);
       if (!lay.ok) out.push('Código de barras: ' + lay.error);
@@ -291,7 +298,7 @@
     const hint = el('span', { class: 'hint' });
     const showLay = l => {
       const v2 = b.isbn || meta.isbn || '';
-      hint.textContent = l.ok ? `✓ EAN-13 ${l.isbn13}${l.converted ? ' (convertido do ISBN-10)' : ''}` : (v2 ? '✗ ' + l.error : 'Opcional: digite o ISBN de 13 dígitos (o ISBN-10 é convertido) para gerar o código. Sem ISBN, a capa sai sem código de barras.');
+      hint.textContent = l.ok ? `✓ EAN-13 ${l.isbn13}${l.converted ? ' (convertido do ISBN-10)' : ''} — confira se é o mesmo ISBN do pré-cadastro` : (v2 ? '✗ ' + l.error : c.cedet ? 'Obrigatório no Cedet: digite o ISBN de 13 dígitos do pré-cadastro (o ISBN-10 é convertido).' : 'Opcional: digite o ISBN de 13 dígitos (o ISBN-10 é convertido) para gerar o código. Sem ISBN, a capa sai sem código de barras.');
       hint.className = 'hint ' + (l.ok ? 'good' : v2 ? 'bad' : '');
       svgBox.innerHTML = l.ok ? window.Isbn.toSvg(l) : '';
     };
@@ -303,19 +310,23 @@
     showLay(lay);
     const posOpts = [{ value: 'br', label: 'Inferior direito (junto à lombada)' }, { value: 'bc', label: 'Inferior, centralizado' }, { value: 'bl', label: 'Inferior esquerdo (lado externo)' }];
     const reb = () => { proof = null; render(); };
-    return App.card('Código de barras do ISBN (EAN-13) — contracapa', [
-      el('label', { class: 'chk' }, [on(b, 'enabled', 'checkbox', { onChange: reb }), ' Gerar o código de barras do ISBN na contracapa (opcional)']),
-      el('label', { class: 'field' }, [el('span', { class: 'flabel', text: 'Número do ISBN (opcional — o mesmo do pré-cadastro)' }), isbnIn, hint]),
+    const cd = c.cedet;
+    return App.card(cd ? 'Código de barras do ISBN (EAN-13) — contracapa · OBRIGATÓRIO (Cedet 3.3)' : 'Código de barras do ISBN (EAN-13) — contracapa', [
+      cd ? el('div', { class: 'small cedet-bc' }, [
+        el('b', { text: 'Parâmetros do Cedet aplicados: ' }),
+        'contracapa · mínimo 19 × 31 mm (barras + números) · 2,5 mm livres entre a última barra e outros elementos (quadro branco) · preto 100% K, nunca em quatro cores · vetorial, EPS para download · o ISBN codificado é o do pré-cadastro (o mesmo dos dados do livro e da ficha catalográfica).'
+      ]) : el('label', { class: 'chk' }, [on(b, 'enabled', 'checkbox', { onChange: reb }), ' Gerar o código de barras do ISBN na contracapa (opcional)']),
+      el('label', { class: 'field' }, [el('span', { class: 'flabel', text: cd ? 'ISBN do pré-cadastro (obrigatório — o mesmo de Dados do livro e da ficha)' : 'Número do ISBN (opcional — o mesmo do pré-cadastro)' }), isbnIn, hint]),
       App.field('Posição', on(b, 'pos', 'select', { options: posOpts, onChange: reb })),
       App.field('Distância do corte inferior (mm)', on(b, 'dy', 'number', { step: 0.5, min: 0 })),
       b.pos !== 'bc' ? App.field(b.pos === 'bl' ? 'Distância do corte externo (mm)' : 'Distância da lombada (mm)', on(b, 'dx', 'number', { step: 0.5, min: 0 })) : null,
       App.field('Tamanho', on(b, 'scale', 'select', { options: [{ value: 1, label: '100% — barras com 31,35 mm (mínimo Cedet: 31 mm)' }, { value: 1.1, label: '110%' }, { value: 1.2, label: '120%' }, { value: 1.5, label: '150%' }], onChange: v2 => { b.scale = Number(v2); reb(); } })),
       App.field('Altura das barras (mm)', on(b, 'barHeight', 'number', { step: 0.5, min: 17.4, onChange: () => { proof = null; redraw(); showLay(window.Isbn.layout(b.isbn || meta.isbn, b)); } }), 'Mínimo de 19 mm de código (barras + números), como pede o manual'),
-      el('label', { class: 'chk' }, [on(b, 'showIsbnText', 'checkbox', { onChange: reb }), ' Mostrar “ISBN …” acima das barras']),
+      el('label', { class: 'chk' }, [on(b, 'showIsbnText', 'checkbox', { onChange: reb }), cd ? ' Mostrar também “ISBN …” acima das barras (fora do modelo da figura 3 do manual)' : ' Mostrar “ISBN …” acima das barras']),
       lay.ok ? el('div', { class: 'small muted', text: `Quadro branco ${App.fmtNum(lay.w)} × ${App.fmtNum(lay.h)} mm · código ${App.fmtNum(lay.symbolW)} × ${App.fmtNum(lay.symbolH)} mm · 2,5 mm livres entre as barras e qualquer outro elemento · preto 100% K (nunca em 4 cores)` }) : null,
       svgBox,
       el('div', { class: 'inline wrap' }, ['eps', 'pdf', 'svg'].map(fmt => el('button', { class: fmt === 'eps' ? 'primary' : '', text: `⇩ Baixar ${fmt.toUpperCase()}${fmt === 'eps' ? ' (recomendado)' : ''}`, onclick: async () => { const r = await api.barcodeSave(b.isbn || meta.isbn, { scale: b.scale, barHeight: b.barHeight, showIsbnText: b.showIsbnText }, fmt); if (r && r.error) App.toast(r.error, 5000); else if (r) App.toast('Código de barras salvo: ' + r.file, 5000); } }))),
-      el('label', { class: 'chk small' }, [on(c, 'barcode', 'checkbox'), ' Apenas reservar uma área branca de 50 × 30 mm (sem gerar o código)'])
+      cd ? null : el('label', { class: 'chk small' }, [on(c, 'barcode', 'checkbox'), ' Apenas reservar uma área branca de 50 × 30 mm (sem gerar o código)'])
     ], 'O código é vetorial e vai por cima da arte, num quadro branco. Confira a leitura com um leitor de código de barras na prova impressa.', 'span-all');
   }
 

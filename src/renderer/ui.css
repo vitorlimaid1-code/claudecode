@@ -609,3 +609,4 @@ body.ws-book .nav-item[data-ws="periodical"] { display: none !important; }
 .cedet-calc-row { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; border-bottom: 1px dashed var(--line); padding: 2px 0; }
 .cedet-calc-row strong { text-align: right; }
 .cedet-calc button { justify-self: start; margin-top: 4px; }
+.cedet-bc { padding: 8px 10px; border-radius: 10px; background: var(--accent-soft); border: 1px solid var(--accent-line); line-height: 1.45; }
