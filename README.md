@@ -45,6 +45,8 @@ Como os executáveis não têm assinatura digital, o Windows SmartScreen pode av
 ### Melhoramento (EPUBs do Project Gutenberg ou PDFs do Domínio Público → DOCX no padrão)
 Tela própria, aberta pelo botão **Melhoramento** no topo (ou na tela de boas-vindas), com duas seções separadas, cada uma com a sua lista, opções e registro: **EPUB — Project Gutenberg** e **PDF — Domínio Público**.
 
+Nas duas seções a saída tem **só os capítulos**: a página de rosto do arquivo (título, autor, editora, local e ano) e as páginas pré e pós-textuais são descartadas, e o DOCX **não ganha página de título** — começa direto no primeiro capítulo, sem página em branco antes. Texto e títulos sempre em **Garamond**.
+
 **Seção EPUB.** Envie um ou vários EPUBs do Project Gutenberg (botão ou arrastando para a tela) e clique em **Iniciar**:
 - remove as páginas pré e pós-textuais que não entram no livro: capa do arquivo, cabeçalho e licença do Project Gutenberg (e todos os avisos “START/END OF THE PROJECT GUTENBERG…”), página de rosto original, dedicatória, sumário original, listas de ilustrações, notas do transcritor, números de página da edição impressa e o que vem depois de “THE END”;
 - mantém prólogo/introdução e os capítulos, com as ilustrações e notas de rodapé;

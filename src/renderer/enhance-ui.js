@@ -238,14 +238,14 @@
     if (sec.kind === 'pdf') {
       const { proj } = await loadBook(item.path, item.name, log, { images: false });
       const next = sec.opt.next.checked;
-      item.out = await saveDocx(proj, log, '', next ? { nextTo: item.path, name: item.path.split(/[\\/]/).pop().replace(/\.pdf$/i, '') } : null);
+      item.out = await saveDocx(proj, log, '', next ? { nextTo: item.path, name: item.path.split(/[\\/]/).pop().replace(/\.pdf$/i, '') } : null, { noTitlePage: true });
       item.status = 'ok';
       return;
     }
     const { proj } = await loadBook(item.path, item.name, log, { images: sec.opt.images.checked });
     const replace = sec.opt.replace.checked;
     // substituir: o DOCX vai para a pasta do EPUB, com o mesmo nome do arquivo, e o EPUB para a Lixeira
-    item.out = await saveDocx(proj, log, '', replace ? { nextTo: item.path, name: item.path.split(/[\\/]/).pop().replace(/\.epub$/i, '') } : null);
+    item.out = await saveDocx(proj, log, '', replace ? { nextTo: item.path, name: item.path.split(/[\\/]/).pop().replace(/\.epub$/i, '') } : null, { noTitlePage: true });
     if (replace) {
       const r = await api.enhReplace(item.path, item.out);
       if (r && r.ok) log('EPUB original substituído pelo DOCX (o EPUB foi para a Lixeira)', 'ok');
@@ -282,6 +282,20 @@
     let chapters = BookText.htmlToChapters(html, decode(res.meta.title) || name);
     const det = chapters.detected;
     chapters = chapters.filter(c => c.html.replace(/<[^>]+>/g, '').trim() || /<img/.test(c.html));
+    if (opts.clean !== false) {
+      // restos de página de rosto no começo (título, autor, editora, local/ano), sem texto corrido: fora
+      const bookT = clean(decode(res.meta.title)).toLowerCase(), bookA = clean(decode(res.meta.author)).toLowerCase();
+      const txt = c => clean(c.html.replace(/<[^>]+>/g, ' '));
+      while (chapters.length > 1) {
+        const c = chapters[0], t = txt(c), low = t.toLowerCase(), head = clean(c.title).toLowerCase();
+        const paras = (c.html.match(/<p[\s>]/g) || []).length;
+        const longest = Math.max(0, ...(c.html.match(/<p[^>]*>[\s\S]*?<\/p>/g) || []).map(p => clean(p.replace(/<[^>]+>/g, '')).length));
+        const titleish = (bookT && (head === bookT || low.includes(bookT))) || (bookA && low.includes(bookA)) || FRONT_RE.test(c.title) || head === clean(name).toLowerCase();
+        if (c.sourceLabel || /<img/.test(c.html) || !(t.length < 700 && longest < 200 && paras <= 12 && (titleish || t.length < 120))) break;
+        log(`· página de rosto removida (“${c.title}”${t ? ': ' + t.slice(0, 60) + (t.length > 60 ? '…' : '') : ''})`);
+        chapters.shift();
+      }
+    }
     if (!chapters.length) throw new Error('nenhum capítulo encontrado depois da limpeza');
     log(`${chapters.length} capítulo(s)${det ? ' (pelos marcadores “' + (det.labeled ? 'CHAPTER/CAPÍTULO ' : '') + (det.style === 'roman' ? 'I, II…' : '1, 2…') + '”)' : ''}: ${chapters.slice(0, 3).map(c => c.title).join(' · ')}${chapters.length > 3 ? ' …' : ''}`);
     // projeto temporário com a configuração padrão do sistema (não mexe no livro aberto)
@@ -316,12 +330,14 @@
 
   // Grava o DOCX na pasta Downloads (ou ao lado do arquivo de origem: where.nextTo), no padrão do sistema
   // (Garamond no texto e nos títulos, espaçamentos, alinhamentos e tamanhos do sistema)
-  async function saveDocx(proj, log, suffix, where) {
+  async function saveDocx(proj, log, suffix, where, o) {
     const words = proj.chapters.reduce((s, c) => s + BookText.countWords(c.html), 0);
     log(`${words.toLocaleString('pt-BR')} palavras · gerando o DOCX no padrão do sistema (Garamond, títulos, alinhamento, tamanho do texto e parágrafos${proj.front.toc ? ', sumário' : ''})…`);
     const target = await api.enhTarget((where && where.name) || proj.meta.title + (suffix || ''), 'docx', where && where.nextTo);
     const doc = App.exportPrep.buildDoc(proj);
     doc.fontOverride = 'Garamond'; // texto e títulos em Garamond, com tamanhos, alinhamentos e espaços do sistema
+    // Melhoramento: sem página de título — o documento começa no primeiro capítulo
+    if (o && o.noTitlePage) doc.noTitlePage = true;
     const r = await api.exportRun({ kind: 'docx', project: proj, doc, opts: { target } });
     if (!r || !r.files) throw new Error('falha ao gravar o DOCX');
     log(`pronto → ${r.files[0]}`, 'ok');

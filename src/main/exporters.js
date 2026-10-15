@@ -77,8 +77,10 @@ async function exportDocx(doc, assets, page) {
       // rótulo (“Capítulo 1”) e título no estilo do livro; o título entra no sumário do Word
       // quebra de página dentro do primeiro parágrafo do capítulo (uma só, nunca página em branco),
       // reconhecida pelo Word, LibreOffice e Google Docs
-      if (ch.label) children.push(new D.Paragraph({ style: 'ChapterLabel', children: [new D.PageBreak(), new D.TextRun({ text: ch.label })] }));
-      children.push(new D.Paragraph({ heading: D.HeadingLevel.HEADING_1, children: (ch.label ? [] : [new D.PageBreak()]).concat([new D.TextRun({ text: ch.title })]) }));
+      // sem página de título (doc.noTitlePage), o primeiro capítulo abre o documento, sem quebra antes
+      const brk = doc.noTitlePage && ci === 0 ? [] : [new D.PageBreak()];
+      if (ch.label) children.push(new D.Paragraph({ style: 'ChapterLabel', children: brk.concat([new D.TextRun({ text: ch.label })]) }));
+      children.push(new D.Paragraph({ heading: D.HeadingLevel.HEADING_1, children: (ch.label ? [] : brk).concat([new D.TextRun({ text: ch.title })]) }));
     } else children.push(new D.Paragraph({ heading: D.HeadingLevel.HEADING_1, pageBreakBefore: ci > 0, children: [new D.TextRun({ text: ch.label ? `${ch.label} — ${ch.title}` : ch.title })] }));
     let firstP = true;
     ch.blocks.forEach(b => {
@@ -161,10 +163,10 @@ async function exportDocx(doc, assets, page) {
     styles,
     sections: [{
       properties: { page: { size: { width: mmToTwip(page.width), height: mmToTwip(page.height) }, margin: { top: mmToTwip(page.marginTop), bottom: mmToTwip(page.marginBottom), left: mmToTwip(page.marginInner), right: mmToTwip(page.marginOuter), mirror: true } } },
-      children: [
+      children: (doc.noTitlePage ? [] : [
         new D.Paragraph({ alignment: D.AlignmentType.CENTER, indent: { firstLine: 0 }, spacing: { before: 2400 }, children: [new D.TextRun({ text: doc.meta.title, size: 48 })] }),
         new D.Paragraph({ alignment: D.AlignmentType.CENTER, indent: { firstLine: 0 }, children: [new D.TextRun({ text: doc.meta.author, size: 28 })] })
-      ].concat(front.length ? [new D.Paragraph({ style: 'TocTitle', children: [new D.PageBreak(), new D.TextRun({ text: doc.tocTitle || 'Sumário' })] }), front[1]] : (S ? [] : [new D.Paragraph({ children: [new D.PageBreak()] })]), children)
+      ]).concat(front.length ? [new D.Paragraph({ style: 'TocTitle', children: (doc.noTitlePage ? [] : [new D.PageBreak()]).concat([new D.TextRun({ text: doc.tocTitle || 'Sumário' })]) }), front[1]] : (S || doc.noTitlePage ? [] : [new D.Paragraph({ children: [new D.PageBreak()] })]), children)
     }]
   });
   return D.Packer.toBuffer(document);
