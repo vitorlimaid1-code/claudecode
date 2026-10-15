@@ -761,6 +761,14 @@ async function renderPdf(project, opts) {
       const dbg = await win.webContents.executeJavaScript(`(() => { const t = document.querySelector('.pagedjs_pages').innerText; return { clipped: window.findClippedText().slice(0, 6), chars: t.length, w: innerWidth, h: innerHeight, dpr: devicePixelRatio, notes: [...document.querySelectorAll('.pagedjs_page')].map(p => { const a = p.querySelector('.pagedjs_footnote_area'); const r = a && a.getBoundingClientRect(); const pr = p.getBoundingClientRect(); const f = [...p.querySelectorAll('.pagedjs_footnote_area .footnote')]; return f.length || (r && r.height) ? { n: p.dataset.pageNumber, f: f.map(x => x.innerText.slice(0, 12) + '@' + Math.round(x.getBoundingClientRect().top - pr.top) + '/' + Math.round(pr.height)), ah: r && Math.round(r.height) } : null; }).filter(Boolean) }; })()`, true);
       console.log('DEBUG_LAYOUT', JSON.stringify(dbg));
     }
+    // impressão: todas as imagens com exatamente 300 dpi no tamanho em que aparecem
+    let dpiReport = null;
+    if (opts.imageDpi) {
+      progress(`Ajustando as imagens para ${opts.imageDpi} dpi…`);
+      try { dpiReport = await win.webContents.executeJavaScript(`window.normalizeImageDpi(${Number(opts.imageDpi) || 300})`, true); } catch (e) { console.error('normalizeImageDpi', e); }
+      if (dpiReport && dpiReport.total) progress(`Imagens: ${dpiReport.total} · ${dpiReport.reduced} reduzida(s) e ${dpiReport.enlarged} ampliada(s) para ${opts.imageDpi} dpi${dpiReport.kept ? ` · ${dpiReport.kept} já estava(m) em ${opts.imageDpi} dpi` : ''}${dpiReport.enlarged ? ` (a menor tinha ${dpiReport.minDpi} dpi: ampliar não acrescenta detalhes — prefira o arquivo original em alta resolução)` : ''}`);
+      tm('dpi');
+    }
     let pdf = await win.webContents.printToPDF({
       printBackground: true, preferCSSPageSize: true, margins: { marginType: 'none' },
       generateDocumentOutline: !!opts.outline, generateTaggedPDF: !!opts.tagged
@@ -770,7 +778,7 @@ async function renderPdf(project, opts) {
     let colorReport = null;
     if (!opts.spreads) ({ pdf, colorReport } = await finishPrintPdf(pdf, project, opts));
     tm('caixas/cor');
-    return { pdf, pages: info.pages, info, colorReport };
+    return { pdf, pages: info.pages, info, colorReport, dpiReport };
   });
 }
 
@@ -822,7 +830,7 @@ async function finishBoxes(pdfBuf, project, opts) {
         const cx = b + tw / 2, cy = y0 + b + th / 2;
         pg.setMediaBox(cx - SW / 2, cy - SH / 2, SW, SH);
         pg.setCropBox(cx - SW / 2, cy - SH / 2, SW, SH);
-        pg.setBleedBox(0, y0, W, H);
+        if (opts && opts.bleedBox) pg.setBleedBox(0, y0, W, H);
         if (s.outputSheet.marks || sheet.marksOnly) {
           // marcas de corte fora da sangria (padrão: 5 mm de comprimento, a 2 mm da sangria;
           // CEDET: 0,25 pt com deslocamento de 5 mm a partir do corte)
@@ -839,7 +847,8 @@ async function finishBoxes(pdfBuf, project, opts) {
       } else {
         pg.setMediaBox(mx, y0, mw, H);
         pg.setCropBox(mx, y0, mw, H);
-        pg.setBleedBox(mx, y0, mw, H);
+        // Bleed Box: só quando pedido na exportação (o Cedet não exige; a gráfica pede quando precisar)
+        if (opts && opts.bleedBox) pg.setBleedBox(mx, y0, mw, H);
       }
     });
     const m = project.meta || {};
@@ -989,7 +998,7 @@ async function runExport(req) {
     const files = [];
     const { pdf, pages } = await renderPdf(project, opts);
     files.push({ name: opts.fileBase ? `${safeName(opts.fileBase, 140)}.pdf` : `${base}-miolo.pdf`, data: pdf });
-    if (opts.includeCover && project.cover) files.push({ name: opts.fileBase ? `${safeName(opts.fileBase.replace('_MIOLO_', '_CAPA_'), 140)}.pdf` : `${base}-capa-cmyk.pdf`, data: (await cmyk.buildCoverPdf(APP_ROOT, coverOut(project), project.assets || {}, project.meta, CoverGeometry.geometry(project.cover), { bleed: true })).pdf });
+    if (opts.includeCover && project.cover) files.push({ name: opts.fileBase ? `${safeName(opts.fileBase.replace('_MIOLO_', '_CAPA_'), 140)}.pdf` : `${base}-capa-cmyk.pdf`, data: (await cmyk.buildCoverPdf(APP_ROOT, coverOut(project), project.assets || {}, project.meta, CoverGeometry.geometry(project.cover), { bleed: true, bleedBox: !!opts.bleedBox })).pdf });
     if (opts.includeEpub && req.epub) files.push({ name: `${base}.epub`, data: await exporters.exportEpub(Object.assign({ uuid: crypto.randomUUID(), coverJpeg: ebookCover(req.epub.cover) }, req.epub), project.assets || {}) });
     if (req.report) files.push({ name: 'relatorio-pre-impressao.txt', data: Buffer.from('﻿' + req.report, 'utf8') });
     if (req.specs) files.push({ name: 'especificacoes-tecnicas.txt', data: Buffer.from('﻿' + req.specs, 'utf8') });
@@ -1002,7 +1011,7 @@ async function runExport(req) {
     const file = opts.target || await askSavePath('Exportar capa para gráfica (PDF CMYK)', opts.fileBase ? `${safeName(opts.fileBase, 140)}${opts.bleed === false ? '-sem-sangria' : ''}.pdf` : `${base}-capa-cmyk${opts.bleed === false ? '-sem-sangria' : ''}.pdf`, [{ name: 'PDF', extensions: ['pdf'] }]);
     if (!file) return null;
     const cover = coverOut(project);
-    const r = await cmyk.buildCoverPdf(APP_ROOT, cover, project.assets || {}, project.meta, CoverGeometry.geometry(cover), { bleed: opts.bleed !== false });
+    const r = await cmyk.buildCoverPdf(APP_ROOT, cover, project.assets || {}, project.meta, CoverGeometry.geometry(cover), { bleed: opts.bleed !== false, dpi: 300, bleedBox: opts.bleedBox !== undefined ? !!opts.bleedBox : !!(project.settings && project.settings.pdfBleedBox) });
     fs.writeFileSync(file, r.pdf);
     return { files: [file], report: r.report };
   }
@@ -1194,6 +1203,10 @@ async function runSmokeTest() {
   const sheet = outputSheetSize(s, bl);
   const expW = sheet && sheet.fits ? sheet.w : s.pageWidth + 2 * bl;
   assert(Math.abs(mb.width - expW * ptmm) < 0.05 && Math.abs(tb.width - s.pageWidth * ptmm) < 0.05 && Math.abs(tb.height - s.pageHeight * ptmm) < 0.05, `caixas ${JSON.stringify([mb, tb])}`);
+  // Bleed Box: só quando ativado na exportação
+  assert(!d1.getPage(0).node.get(PDFName.of('BleedBox')), 'Bleed Box ausente por padrão');
+  const bbx = await PDFDocument.load((await finishPrintPdf(pdf, project, { bleedBox: true })).pdf);
+  assert(bbx.getPage(0).node.get(PDFName.of('BleedBox')), 'Bleed Box quando ativado');
   // sumário e mapa de capítulos: cada capítulo precisa ter a página encontrada (Paged.js troca id por data-id ao dividir)
   const cp = info.chapterPages || {};
   assert(project.chapters.every(c => cp[c.id] > 0), 'páginas dos capítulos ' + JSON.stringify(cp));

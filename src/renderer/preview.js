@@ -1179,6 +1179,71 @@
   }
 
   // ---------- inspeção (pré-impressão) ----------
+  // Exportação para impressão: cada imagem é reamostrada para exatamente o dpi pedido (padrão 300) no
+  // tamanho em que aparece na página — imagens grandes demais são reduzidas (arquivo menor, sem perda
+  // visível) e as pequenas ampliadas com interpolação de alta qualidade. Vale para figuras (<img>) e para
+  // imagens de fundo (página inteira, imersão).
+  window.normalizeImageDpi = async function (dpi) {
+    dpi = dpi || 300;
+    const PX = 96; // px CSS por polegada
+    const root = document.querySelector('.pagedjs_pages') || document.body;
+    const cache = new Map();
+    const report = { total: 0, reduced: 0, enlarged: 0, kept: 0, minDpi: Infinity, maxDpi: 0 };
+    const load = src => new Promise(res => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
+    async function resample(src, img, tw, th) {
+      const key = src.length + ':' + src.slice(-64) + ':' + tw + 'x' + th;
+      if (cache.has(key)) return cache.get(key);
+      let c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+      c.getContext('2d').drawImage(img, 0, 0);
+      // redução em etapas (metade por vez) para não serrilhar; ampliação numa etapa com suavização alta
+      while (c.width / 2 >= tw && c.height / 2 >= th) {
+        const n = document.createElement('canvas'); n.width = Math.max(tw, Math.round(c.width / 2)); n.height = Math.max(th, Math.round(c.height / 2));
+        const x = n.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(c, 0, 0, n.width, n.height); c = n;
+      }
+      const out = document.createElement('canvas'); out.width = tw; out.height = th;
+      const x = out.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(c, 0, 0, tw, th);
+      const png = /^data:image\/(png|gif|webp|svg)/i.test(src);
+      const url = png ? out.toDataURL('image/png') : out.toDataURL('image/jpeg', 0.95);
+      cache.set(key, url);
+      return url;
+    }
+    const tally = (nat, shown) => { const d = nat / (shown / PX); report.total++; report.minDpi = Math.min(report.minDpi, d); report.maxDpi = Math.max(report.maxDpi, d); return d; };
+    for (const el of Array.from(root.querySelectorAll('img'))) {
+      const src = el.currentSrc || el.src;
+      if (!src || !/^data:image\/(png|jpe?g|webp|gif|bmp)/i.test(src)) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 4 || r.height < 4) continue;
+      if (!el.complete) await new Promise(res => { el.onload = el.onerror = res; });
+      const d = tally(el.naturalWidth, r.width);
+      if (Math.abs(d - dpi) / dpi < 0.03) { report.kept++; continue; }
+      const tw = Math.max(1, Math.round(r.width / PX * dpi)), th = Math.max(1, Math.round(r.height / PX * dpi));
+      el.src = await resample(src, el, tw, th);
+      await new Promise(res => { if (el.complete) res(); else el.onload = el.onerror = res; });
+      if (d < dpi) report.enlarged++; else report.reduced++;
+    }
+    for (const el of Array.from(root.querySelectorAll('[style*="background-image"]'))) {
+      const m = /url\((['"]?)(data:image\/[^'")]+)\1\)/.exec(el.getAttribute('style') || '');
+      if (!m) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 4 || r.height < 4) continue;
+      const img = await load(m[2]);
+      if (!img || !img.naturalWidth) continue;
+      const size = getComputedStyle(el).backgroundSize;
+      const sc = size === 'contain' ? Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight) : Math.max(r.width / img.naturalWidth, r.height / img.naturalHeight);
+      const shownW = img.naturalWidth * sc;
+      const d = tally(img.naturalWidth, shownW);
+      if (Math.abs(d - dpi) / dpi < 0.03) { report.kept++; continue; }
+      const k = dpi / d;
+      const url = await resample(m[2], img, Math.max(1, Math.round(img.naturalWidth * k)), Math.max(1, Math.round(img.naturalHeight * k)));
+      el.style.backgroundImage = `url('${url}')`;
+      await load(url);
+      if (d < dpi) report.enlarged++; else report.reduced++;
+    }
+    if (report.minDpi === Infinity) report.minDpi = 0;
+    report.minDpi = Math.round(report.minDpi); report.maxDpi = Math.round(report.maxDpi);
+    return report;
+  };
+
   window.inspectBook = function (opts) {
     opts = opts || {};
     const minDpi = opts.minDpi || 300;

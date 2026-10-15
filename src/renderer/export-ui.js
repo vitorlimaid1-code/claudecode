@@ -81,7 +81,7 @@
     if (o.purpose === 'print' && o.kind !== 'cover') {
       const sh = App.D.outputSheetSize(s, bleedOf(s));
       if (sh && !sh.fits) issues.push({ level: 'error', type: 'size', msg: `A folha de saída (${App.fmtNum(sh.w)} × ${App.fmtNum(sh.h)} mm) é menor que a página com sangria${s.outputSheet.marks ? ' e marcas' : ''} (${App.fmtNum(sh.needW)} × ${App.fmtNum(sh.needH)} mm). Para não cortar nada, o PDF sairá no formato do livro. Ajuste em Formato e diagramação › Folha de saída.` });
-      else if (sh) issues.push({ level: 'info', type: 'size', msg: `Folha de saída ${App.fmtNum(sh.w)} × ${App.fmtNum(sh.h)} mm: cada página fica centralizada em tamanho real${s.outputSheet.marks ? ', com marcas de corte' : ''} (TrimBox e BleedBox mantidas).` });
+      else if (sh) issues.push({ level: 'info', type: 'size', msg: `Folha de saída ${App.fmtNum(sh.w)} × ${App.fmtNum(sh.h)} mm: cada página fica centralizada em tamanho real${s.outputSheet.marks ? ', com marcas de corte' : ''} (TrimBox mantida; Bleed Box se ativada).` });
     }
     if (o.cedet || s.standard === 'cedet') cedetChecks(proj, r, issues);
     if (r.pages % 2) issues.push({ level: 'info', type: 'pages', msg: `Número ímpar de páginas (${r.pages}); a gráfica acrescentará uma página em branco no fim.` });
@@ -97,7 +97,7 @@
     const hasAlpha = Object.values(proj.assets).some(a => a.info && a.info.hasAlpha);
     if (o.purpose === 'print') {
       const col = o.color || 'rgb';
-      issues.push({ level: 'info', type: 'color', msg: col === 'cmyk' ? 'Cores do miolo em CMYK com perfil ICC (texto e cinzas somente em preto K), OutputIntent no PDF, TrimBox/BleedBox e todas as fontes incorporadas.' : col === 'gray' ? 'Miolo em escala de cinza (texto 100% K), com TrimBox/BleedBox e todas as fontes incorporadas.' : 'Miolo em RGB com fontes incorporadas (aceito por KDP e pela maioria das impressões sob demanda). Para gráfica offset, escolha CMYK ou Escala de cinza.' });
+      issues.push({ level: 'info', type: 'color', msg: col === 'cmyk' ? 'Cores do miolo em CMYK com perfil ICC (texto e cinzas somente em preto K), OutputIntent no PDF, TrimBox (Bleed Box se ativada) e todas as fontes incorporadas.' : col === 'gray' ? 'Miolo em escala de cinza (texto 100% K), com TrimBox (Bleed Box se ativada) e todas as fontes incorporadas.' : 'Miolo em RGB com fontes incorporadas (aceito por KDP e pela maioria das impressões sob demanda). Para gráfica offset, escolha CMYK ou Escala de cinza.' });
       if (hasAlpha) issues.push({ level: 'info', type: 'alpha', msg: 'Há imagens com transparência: o PDF mantém a transparência (aceita em PDF/X-4 e pela maioria das gráficas; se a sua exigir PDF/X-1a, achate as imagens antes).' });
     }
     const order = { error: 0, warn: 1, info: 2 };
@@ -105,6 +105,15 @@
     state.report = { pages: r.pages, issues, images: r.images, fonts: r.fonts, fontReport: r.fontReport, chapterPages: r.chapterPages, at: new Date(), settings: s };
     render();
     return state.report;
+  }
+
+  // Bleed Box: marcação interna do PDF com a área de sangria. Desligada por padrão (o Cedet não exige no
+  // envio; a gráfica pede quando precisar). Vale para o miolo, a capa e o pacote de produção.
+  function bleedBoxToggle() {
+    const s = App.project.settings;
+    const on = !!s.pdfBleedBox;
+    const btn = el('button', { class: on ? 'primary' : '', text: on ? '✓ Bleed Box ativado — clique para desativar' : 'Ativar Bleed Box', onclick: () => { s.pdfBleedBox = !s.pdfBleedBox; App.changed(s.pdfBleedBox ? 'Bleed Box ativado na exportação' : 'Bleed Box desativado na exportação', { preview: false }); render(); } });
+    return el('div', { class: 'field bleedbox-field' }, [el('span', { class: 'flabel', text: 'Bleed Box no PDF' }), el('div', { class: 'inline wrap' }, [btn, el('span', { class: 'small muted', text: on ? 'O PDF exportado (miolo e capa) recebe a Bleed Box, a marcação da área de sangria.' : 'Desativado (padrão). Ative quando a gráfica pedir a marcação interna da sangria.' })])]);
   }
 
   // Conferência do Manual de Preparação de Arquivos Cedet (miolo)
@@ -254,7 +263,7 @@
       const proj = projectForExport();
       // créditos da ficha: revisão em rodízio e tradução sorteada, novos a cada exportação
       try { proj.catalog.autoNames = await api.creditsNext(); } catch (e) { /* mantém os atuais */ }
-      const req = { kind: o.kind, project: proj, opts: { spreads: !!o.spreads, outline: !!o.outline, tagged: o.purpose === 'digital', dpi: o.dpi || 300, quality: o.quality || 92, bleed: !!o.imageBleed, color: o.purpose === 'digital' ? 'rgb' : (o.color || 'rgb'), colorProfile: o.colorProfile || 'fogra39', range: rangeSpec(), noProfile: !!o.noProfile && o.color === 'gray', fileBase: o.cedet && (o.kind === 'pdf' || o.kind === 'package') ? cedetFileName('MIOLO') : '', cedet: !!o.cedet, includeCover: !!o.includeCover, includeEpub: !!o.includeEpub, includeProject: !!o.includeProject, suffix: o.purpose === 'digital' ? '-digital' : '' } };
+      const req = { kind: o.kind, project: proj, opts: { spreads: !!o.spreads, outline: !!o.outline, tagged: o.purpose === 'digital', dpi: o.dpi || 300, quality: o.quality || 92, bleed: !!o.imageBleed, color: o.purpose === 'digital' ? 'rgb' : (o.color || 'rgb'), colorProfile: o.colorProfile || 'fogra39', range: rangeSpec(), noProfile: !!o.noProfile && o.color === 'gray', imageDpi: 300, bleedBox: !!App.project.settings.pdfBleedBox, fileBase: o.cedet && (o.kind === 'pdf' || o.kind === 'package') ? cedetFileName('MIOLO') : '', cedet: !!o.cedet, includeCover: !!o.includeCover, includeEpub: !!o.includeEpub, includeProject: !!o.includeProject, suffix: o.purpose === 'digital' ? '-digital' : '' } };
       if (o.kind === 'epub' || o.kind === 'mobi' || (o.kind === 'package' && o.includeEpub)) {
         const coverDataUrl = await ebookCoverFor(o);
         if (coverDataUrl === false) { state.running = false; $('#toast').classList.remove('show'); return; }
@@ -416,6 +425,8 @@
         isPdf && o.cedet ? el('div', { class: 'small muted', text: 'CEDET: sangria de 5 mm e marcas de corte de 0,25 pt sempre incluídas, como exige o manual.' }) : null,
         isPdf ? chk('spreads', 'Páginas duplas (lado a lado) — não é imposição de cadernos') : null,
         isPdf ? chk('outline', 'Marcadores / sumário navegável') : null,
+        isPdf || o.kind === 'package' ? bleedBoxToggle() : null,
+        isPdf || o.kind === 'package' ? el('div', { class: 'small muted', text: 'Imagens: todas saem com 300 dpi no tamanho em que aparecem na página (as maiores são reduzidas; as menores, ampliadas com interpolação de alta qualidade).' }) : null,
         isImg ? num('dpi', 'Resolução (dpi)', 1) : null,
         o.kind === 'jpeg' ? num('quality', 'Qualidade JPEG (30–100)', 1) : null,
         isImg ? chk('imageBleed', 'Incluir área de sangria (recomendado para impressão)') : null,

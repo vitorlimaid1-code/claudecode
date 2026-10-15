@@ -44,7 +44,8 @@ for m in man:
                 tokens[t] += 1
         # margens: só palavras do corpo (marcadores), em páginas com bastante texto
         body_ws = [w for w in ws if re.fullmatch(r'k[0-9a-z]+[‑-]?', w[4].replace('­', ''))]
-        if len(body_ws) > 120 and m['kind'] == 'book':
+        # (páginas com imagem ficam de fora: o texto pode contornar a figura e não começar na margem)
+        if len(body_ws) > 120 and m['kind'] == 'book' and not imgs.get(i):
             bx = run('pdfinfo', '-box', '-f', str(i), '-l', str(i), f)
             t0 = float(re.search(r'TrimBox:\s+([-\d.]+)', bx).group(1)); m0 = float(re.search(r'MediaBox:\s+([-\d.]+)', bx).group(1))
             left = (min(w[0] for w in body_ws) - (t0 - m0)) / PT

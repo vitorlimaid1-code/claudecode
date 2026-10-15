@@ -448,7 +448,8 @@ async function buildCoverPdf(appRoot, cover, assets, meta, geometry, opts) {
   const b = includeBleed ? g.outer * ptmm : 0;
   const TW = Wmm * ptmm, TH = Hmm * ptmm;
   page.setMediaBox(0, 0, TW + 2 * P, TH + 2 * P);
-  page.setBleedBox(P, P, TW, TH);
+  // Bleed Box só quando ativado na exportação (o Cedet não exige; a gráfica pede quando precisar)
+  if (opts && opts.bleedBox) page.setBleedBox(P, P, TW, TH);
   page.setTrimBox(P + b, P + b, TW - 2 * b, TH - 2 * b);
   if (mk) {
     // marcas em preto de registro (100% nas quatro cores), fora da sangria

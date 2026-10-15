@@ -63,6 +63,12 @@ paged = paged.replace(BUG4b, 'this.tick = cb => setTimeout(cb, 0);');
 const BUG_NP = 'page.classList.add("pagejs_named_page");';
 if (!paged.includes(BUG_NP)) throw new Error('paged.js: trecho da página nomeada não encontrado (versão diferente?)');
 paged = paged.replace(BUG_NP, 'page.classList.add("pagedjs_named_page"); page.classList.add("pagejs_named_page");');
+// Imagens e outros elementos sem filhos (img, svg, canvas) eram medidos com altura zero ao procurar onde a
+// página transborda: uma figura que começava perto do fim da página e não cabia ficava lá, cortada (sumia
+// do PDF), em vez de ir inteira para a página seguinte. Esses elementos passam a contar com a altura real.
+const BUG_LEAF = 'if (node instanceof HTMLBRElement) {';
+if (!paged.includes(BUG_LEAF)) throw new Error('paged.js: trecho da medida de elementos sem filhos não encontrado (versão diferente?)');
+paged = paged.replace(BUG_LEAF, 'if (node instanceof HTMLBRElement || /^(IMG|SVG|CANVAS|VIDEO|PICTURE|OBJECT|EMBED|IFRAME)$/i.test(node.tagName)) {');
 
 // Quinta correção (segurança): a busca de excesso da página roda num laço que, em casos raros de
 // elementos em linha na quebra, podia nunca terminar e congelar o aplicativo. O laço passa a ter um
