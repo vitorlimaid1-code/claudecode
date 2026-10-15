@@ -883,7 +883,9 @@
           return;
         }
         const gap = prev ? prev.y - l.y : 0;
-        const newPara = !cur || !prev || gap > prev.size * 1.75 || gap < 0 || l.x > left + body * 0.9 || (prev.maxX < right - body * 4) || /[.!?:"”»]$/.test(cur.text) && l.x > left + body * 0.4;
+        // fala nova (aspas ou travessão no começo da linha, depois de frase terminada) abre parágrafo
+        const speech = /^[“"«—–]\s*\S|^-\s+\S/.test(t) && /[.!?…:"”»]$/.test(cur ? cur.text : '');
+        const newPara = !cur || !prev || speech || gap > prev.size * 1.75 || gap < 0 || l.x > left + body * 0.9 || (prev.maxX < right - body * 4) || /[.!?:"”»]$/.test(cur.text) && l.x > left + body * 0.4;
         if (newPara) { flush(); cur = { type: 'p', text: t, center: Math.abs((l.x + l.maxX) / 2 - (left + right) / 2) < body && l.x > left + body * 3 }; }
         else if (/[A-Za-zÀ-ú]-$/.test(cur.text) && /^[a-zà-ú]/.test(t)) cur.text = cur.text.slice(0, -1) + t;
         else cur.text += ' ' + t;

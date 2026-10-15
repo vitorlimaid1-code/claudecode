@@ -88,6 +88,8 @@ contextBridge.exposeInMainWorld('api', {
   onMenu: cb => ipcRenderer.on('menu', (e, cmd) => cb(cmd)),
   enhPick: kind => inv('enh:pick', kind),
   enhRead: p => inv('enh:read', p),
+  enhOcr: (p, pages) => inv('enh:ocr', p, pages),
+  onEnhOcrProgress: cb => { const h = (e, d) => cb(d); ipcRenderer.on('enh:ocrProgress', h); return () => ipcRenderer.removeListener('enh:ocrProgress', h); },
   enhTarget: (base, ext, nextTo) => inv('enh:target', base, ext, nextTo),
   enhReplace: (src, docx) => inv('enh:replace', src, docx),
   enhDownloads: () => inv('enh:downloads'),

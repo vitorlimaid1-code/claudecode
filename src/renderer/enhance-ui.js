@@ -180,8 +180,16 @@
 
   // tira do PDF as páginas de sumário/índice, avisos e créditos do acervo e páginas de capa/rosto; o resto
   // (títulos, capítulos, fim e páginas pós-textuais) segue a mesma limpeza do EPUB
+  // trocas típicas do OCR em numerais romanos de capítulo (“CAPÍTULO!”, “CAPÍTULO Il” → “CAPÍTULO I”, “CAPÍTULO II”)
+  function fixOcrLine(t) {
+    const m = /^(cap[ií]tulo|parte|livro|canto|cap\.)\s*([IVXLCivxlc!|1]+)\s*[.:]?$/i.exec(t);
+    if (m && /[!|1l]/.test(m[2])) return m[1] + ' ' + m[2].replace(/[!|1l]/g, 'I').toUpperCase();
+    if (/^[IVX!|]{1,6}$/.test(t) && /[!|]/.test(t)) return t.replace(/[!|]/g, 'I');
+    return t;
+  }
   function cleanPdf(res, log) {
     const T = BookText.pdfLineText;
+    (res.pages || []).forEach(p => { if (p.ocr) (p.lines || []).forEach(l => { const t = T(l), f = fixOcrLine(t); if (f !== t) l.parts = [{ text: f, sup: false, size: l.size }]; }); });
     const pages = (res.pages || []).filter(p => p.lines && p.lines.length);
     const body = BookText.pdfBodySize(pages);
     const endsNum = t => /(\.{2,}|…|_{2,}|-{3,}|\s)\s*\d{1,4}$/.test(t) && !/^\d{1,4}$/.test(t);
@@ -203,6 +211,9 @@
     if (pages.length - keep.length - toc.length > 0) log(`· ${pages.length - keep.length - toc.length} página(s) em branco removida(s)`);
     // título e autor da obra (para o DOCX e o nome do arquivo salvo)
     const found = guessPdfTitle(keep, body, res.meta || {}, res.name || '');
+    // título com a grafia atual (“Memorias Posthumas” → “Memórias Póstumas”), também no nome do arquivo
+    const fixT = t => (typeof PtBr === 'undefined' || !t ? t : PtBr.orthography(PtBr.archaic(t, { title: true }).text).text);
+    found.title = fixT(found.title);
     const meta = Object.assign({}, res.meta || {}, { title: found.title, author: found.author || (res.meta || {}).author || '' });
     if (found.title) log(`· título reconhecido: “${found.title}” (${found.source})${meta.author ? ' · autor: ' + meta.author : ''}`);
     res.meta = meta;
@@ -216,6 +227,24 @@
       if (t.length < 900 && BOILER_RE.test(t)) { x.remove(); bp++; }
     });
     if (bp) log(`· ${bp} bloco(s) de avisos, créditos e endereços do acervo removido(s)`);
+    // coesão: parágrafos partidos na virada da página (ou pela digitalização) voltam a ser um só
+    let joined = 0;
+    const ps = Array.from(box.children);
+    for (let i = ps.length - 1; i > 0; i--) {
+      const a = ps[i - 1], b = ps[i];
+      if (a.tagName !== 'P' || b.tagName !== 'P' || a.querySelector('img') || b.querySelector('img')) continue;
+      const ta = clean(a.textContent), tb = clean(b.textContent);
+      if (!ta || !tb || /^[—–-]/.test(tb)) continue;
+      const open = !/[.!?…:;»”"’)\]]$/.test(ta);
+      const hyph = /\p{L}-$/u.test(ta) && /^\p{Ll}/u.test(tb);
+      if (hyph || (open && /^\p{Ll}/u.test(tb)) || (open && /[,\p{Ll}]$/u.test(ta) && ta.length > 120 && /^\p{Lu}/u.test(tb) && tb.length > 40)) {
+        if (hyph) a.innerHTML = a.innerHTML.replace(/-\s*$/, '') + b.innerHTML;
+        else a.innerHTML = a.innerHTML.replace(/\s+$/, '') + ' ' + b.innerHTML.replace(/^\s+/, '');
+        b.remove();
+        joined++;
+      }
+    }
+    if (joined) log(`· ${joined} parágrafo(s) partido(s) entre páginas reunido(s)`);
     // páginas pós-textuais próprias dos PDFs (biografia, cronologia, outras obras…) viram título para a limpeza geral
     box.querySelectorAll('p').forEach(x => { const t = clean(x.textContent); if (t.length <= 60 && PDF_BACK_RE.test(t) && !/[.;,]$/.test(t)) { const h = document.createElement('h2'); h.textContent = t; x.replaceWith(h); } });
     return box.innerHTML;
@@ -311,6 +340,53 @@
     return { title: titleCase(title), author, source };
   }
 
+  // ---------------------------------------------------------------- revisão do português (PDF)
+  // Diálogos com travessão (sem aspas), grafias antigas atualizadas, Novo Acordo Ortográfico e pontuação
+  // editorial (reticências, espaços, travessões, aspas curvas nas citações) — sem mudar o estilo do autor.
+  function polishPtBr(html, log, glue) {
+    if (typeof PtBr === 'undefined') return html;
+    const tpl = document.createElement('template');
+    tpl.innerHTML = html;
+    const st = { dialogues: 0, archaic: {}, ortho: {}, punct: {}, ocr: 0 };
+    const add = (map, rules) => rules.forEach(r => { map[r] = (map[r] || 0) + 1; });
+    tpl.content.querySelectorAll('p, li').forEach(p => {
+      if (p.closest('figure')) return;
+      const txt = p.textContent;
+      if (!/^\s*[“"«„\-–—]/.test(txt)) return;
+      if (!p.querySelector('*:not(em):not(i):not(strong):not(b)') && p.children.length === 0) {
+        const r = PtBr.dialogue(txt, { glue });
+        if (r.changed) { p.textContent = r.text; st.dialogues++; }
+      } else {
+        const tw = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+        const first = tw.nextNode();
+        if (first && /^\s*[“"«„\-–]/.test(first.nodeValue)) { first.nodeValue = first.nodeValue.replace(/^\s*[“"«„\-–]\s*/, glue ? PtBr.EM : PtBr.EM + ' '); st.dialogues++; }
+      }
+    });
+    const tw = document.createTreeWalker(tpl.content, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    let n;
+    while ((n = tw.nextNode())) if (!n.parentElement.closest('figure, code, pre')) nodes.push(n);
+    nodes.forEach(t => {
+      let v = t.nodeValue;
+      // sujeira comum de PDF/OCR: ligaduras, hífen flutuante, espaços
+      const v0 = v;
+      v = v.replace(/ﬁ/g, 'fi').replace(/ﬂ/g, 'fl').replace(/ﬀ/g, 'ff').replace(/ﬃ/g, 'ffi').replace(/ﬄ/g, 'ffl').replace(/[\u00ad\u200b]/g, '').replace(/\s*\|\s*/g, ' ').replace(/(\p{L})\s+-\s+(\p{Ll})/gu, '$1-$2');
+      if (v !== v0) st.ocr++;
+      const a = PtBr.archaic(v); v = a.text; add(st.archaic, a.hits);
+      const o = PtBr.orthography(v); v = o.text; add(st.ortho, o.hits);
+      const p = PtBr.punctuation(v); v = p.text; add(st.punct, p.hits);
+      if (v !== t.nodeValue) t.nodeValue = v;
+    });
+    const sum = m => Object.values(m).reduce((x, y) => x + y, 0);
+    if (st.dialogues) log(`· ${st.dialogues} diálogo(s) com travessão (aspas retiradas)`);
+    if (sum(st.archaic)) log(`· ${sum(st.archaic)} grafia(s) antiga(s) atualizada(s) (ex.: ${Object.keys(st.archaic).slice(0, 3).map(k => k.replace(/^.*\((.*)\)$/, '$1')).join(', ')})`);
+    if (sum(st.ortho)) log(`· ${sum(st.ortho)} correção(ões) do Novo Acordo Ortográfico`);
+    if (sum(st.punct)) log(`· ${sum(st.punct)} ajuste(s) de pontuação (reticências, espaços, travessões, aspas)`);
+    if (st.ocr) log(`· ${st.ocr} trecho(s) com sujeira de PDF/digitalização limpos`);
+    return tpl.innerHTML;
+  }
+  const polishTitle = t => (typeof PtBr === 'undefined' ? t : PtBr.punctuation(PtBr.orthography(PtBr.archaic(t, { title: true }).text).text).text);
+
   // ---------------------------------------------------------------- um livro
   async function processOne(item, sec) {
     const log = (m, k) => addLog(sec, `${item.name} — ${m}`, k);
@@ -352,8 +428,25 @@
     const res = await api.enhRead(filePath);
     if (!res || res.error) throw new Error(res ? res.error : 'arquivo ilegível');
     if (res.kind === 'pdf' && opts.clean !== false) {
-      if (!(res.pages || []).some(p => p.lines && p.lines.length)) throw new Error('o PDF não tem texto (é só imagem escaneada)');
       log(`${res.pages.length} página(s) no PDF`);
+      // PDF digitalizado (páginas só com imagem): reconhecimento de texto (OCR) no computador
+      const chars = p => (p.lines || []).reduce((a, l) => a + BookText.pdfLineText(l).length, 0);
+      const noText = res.pages.filter(p => chars(p) < 30).map(p => p.n);
+      if (noText.length && noText.length >= res.pages.length * 0.5) {
+        log(`PDF digitalizado: reconhecendo o texto de ${noText.length} página(s) (OCR em português, no computador; pode levar alguns minutos)…`);
+        const t0 = Date.now();
+        let last = 0;
+        const off = api.onEnhOcrProgress ? api.onEnhOcrProgress(p => { if (p.done === p.total || p.done - last >= Math.max(5, Math.round(p.total / 10))) { last = p.done; log(`OCR: ${p.done} de ${p.total} página(s)…`); } }) : null;
+        const r = await api.enhOcr(filePath, noText).finally(() => { if (off) off(); });
+        if (!r || r.error) throw new Error('não foi possível reconhecer o texto do PDF digitalizado' + (r && r.error ? ': ' + r.error : ''));
+        const byN = new Map(r.pages.map(p => [p.n, p]));
+        res.pages = res.pages.map(p => byN.get(p.n) || p);
+        const conf = r.pages.flatMap(p => p.lines.map(l => l.ocr || 0));
+        const avg = conf.length ? Math.round(conf.reduce((a, b) => a + b, 0) / conf.length) : 0;
+        log(`· texto reconhecido em ${r.pages.length} página(s) em ${Math.round((Date.now() - t0) / 1000)} s · confiança média ${avg}%${avg && avg < 75 ? ' (digitalização de baixa qualidade: revise o texto)' : ''}`);
+        res.ocr = true;
+      }
+      if (!(res.pages || []).some(p => p.lines && p.lines.length)) throw new Error('o PDF não tem texto reconhecível');
       res.docs = [{ id: 'pdf', html: cleanPdf(res, m => log(m)) }];
     } else if (res.kind !== 'epub') {
       // Word/ODT/texto: capítulos do importador, depois a mesma limpeza (avisos, páginas extras)
@@ -367,7 +460,9 @@
     if (!res.meta.title) res.meta.title = name;
     log(`${res.kind === 'pdf' ? 'texto do PDF reconstruído' : (res.docs || []).length + ' arquivo(s) internos'} · “${decode(res.meta.title) || name}”${res.meta.author ? ' · ' + decode(res.meta.author) : ''}`);
     // conversão de formato (Ferramentas): sem a limpeza do Gutenberg, o arquivo fica inteiro
-    const html = opts.clean === false ? (res.docs || []).map(d => d.html).join('\n') : cleanGutenberg(res, m => log(m));
+    let html = opts.clean === false ? (res.docs || []).map(d => d.html).join('\n') : cleanGutenberg(res, m => log(m));
+    // PDF: revisão do português (travessão nos diálogos, ortografia atual, pontuação)
+    if (res.kind === 'pdf' && opts.clean !== false && opts.polish !== false) html = polishPtBr(html, m => log(m), opts.glue !== false);
     let chapters = BookText.htmlToChapters(html, decode(res.meta.title) || name);
     const det = chapters.detected;
     chapters = chapters.filter(c => c.html.replace(/<[^>]+>/g, '').trim() || /<img/.test(c.html));
@@ -411,7 +506,7 @@
         t.innerHTML = App.editor.figureHtml(id, Object.assign(figureLayout(img, dim), { caption: cap ? cap.textContent : '' }));
         if (holder.tagName === 'FIGURE' || !holder.closest('p')) holder.replaceWith(t.content.firstChild); else { const p = holder.closest('p'); holder.remove(); p.after(t.content.firstChild); }
       }
-      return { id: D.uid(), title: c.title, numbered: c.numbered !== false, html: tpl.innerHTML, locked: false, style: {}, separator: 'default', openingImage: null };
+      return { id: D.uid(), title: res.kind === 'pdf' && opts.clean !== false && opts.polish !== false ? polishTitle(c.title) : c.title, numbered: c.numbered !== false, html: tpl.innerHTML, locked: false, style: {}, separator: 'default', openingImage: null };
     })());
     if (imgs) log(`${imgs} ilustração(ões) mantida(s) nos capítulos`);
     return { proj, res, det, images: imgs };
@@ -584,7 +679,9 @@
       ],
       what: [
         'reconhece o título da obra (folha de rosto, dados do PDF ou nome do arquivo) e salva o DOCX com esse nome — ex.: “Dom Casmurro.docx”',
-        'reconstrói os parágrafos do PDF (junta as linhas, desfaz hifenizações, tira cabeçalhos, rodapés e números de página)',
+        'PDF digitalizado (só imagem): reconhece o texto por OCR em português, no computador, sem internet',
+        'reconstrói os parágrafos do PDF (junta as linhas e os parágrafos partidos entre páginas, desfaz hifenizações, tira cabeçalhos, rodapés e números de página)',
+        'revisa o português: diálogos com travessão (sem aspas), grafias antigas atualizadas (ella → ela, pharmacia → farmácia, sôbre → sobre), Novo Acordo Ortográfico e pontuação',
         'remove capa, folha de rosto, avisos e créditos do acervo (Biblioteca Virtual do Estudante, Ministério da Cultura, NEAD, eBooksBrasil…), apresentação e o sumário/índice do PDF',
         'remove as páginas pós-textuais (FIM, biografia, cronologia, outras obras, índice, notas finais)',
         'identifica os capítulos (CAPÍTULO I, II, 1, 2…) — sem sumário automático',

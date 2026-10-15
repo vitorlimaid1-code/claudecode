@@ -400,6 +400,16 @@ ipcMain.handle('enh:pick', async (e, kind) => {
   const res = await dialog.showOpenDialog(mainWindow, { title: pdf ? 'Livros em PDF (Domínio Público)' : 'Livros EPUB (Project Gutenberg)', filters: [pdf ? { name: 'PDF', extensions: ['pdf'] } : { name: 'EPUB', extensions: ['epub'] }], properties: ['openFile', 'multiSelections'] });
   return res.canceled ? [] : res.filePaths;
 });
+// OCR de PDFs digitalizados (Melhoramento): páginas sem texto viram texto reconhecido, com progresso
+let ocrApi = null;
+ipcMain.handle('enh:ocr', async (e, filePath, pages) => {
+  try {
+    if (!ocrApi) ocrApi = require('./main/ocr').createOcr({ withRenderWindow, cacheDir: userFile('ocr') });
+    fs.mkdirSync(userFile('ocr'), { recursive: true });
+    const res = await ocrApi.ocrPdf(fs.readFileSync(filePath), pages, p => { try { e.sender.send('enh:ocrProgress', p); } catch (err) { /* janela fechada */ } });
+    return { pages: res };
+  } catch (err) { return { error: String(err && err.message || err) }; }
+});
 ipcMain.handle('enh:read', async (e, filePath) => {
   try { return Object.assign(require('./shared/defaults').nfcDeep(await importAny(filePath)), { name: path.basename(filePath, path.extname(filePath)), size: fs.statSync(filePath).size }); } catch (err) { return { error: String(err && err.message || err) }; }
 });
