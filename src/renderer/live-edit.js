@@ -689,14 +689,16 @@
     return false;
   };
 
-  // estilo de caractere no trecho selecionado nas páginas (id vazio = tira o estilo)
-  L.charStyle = function (id) {
+  // estilo de caractere / marcador no trecho selecionado nas páginas (id vazio = tira)
+  L.charStyle = function (id) { return onStageSel(sel => applyCharStyle(sel, id)); };
+  L.highlight = function (color) { return onStageSel(sel => applyHighlight(sel, color)); };
+  function onStageSel(fn) {
     const c = App.chapter();
     if (!c || c.locked || !ensureState(c.id)) return false;
     const ss = stageSelection();
     if (!ss || ss[0] === ss[1]) return false;
     setEditorSelection(ss[0], ss[1]);
-    const ok = applyCharStyle(window.getSelection(), id);
+    const ok = fn(window.getSelection());
     if (ok) {
       state.S = modelV();
       App.editSeq++;
@@ -706,16 +708,24 @@
   };
   // envolve cada pedaço de texto da seleção num span[data-cs] (sem aninhar estilos; entre parágrafos também)
   function applyCharStyle(sel, id) {
+    return wrapSelection(sel, 'span[data-cs]', id ? doc => { const sp = doc.createElement('span'); sp.setAttribute('data-cs', id); return sp; } : null);
+  }
+  // marcador de texto: span.hl.hl-<cor> (cor vazia = tira o marcador)
+  const HL_COLORS = ['gray', 'black', 'green', 'yellow', 'pink', 'outline'];
+  function applyHighlight(sel, color) {
+    return wrapSelection(sel, 'span.hl', HL_COLORS.includes(color) ? doc => { const sp = doc.createElement('span'); sp.className = 'hl hl-' + color; return sp; } : null);
+  }
+  function wrapSelection(sel, query, make) {
     if (!sel || !sel.rangeCount) return false;
     const r = sel.getRangeAt(0);
     if (r.collapsed) return false;
     const root = r.commonAncestorContainer.nodeType === 1 ? r.commonAncestorContainer : r.commonAncestorContainer.parentNode;
     const doc = root.ownerDocument;
     // estilos já aplicados que tocam a seleção: saem (o novo substitui)
-    Array.from((root.closest('[data-cs]') ? [root.closest('[data-cs]')] : []).concat(Array.from(root.querySelectorAll('span[data-cs]')))).forEach(sp => {
+    Array.from((root.closest(query) ? [root.closest(query)] : []).concat(Array.from(root.querySelectorAll(query)))).forEach(sp => {
       if (r.intersectsNode(sp)) sp.replaceWith(...Array.from(sp.childNodes));
     });
-    if (!id) return true;
+    if (!make) return true;
     const texts = [];
     const tw = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     let t;
@@ -725,14 +735,14 @@
       let n = node;
       if (n === ec && eo < n.nodeValue.length) n.splitText(eo);
       if (n === sc && so > 0) n = n.splitText(so);
-      const sp = doc.createElement('span');
-      sp.setAttribute('data-cs', id);
+      const sp = make(doc);
       n.replaceWith(sp);
       sp.appendChild(n);
     });
     return texts.length > 0;
   }
   L.applyCharStyle = applyCharStyle;
+  L.applyHighlight = applyHighlight;
   // seleção feita nas páginas -> a mesma seleção no texto do capítulo (para mudanças de estrutura)
   L.selectionToModel = function (host) {
     const c = chapterOfNode(host);

@@ -47,6 +47,10 @@ async function exportDocx(doc, assets, page) {
   let fnId = 1;
   const children = [];
 
+  // marcador de texto: fundo da cor escolhida (preto e rosa com letra branca); contorno = borda fina
+  const HL = { gray: 'D0D0D0', black: '111111', green: '39FF14', yellow: 'FFF200', pink: 'FF2EC4' };
+  const hlRun = k => !k ? {} : k === 'outline' ? { border: { style: D.BorderStyle.SINGLE, size: 4, color: '333333', space: 1 } }
+    : Object.assign({ shading: { type: D.ShadingType.CLEAR, fill: HL[k] || 'FFF200', color: 'auto' } }, k === 'black' || k === 'pink' ? { color: 'FFFFFF' } : {});
   const mkRuns = runs => {
     const out = [];
     (runs || []).forEach(r => {
@@ -59,7 +63,7 @@ async function exportDocx(doc, assets, page) {
       if (r.br) { out.push(new D.TextRun({ text: '', break: 1 })); return; }
       out.push(new D.TextRun({
         text: String(r.text || '').replace(/[\r\n\t]+/g, ' ').replace(/ {2,}/g, ' '), bold: !!r.b, italics: !!r.i, underline: r.u ? {} : undefined, strike: !!r.s, color: /^#[0-9a-f]{6}$/i.test(r.color || '') ? r.color.slice(1) : undefined,
-        superScript: !!r.sup, subScript: !!r.sub, smallCaps: !!r.sc
+        superScript: !!r.sup, subScript: !!r.sub, smallCaps: !!r.sc, ...hlRun(r.hl)
       }));
     });
     return out;

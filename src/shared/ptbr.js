@@ -66,6 +66,8 @@
 
   // ---------------------------------------------------------------- dicionário de estilo
   const BODY = 'cabeça|mão|mãos|olhos|olho|braço|braços|perna|pernas|pé|pés|boca|lábios|dentes|ombros|ombro|cabelo|cabelos|rosto|testa|nariz|queixo|dedos|dedo|punho|punhos|joelhos|joelho|costas|garganta|pescoço|sobrancelhas|sobrancelha|pálpebras|bochecha|bochechas|orelha|orelhas|peito|coração';
+  // substantivos femininos em -er (“ali estava a mulher” não é “estava a fazer”; os masculinos levariam “o”)
+  const NOUNS_R = new Set(['mulher', 'mulheres', 'colher', 'talher']);
   const DICT = [
     // pleonasmos
     [/\bsubir para cima\b/gi, 'subir', 'Pleonasmo'], [/\bsubiu para cima\b/gi, 'subiu', 'Pleonasmo'], [/\bdescer para baixo\b/gi, 'descer', 'Pleonasmo'], [/\bdesceu para baixo\b/gi, 'desceu', 'Pleonasmo'],
@@ -78,6 +80,14 @@
     [/\bno final do dia\b/gi, 'no fim das contas', 'Decalque do inglês (at the end of the day)'], [/\bfazer uma decisão\b/gi, 'tomar uma decisão', 'Decalque do inglês (make a decision)'], [/\bfez uma decisão\b/gi, 'tomou uma decisão', 'Decalque do inglês (make a decision)'],
     [/\btomar lugar\b/gi, 'acontecer', 'Decalque do inglês (take place)'], [/\btomou lugar\b/gi, 'aconteceu', 'Decalque do inglês (take place)'], [/\bem ordem de\b/gi, 'para', 'Decalque do inglês (in order to)'], [/\bpelo caminho\b(?= ,)/gi, 'aliás', 'Decalque do inglês (by the way)'],
     [/\bsuportar (a ideia|o plano|a decisão|a causa)\b/gi, 'apoiar $1', 'Falso cognato (support = apoiar)'], [/\beventualmente,? (ele|ela|eles|elas|nós|eu)\b/gi, 'por fim, $1', 'Falso cognato (eventually = por fim)'],
+    // literalismos da tradução automática e construções do português europeu
+    [/\bem adição a\b/gi, 'além de', 'Decalque do inglês (in addition to)'], [/\bem adição,/gi, 'além disso,', 'Decalque do inglês (in addition)'],
+    [/\bde novo e de novo\b/gi, 'repetidas vezes', 'Decalque do inglês (again and again)'], [/\bmais e mais\b/gi, 'cada vez mais', 'Decalque do inglês (more and more)'],
+    [/\bao invés de\b/gi, 'em vez de', 'Norma culta (ao invés de = ao contrário de)'], [/\benquanto que\b/gi, 'enquanto', 'Expressão redundante (enquanto que)'],
+    [/\ba nível de\b/gi, 'em termos de', 'Expressão condenada (a nível de)'], [/\bisso é porque\b/gi, 'isso porque', 'Decalque do inglês (that is because)'],
+    [/\bno caso de que\b/gi, 'caso', 'Construção pesada (no caso de que)'], [/\bpara o caso de que\b/gi, 'caso', 'Construção pesada'],
+    [/\b(estava|estavas|estou|está|estás|estavam|estão|estamos|estávamos|esteve|estive|estiveram|ficou|ficava|fiquei|continuou|continuava|andava|anda) a (\p{Ll}+)(ar|er|ir)\b/giu,
+      (m, aux, stem, end) => (NOUNS_R.has((stem + end).toLowerCase()) ? m : `${aux} ${stem}${{ ar: 'ando', er: 'endo', ir: 'indo' }[end.toLowerCase()]}`), 'Português europeu → brasileiro (estava a fazer → estava fazendo)'],
     // possessivo desnecessário com partes do corpo (decalque de “his head”)
     [new RegExp(`\\b(balançou|balançava|balançando|sacudiu|sacudia|levantou|levantava|ergueu|erguia|abriu|abria|fechou|fechava|esfregou|esfregava|coçou|coçava|cruzou|cruzava|apertou|apertava|mordeu|mordia|passou|passava|enfiou|enfiava|estendeu|estendia|baixou|baixava|virou|virava|inclinou|inclinava|estalou|estalava|lambeu|lambia|franziu|franzia|arqueou|arqueava|ergui|levantei|abri|fechei|balancei|sacudi|cruzei|estendi|baixei|virei)\\s+(sua|seu|suas|seus|minha|meu|minhas|meus)\\s+(${BODY})\\b`, 'giu'),
       (m, v, poss, part) => `${v} ${/^(sua|minha)$/i.test(poss) ? 'a' : /^(seu|meu)$/i.test(poss) ? 'o' : /^(suas|minhas)$/i.test(poss) ? 'as' : 'os'} ${part}`, 'Possessivo desnecessário com parte do corpo (balançou sua cabeça → balançou a cabeça)']

@@ -22,6 +22,7 @@
       if (t === 'SUP') f.sup = true;
       if (t === 'SUB') f.sub = true;
       if (n.classList && n.classList.contains('smallcaps')) f.sc = true;
+      if (n.classList && n.classList.contains('hl')) { const k = Array.from(n.classList).find(c => /^hl-/.test(c)); if (k) f.hl = k.slice(3); }
       // estilo de caractere: as marcas que os formatos editáveis entendem (itálico, negrito, versalete, sublinhado)
       if (t === 'SPAN' && n.dataset && n.dataset.cs) {
         const cs = (curCharStyles || []).find(x => x.id === n.dataset.cs);
@@ -272,6 +273,13 @@ td.num { text-align: right; }
 p.table-source { text-indent: 0; font-size: 0.8em; margin-bottom: 1em; }
 td p, th p { text-indent: 0; }
 .smallcaps { font-variant: small-caps; }
+.hl { padding: 0.04em 0.22em; border-radius: 0.18em; -webkit-box-decoration-break: clone; box-decoration-break: clone; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.hl-gray { background: #d0d0d0; color: #111; }
+.hl-black { background: #111; color: #fff; }
+.hl-green { background: #39ff14; color: #111; }
+.hl-yellow { background: #fff200; color: #111; }
+.hl-pink { background: #ff2ec4; color: #fff; }
+.hl-outline { background: #fff; color: #111; border: 0.5pt solid #222; border-radius: 0.1em; }
 sup a { text-decoration: none; }
 section.notes { margin-top: 2em; border-top: 1px solid #999; font-size: 0.85em; }
 aside p { text-indent: 0; }

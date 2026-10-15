@@ -42,14 +42,14 @@ app.commandLine.appendSwitch('disable-background-networking');
 app.commandLine.appendSwitch('disable-domain-reliability');
 
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }
+  { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, codeCache: true } }
 ]);
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
   '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp', '.woff': 'font/woff', '.woff2': 'font/woff2',
-  '.ttf': 'font/ttf', '.otf': 'font/otf', '.ttc': 'font/collection'
+  '.ttf': 'font/ttf', '.otf': 'font/otf', '.ttc': 'font/collection', '.wasm': 'application/wasm'
 };
 const IMAGE_MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.bmp': 'image/bmp' };
 
@@ -75,6 +75,11 @@ function registerAppProtocol() {
       if (!filePath.startsWith(APP_ROOT)) filePath = null;
     } else if (url.host === 'userlib') {
       filePath = library.resolveUserFile(rel);
+    } else if (url.host === 'models') {
+      // modelos do tradutor offline, baixados para a pasta de dados
+      const base = path.join(app.getPath('userData'), 'modelos');
+      filePath = path.normalize(path.join(base, rel));
+      if (!filePath.startsWith(base + path.sep)) filePath = null;
     } else if (url.host === 'fontfile') {
       try {
         const f = Buffer.from(rel, 'base64url').toString('utf8');
@@ -85,7 +90,10 @@ function registerAppProtocol() {
     try {
       const data = await fs.promises.readFile(filePath);
       const type = MIME[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
-      return new Response(data, { headers: { 'content-type': type, 'access-control-allow-origin': '*' } });
+      const headers = { 'content-type': type, 'access-control-allow-origin': '*', 'cross-origin-resource-policy': 'cross-origin' };
+      // janela do tradutor offline isolada: libera vários núcleos para o WebAssembly (SharedArrayBuffer)
+      if (url.host === 'local' && /^src\/mt\//.test(rel)) Object.assign(headers, { 'cross-origin-opener-policy': 'same-origin', 'cross-origin-embedder-policy': 'require-corp' });
+      return new Response(data, { headers });
     } catch (e) {
       return new Response('Não encontrado', { status: 404 });
     }
@@ -409,7 +417,11 @@ ipcMain.handle('enh:replace', async (e, src, docx) => {
 
 // ---------------------------------------------------------------- tradução (tela própria)
 let translatorApi = null;
-const tr = () => translatorApi || (translatorApi = require('./main/translator').createTranslator({ userFile, safeStorage: require('electron').safeStorage }));
+const tr = () => translatorApi || (translatorApi = require('./main/translator').createTranslator({
+  userFile, safeStorage: require('electron').safeStorage,
+  offline: require('./main/offline-mt').createOfflineMT({ modelsDir: userFile('modelos'), workerUrl: appUrl('src/mt/worker.html'), preload: path.join(__dirname, 'mt', 'preload.js') }),
+  tm: require('./main/tmstore').createTmStore(userFile('tradutor'))
+}));
 ipcMain.handle('tr:pick', async () => {
   const res = await dialog.showOpenDialog(mainWindow, { title: 'Livros para traduzir', filters: [{ name: 'Livros', extensions: ['epub', 'docx', 'doc', 'odt', 'rtf', 'txt', 'html', 'htm'] }], properties: ['openFile', 'multiSelections'] });
   return res.canceled ? [] : res.filePaths;
@@ -422,6 +434,15 @@ ipcMain.handle('tr:chunk', async (e, req) => {
     return { error: String(err && err.message || err), fatal: !!(err && err.fatal), retry: !!(err && err.retry), refusal: !!(err && err.refusal), tooLong: !!(err && err.tooLong) };
   }
 });
+// tradutor offline (modelo no computador) e livros de referência (memória de tradução)
+ipcMain.handle('mt:status', () => tr().offline.status());
+ipcMain.handle('mt:select', (e, key) => tr().offline.select(key));
+ipcMain.handle('mt:install', async (e, key) => tr().offline.install(key, p => { try { e.sender.send('mt:progress', p); } catch (err) { /* janela fechada */ } }));
+ipcMain.handle('mt:remove', (e, key) => tr().offline.remove(key));
+ipcMain.handle('tm:list', () => tr().tm.list());
+ipcMain.handle('tm:add', (e, req) => { try { return tr().tm.add(req || {}); } catch (err) { return { error: String(err && err.message || err) }; } });
+ipcMain.handle('tm:remove', (e, id) => tr().tm.remove(id));
+ipcMain.handle('tm:options', (e, patch) => tr().tm.setOptions(patch || {}));
 ipcMain.handle('tr:report', async (e, req) => { try { return await tr().report(req); } catch (err) { return { error: String(err && err.message || err) }; } });
 // relatório da tradução em PDF (a interface monta o HTML; aqui vira PDF A4 e vai para onde o usuário escolher)
 ipcMain.handle('tr:savePdf', async (e, html, baseName, target) => {
@@ -1197,6 +1218,13 @@ if (!process.env.SMOKE_TEST && !app.requestSingleInstanceLock()) {
     library.extraBuiltin = () => remoteAssets.bundledRules(library.builtinDir);
     registerAppProtocol();
     blockNetwork(session.defaultSession);
+    if (process.env.SMOKE_TEST && process.env.MT_SELFTEST) {
+      // conferência do tradutor offline (janela oculta, WebAssembly e modelo da pasta de dados)
+      const r = await tr().offline.test();
+      console.log('MT_SELFTEST ' + JSON.stringify(r));
+      app.exit(r.ok ? 0 : 1);
+      return;
+    }
     if (process.env.SMOKE_TEST) {
       try { await runSmokeTest(); app.exit(0); } catch (err) { console.error('SMOKE_FAIL', err); app.exit(1); }
       return;

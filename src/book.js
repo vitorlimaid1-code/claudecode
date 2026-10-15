@@ -469,7 +469,15 @@ function frameMargins(id, s, ctx) {
   if (!a) return null;
   const ins = a.frameInset || { top: 0.08, right: 0.08, bottom: 0.08, left: 0.08 };
   const W = num(s.pageWidth, 140), H = num(s.pageHeight, 210), gap = 4;
-  return { top: ins.top * H + gap, bottom: ins.bottom * H + gap, left: ins.left * W + gap, right: ins.right * W + gap };
+  // número da página no rodapé: o texto sobe o bastante para o número caber entre o texto e a moldura
+  const fol = folioSpace(s);
+  return { top: ins.top * H + gap, bottom: ins.bottom * H + gap + fol, left: ins.left * W + gap, right: ins.right * W + gap };
+}
+// espaço do número da página no rodapé (mm): forma + folga; 0 quando o número não fica no pé da página
+function folioSpace(s) {
+  if (!['left', 'outer', 'center'].includes(s.pageNumbers)) return 0;
+  const shape = s.pageNumberShape || 'plain';
+  return (shape === 'plain' ? 4 : num(s.pageNumberShapeSize, 7) * (/^(spade|heart|diamond|club|star|hexagon|shield|flower|drop)$/.test(shape) ? 1.25 : 1)) + 3;
 }
 function frameCss(project, ctx) {
   const s = project.settings;
@@ -488,13 +496,21 @@ function frameCss(project, ctx) {
   if (t0 < 1.2) return out.join('\n');
   used.filter(id => PageFrames.FRAMES[id]).forEach(id => {
     // modelos “imersivos” ocupam quase toda a margem
-    const t = PageFrames.FRAMES[id].wide ? Math.max(t0, Math.min(14, minM - g - 1)) : t0;
-    const w = ctx.colW + 2 * (g + t), h = ctx.contentH + 2 * (g + t);
+    let t = PageFrames.FRAMES[id].wide ? Math.max(t0, Math.min(14, minM - g - 1)) : t0;
+    // o número da página fica dentro da moldura, entre o texto e a linha de baixo, sem encostar nela
+    const fol = folioSpace(s);
+    let gB = fol ? Math.max(g, fol + 1.2) : g;
+    if (fol && mb - gB - 0.8 < t) t = Math.max(1.2, Math.min(t, mb - gB - 0.8));
+    if (mb - gB - t < 0.5) gB = g; // sem espaço: volta à moldura normal
+    const w = ctx.colW + 2 * (g + t), h = ctx.contentH + g + t + gB + t;
     const svg = PageFrames.svg(id, w, h, t, g);
     const sel = `.pagedjs_page[data-frame="${id}"] .pagedjs_pagebox::before`;
     out.push(`${sel} { content: ""; position: absolute; z-index: 0; pointer-events: none; width: ${w.toFixed(2)}mm; height: ${h.toFixed(2)}mm; top: ${(mt - g - t).toFixed(2)}mm; left: ${(mi - g - t).toFixed(2)}mm; background: url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}") no-repeat; background-size: 100% 100%; }`);
     out.push(`.pagedjs_page.pagedjs_left_page[data-frame="${id}"] .pagedjs_pagebox::before { left: ${(mo - g - t).toFixed(2)}mm; }`);
+    if (fol && gB > g) out.push(`.pagedjs_page[data-frame="${id}"] .pagedjs_margin-bottom > .pagedjs_margin { padding-top: 1.2mm !important; align-items: flex-start !important; }`);
   });
+  // moldura enviada (imagem): o número fica logo abaixo do texto, no espaço reservado acima da moldura
+  if (folioSpace(s)) used.filter(id => /^up:/.test(id)).forEach(id => out.push(`.pagedjs_page[data-frame="${id}"] .pagedjs_margin-bottom > .pagedjs_margin { padding-top: 1.2mm !important; align-items: flex-start !important; }`));
   return out.join('\n');
 }
 
@@ -1216,6 +1232,13 @@ ${captionStyleCss()}
 .chapter-body tr { break-inside: avoid; }
 .chapter-body td p, .chapter-body th p { text-indent: 0; margin: 0; }
 .chapter-body .smallcaps { font-variant: small-caps; letter-spacing: 0.03em; }
+.chapter-body .hl { padding: 0.04em 0.22em; border-radius: 0.18em; -webkit-box-decoration-break: clone; box-decoration-break: clone; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.chapter-body .hl-gray { background: #d0d0d0; color: #111; }
+.chapter-body .hl-black { background: #111; color: #fff; }
+.chapter-body .hl-green { background: #39ff14; color: #111; }
+.chapter-body .hl-yellow { background: #fff200; color: #111; }
+.chapter-body .hl-pink { background: #ff2ec4; color: #fff; }
+.chapter-body .hl-outline { background: #fff; color: #111; border: 0.5pt solid #222; border-radius: 0.1em; }
 .chapter-body sup, .chapter-body sub { line-height: 0; }
 
 /* ---------- figuras: nunca ultrapassam a mancha nem se dividem ---------- */

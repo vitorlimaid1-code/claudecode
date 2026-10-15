@@ -164,6 +164,15 @@ button.on { background: var(--accent-soft); border-color: #e2c3b2; }
 .editor .footnote::before { content: counter(fn) " "; font-weight: 700; color: var(--accent); }
 .editor .footnote.selected { outline: 2px solid #d9822b; }
 .editor .smallcaps { font-variant: small-caps; letter-spacing: .03em; }
+.editor .hl { padding: 0.04em 0.22em; border-radius: 0.18em; -webkit-box-decoration-break: clone; box-decoration-break: clone; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.editor .hl-gray { background: #d0d0d0; color: #111; }
+.editor .hl-black { background: #111; color: #fff; }
+.editor .hl-green { background: #39ff14; color: #111; }
+.editor .hl-yellow { background: #fff200; color: #111; }
+.editor .hl-pink { background: #ff2ec4; color: #fff; }
+.editor .hl-outline { background: #fff; color: #111; border: 0.5pt solid #222; border-radius: 0.1em; }
+.hl-menu { display: flex; gap: 4px; flex-wrap: wrap; }
+.hl-sw { width: 26px; height: 22px; border-radius: 4px; border: 1px solid #888; cursor: pointer; font: 700 11px sans-serif; display: inline-flex; align-items: center; justify-content: center; }
 .editor.show-invisibles p::after, .editor.show-invisibles h2::after, .editor.show-invisibles h3::after, .editor.show-invisibles h4::after { content: "¶"; color: #c9a58f; margin-left: 2px; }
 .editor.show-invisibles { background-image: linear-gradient(transparent 0, transparent 100%); }
 .drop-indicator { position: absolute; height: 3px; background: #d9822b; border-radius: 2px; display: none; pointer-events: none; box-shadow: 0 0 0 3px rgba(217,130,43,.25); z-index: 5; }

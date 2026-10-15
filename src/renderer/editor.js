@@ -1076,6 +1076,8 @@
       if (viaStage()) App.live.runOnModel(run); else run();
     }));
     $('#blockFormat').addEventListener('change', e => { const v = e.target.value; if (viaStage()) App.live.runOnModel(() => applyBlockStyle(v)); else applyBlockStyle(v); });
+    const hlBtn = $('#hlBtn');
+    if (hlBtn) { hlBtn.addEventListener('mousedown', e => e.preventDefault()); hlBtn.addEventListener('click', () => App.quickStyle.hlMenu(hlBtn)); }
     $$('#editorToolbar [data-action]').forEach(b => b.addEventListener('click', () => { const a = b.dataset.action; if (viaStage()) App.live.runOnModel(() => toolbarAction(a)); else toolbarAction(a); }));
     setupMeta();
   }

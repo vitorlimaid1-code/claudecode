@@ -147,7 +147,7 @@
     const notes = [];
     let lang = '';
     const totalChunks = proj.chapters.reduce((s, c) => s + chunks(chapterBlocks(c, [])).length, 0);
-    log(`${proj.chapters.length} capítulo(s) · ${fmt(srcWords)} palavras · ${totalChunks} trecho(s) para traduzir (${cfg.effective === 'gtrans' ? 'Google Tradutor' + (cfg.aiReview && (cfg.hasOrKey || cfg.hasGgKey) ? ' + revisão por IA' : '') : cfg.provider === 'ollama' ? 'Ollama · ' + cfg.ollamaModel : cfg.provider === 'openrouter' ? 'OpenRouter · ' + cfg.orModel : cfg.provider === 'google' ? 'Google Gemini · ' + cfg.ggModel : cfg.provider === 'mock' ? 'simulação' : (cfg.models.find(m => m.id === cfg.model) || {}).name || cfg.model})`);
+    log(`${proj.chapters.length} capítulo(s) · ${fmt(srcWords)} palavras · ${totalChunks} trecho(s) para traduzir (${engineName(cfg)})`);
     const origTitle = proj.meta.title;
     let done = 0;
     for (let ci = 0; ci < proj.chapters.length; ci++) {
@@ -202,7 +202,7 @@
     if (!rep || rep.error || !rep.parecer) rep = localReport(stats, rep && rep.error);
     item.report = {
       file: item.path, out: item.out, title: proj.meta.title, originalTitle: origTitle, author: proj.meta.author, lang: lang || 'não identificado',
-      engine: cfg.effective === 'gtrans' ? `Google Tradutor${cfg.aiReview && (cfg.hasOrKey || cfg.hasGgKey) ? ' + revisão por IA (' + (cfg.hasOrKey ? 'OpenRouter' : 'Gemini') + ')' : ''} + correções do sistema` : cfg.provider === 'ollama' ? `Ollama · ${cfg.ollamaModel} (local)` : cfg.provider === 'openrouter' ? `OpenRouter · ${cfg.orModel}` : cfg.provider === 'google' ? `Google Gemini · ${cfg.ggModel}` : cfg.provider === 'mock' ? 'Simulação (teste)' : `${(cfg.models.find(m => m.id === cfg.model) || {}).name || cfg.model} · esforço ${cfg.effort}`,
+      engine: engineName(cfg) + (cfg.effective === 'gtrans' || cfg.effective === 'offline' ? ' + correções do sistema' : ''),
       date: new Date().toLocaleString('pt-BR'), stats, cleaning: cleaning.filter(x => /removid|mantid|capítulo|nota/i.test(x)), notes, glossary: [...ctx.glossary.entries()], reps,
       tokens: { in: st.tokensIn, out: st.tokensOut, cost: st.cost }, parecer: rep.parecer, changes: rep.changes || [], corrections: rep.corrections || []
     };
@@ -355,7 +355,7 @@ ${r.notes.length ? `<h2>Notas editoriais</h2><ul class="notes">${li(r.notes.slic
   async function renderConfig() {
     cfg = await api.trConfig();
     cfgBox.innerHTML = '';
-    const prov = el('select', {}, [['openrouter', 'OpenRouter — principal: modelos gratuitos (NVIDIA Nemotron 3 Ultra), precisa de internet'], ['google', 'Google Gemini — cota gratuita do Google AI Studio, precisa de internet'], ['gtrans', 'Google Tradutor — gratuito, sem chave (precisa de internet)'], ['ollama', 'Ollama — modelo local, funciona sem internet']].concat(cfg.mock ? [['mock', 'Simulação (teste)']] : []).map(([v, t]) => el('option', { value: v, text: t, selected: cfg.provider === v })));
+    const prov = el('select', {}, [['openrouter', 'OpenRouter — principal: modelos gratuitos (NVIDIA Nemotron 3 Ultra), precisa de internet'], ['google', 'Google Gemini — cota gratuita do Google AI Studio, precisa de internet'], ['gtrans', 'Google Tradutor — gratuito, sem chave (precisa de internet; sem ela, usa o motor offline)'], ['offline', 'Offline — motor no próprio computador, sem internet'], ['ollama', 'Ollama — modelo local, funciona sem internet']].concat(cfg.mock ? [['mock', 'Simulação (teste)']] : []).map(([v, t]) => el('option', { value: v, text: t, selected: cfg.provider === v })));
     const key = el('input', { type: 'password', placeholder: cfg.hasKey ? `chave salva (${cfg.keyHint})` : 'sk-ant-…', autocomplete: 'off' });
     const model = el('select', {}, cfg.models.map(m => el('option', { value: m.id, text: m.name, selected: cfg.model === m.id })));
     const effort = el('select', {}, [['medium', 'Médio — mais rápido'], ['high', 'Alto — recomendado para literatura'], ['xhigh', 'Muito alto — máximo cuidado']].map(([v, t]) => el('option', { value: v, text: t, selected: cfg.effort === v })));
@@ -391,10 +391,122 @@ ${r.notes.length ? `<h2>Notas editoriais</h2><ul class="notes">${li(r.notes.slic
       cfg.provider === 'ollama' ? el('div', { class: 'tr-cfg-2' }, [el('div', { class: 'tr-cfg-row' }, [el('label', { class: 'flabel', text: 'Endereço do Ollama' }), ourl]), el('div', { class: 'tr-cfg-row' }, [el('label', { class: 'flabel', text: 'Modelo instalado' }), omodel])]) : null,
       cfg.provider === 'ollama' ? el('p', { class: 'small muted', text: 'Instale o Ollama (ollama.com) e um modelo multilíngue (ex.: “ollama pull qwen2.5:14b”). Tudo roda no seu computador; a qualidade depende do modelo escolhido.' }) : null,
       cfg.effective === 'gtrans' ? el('p', { class: 'small ' + (cfg.provider === 'gtrans' ? 'muted' : 'warn'), text: (cfg.provider === 'gtrans' ? '' : 'Sem a chave do motor escolhido, a tradução usa o Google Tradutor (gratuito). ') + 'O Google faz a tradução bruta, bloco a bloco (títulos, ênfases e notas preservados); depois ' + (cfg.hasOrKey || cfg.hasGgKey ? 'a IA (' + (cfg.hasOrKey ? 'OpenRouter' : 'Gemini') + ') revisa sentido, coesão, coerência e estilo, e ' : '') + 'o sistema aplica travessões, Novo Acordo Ortográfico, dicionário de estilo e pontuação.' }) : null,
-      cfg.effective === 'gtrans' ? el('label', { class: 'chk' }, [aiRev, ' Revisar a tradução do Google com IA (usa a chave do OpenRouter ou do Gemini, se houver)']) : null,
+      cfg.effective === 'offline' ? el('p', { class: 'small muted', text: 'O motor offline traduz frase a frase no próprio computador, sem enviar nada para a internet. Antes, as expressões idiomáticas são reescritas em linguagem literal e os trechos que existem nos livros de referência usam a tradução aprovada; depois, os nomes seguem o glossário' + (cfg.hasOrKey || cfg.hasGgKey ? ', a IA revisa sentido, coesão e estilo (quando houver internet)' : '') + ' e o sistema aplica travessões, Novo Acordo Ortográfico, dicionário de estilo e pontuação.' }) : null,
+      cfg.effective === 'gtrans' || cfg.effective === 'offline' ? el('label', { class: 'chk' }, [aiRev, ' Revisar a tradução automática com IA (usa a chave do OpenRouter ou do Gemini, se houver)']) : null,
       el('label', { class: 'chk' }, [glue, ' Travessão colado na fala (—Olá — disse ele.)']),
-      el('div', { class: 'inline wrap' }, [el('button', { class: 'primary', text: 'Salvar configurações', onclick: save }), el('button', { text: 'Testar conexão', onclick: async () => { await save(); status.textContent = 'Testando…'; const t = await api.trTest(); status.textContent = (t.ok ? '✓ ' : '✕ ') + t.msg; status.className = 'small ' + (t.ok ? 'good' : 'bad'); } }), status])
+      el('div', { class: 'inline wrap' }, [el('button', { class: 'primary', text: 'Salvar configurações', onclick: save }), el('button', { text: 'Testar conexão', onclick: async () => { await save(); status.textContent = 'Testando…'; const t = await api.trTest(); status.textContent = (t.ok ? '✓ ' : '✕ ') + t.msg; status.className = 'small ' + (t.ok ? 'good' : 'bad'); } }), status]),
+      offlineCard(), refsCard()
     );
+  }
+
+  // ---------------------------------------------------------------- motor offline
+  function offlineCard() {
+    const box = el('div', { class: 'tr-sub' });
+    const draw = async () => {
+      const st = await api.mtStatus();
+      box.innerHTML = '';
+      const bar = el('div', { class: 'upd-bar', style: { display: 'none' } }, [el('i')]);
+      const msg = el('p', { class: 'small ' + (st.installed ? 'good' : 'muted'), text: st.installed ? '✓ Motor offline pronto. A tradução funciona sem internet: escolha “Offline” acima, ou deixe no Google Tradutor — sem internet, ele usa o motor offline sozinho.' : 'Baixe um motor uma vez (precisa de internet só agora) para traduzir sem internet. Ele também entra sozinho quando o Google Tradutor não responde.' });
+      const rows = st.models.map(m => {
+        const radio = el('input', { type: 'radio', name: 'mtModel', checked: st.selected === m.key });
+        radio.addEventListener('change', async () => { await api.mtSelect(m.key); cfg = await api.trConfig(); draw(); });
+        const btn = el('button', { class: m.installed ? 'ghost' : (st.selected === m.key ? 'primary' : ''), text: m.installed ? 'Remover' : `⬇ Baixar (~${m.mb} MB)` });
+        btn.addEventListener('click', async () => {
+          if (m.installed) {
+            if ((await api.confirm('Remover este motor offline?', `Libera cerca de ${m.sizeMb || m.mb} MB. Para usá-lo de novo, será preciso baixá-lo outra vez.`, ['Remover', 'Cancelar'])) !== 0) return;
+            await api.mtRemove(m.key); cfg = await api.trConfig(); return draw();
+          }
+          box.querySelectorAll('button').forEach(b => { b.disabled = true; });
+          bar.style.display = ''; msg.className = 'small'; msg.textContent = 'Baixando o motor offline…';
+          const off = api.onMtProgress(p => { bar.firstChild.style.width = Math.round(p.ratio * 100) + '%'; msg.textContent = `Baixando o motor offline… ${Math.round(p.ratio * 100)}% (${(p.received / 1048576).toFixed(0)} de ${(p.total / 1048576).toFixed(0)} MB)`; });
+          const r = await api.mtInstall(m.key);
+          off();
+          if (!r || r.error) { msg.className = 'small bad'; msg.textContent = '✕ ' + ((r && r.error) || 'falha no download') + ' Clique de novo para continuar de onde parou.'; box.querySelectorAll('button').forEach(b => { b.disabled = false; }); return; }
+          cfg = await api.trConfig();
+          draw();
+        });
+        return el('div', { class: 'tr-model' }, [el('label', { class: 'chk' }, [radio, ' ', el('b', { text: m.name.split(' (')[0] }), el('small', { class: 'muted', text: ' — ' + m.name.split(' (').slice(1).join(' (').replace(/\)$/, '') + (m.installed ? ' · baixado' : '') })]), btn]);
+      });
+      box.append(el('h4', { text: 'Tradução offline (sem internet)' }), msg, ...rows, bar,
+        el('p', { class: 'small muted', text: 'M2M100 pode ser usado em livros comerciais (licença MIT). NLLB-200 traduz melhor, mas a licença dele (CC-BY-NC 4.0) só permite uso não comercial. Os dois são da Meta e rodam no seu computador.' }));
+    };
+    draw();
+    return box;
+  }
+
+  // ---------------------------------------------------------------- livros de referência (memória de tradução)
+  // parágrafos de cada capítulo (texto), na ordem do livro
+  function bookParagraphs(proj) {
+    return proj.chapters.map(c => {
+      const d = document.createElement('div');
+      d.innerHTML = c.html;
+      d.querySelectorAll('.footnote, figure, table').forEach(x => x.remove());
+      const out = (c.title ? [c.title] : []).concat(Array.from(d.querySelectorAll('p, h1, h2, h3, h4, li, blockquote')).filter(x => !x.querySelector('p, li')).map(x => x.textContent.replace(/\s+/g, ' ').trim()));
+      return out.filter(x => x.length > 1);
+    }).filter(c => c.length);
+  }
+  async function addReference(onDone) {
+    const pick = async label => { const r = await api.trPick(); return r && r[0] ? r[0] : null; };
+    const st = el('p', { class: 'small muted', text: 'Escolha o livro no idioma original e a tradução publicada em português (EPUB, DOCX, DOC ou ODT). O sistema alinha os dois parágrafo a parágrafo e aprende o jeito de traduzir: frases idênticas passam a usar a tradução aprovada, os nomes seguem o glossário e a revisão por IA recebe exemplos parecidos com cada trecho.' });
+    const srcBtn = el('button', { text: '1. Livro original…' }), tgtBtn = el('button', { text: '2. Tradução em português…' });
+    const name = el('input', { type: 'text', placeholder: 'Nome da referência (ex.: O Mágico de Oz — trad. da editora)' });
+    let src = null, tgt = null;
+    srcBtn.addEventListener('click', async () => { const f = await pick(); if (f) { src = f; srcBtn.textContent = '1. ' + f.split(/[\\/]/).pop(); if (!name.value) name.value = f.split(/[\\/]/).pop().replace(EXT, ''); } });
+    tgtBtn.addEventListener('click', async () => { const f = await pick(); if (f) { tgt = f; tgtBtn.textContent = '2. ' + f.split(/[\\/]/).pop(); } });
+    App.modal({
+      title: 'Adicionar livro de referência',
+      body: el('div', { class: 'settings-modal' }, [st, el('div', { class: 'inline wrap' }, [srcBtn, tgtBtn]), name]),
+      buttons: [{ label: 'Cancelar' }, { label: 'Adicionar', primary: true, onClick: async () => {
+        if (!src || !tgt) { App.toast('Escolha os dois arquivos.'); return false; }
+        App.toast('Lendo e alinhando os dois livros…', 4000);
+        try {
+          const quiet = () => {};
+          const a = await App.enhance.loadBook(src, src.split(/[\\/]/).pop(), quiet, { images: false, allowAny: true });
+          const b = await App.enhance.loadBook(tgt, tgt.split(/[\\/]/).pop(), quiet, { images: false, allowAny: true });
+          const r = await api.tmAdd({ name: name.value.trim(), srcName: src.split(/[\\/]/).pop(), tgtName: tgt.split(/[\\/]/).pop(), src: bookParagraphs(a.proj), tgt: bookParagraphs(b.proj) });
+          if (!r || r.error) { App.toast('✕ ' + ((r && r.error) || 'não foi possível adicionar'), 6000); return; }
+          addLog(`Referência adicionada: ${name.value.trim() || r.id} · ${fmt(r.pairs)} trechos alinhados${r.glossary.length ? ' · glossário: ' + r.glossary.slice(0, 8).map(g => g[0] + ' → ' + g[1]).join(', ') : ''}`, 'ok');
+          (r.sample || []).forEach(([x, y]) => addLog(`  exemplo: “${x.slice(0, 90)}” → “${y.slice(0, 90)}”`));
+          if (onDone) onDone();
+        } catch (e) { App.toast('✕ ' + String(e.message || e), 6000); }
+      } }]
+    });
+  }
+  function refsCard() {
+    const box = el('div', { class: 'tr-sub' });
+    const draw = async () => {
+      const l = await api.tmList();
+      box.innerHTML = '';
+      const use = el('input', { type: 'checkbox', checked: l.use });
+      use.addEventListener('change', async () => { await api.tmOptions({ use: use.checked }); });
+      const gl = el('textarea', { rows: 4, placeholder: 'Glossário próprio, um termo por linha:\nToto = Totó\nEmerald City = Cidade das Esmeraldas', value: l.glossary || '' });
+      gl.value = l.glossary || '';
+      let t = null;
+      gl.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => api.tmOptions({ glossary: gl.value }), 600); });
+      box.append(
+        el('h4', { text: 'Livros de referência (memória de tradução)' }),
+        el('p', { class: 'small muted', text: l.refs.length ? `${l.refs.length} livro(s) · ${fmt(l.segments)} trechos alinhados. Valem para todos os motores, inclusive offline.` : 'Envie livros já traduzidos (original + tradução) para o sistema aprender a forma correta de traduzir: frases, nomes, coesão e coerência no padrão da editora. Valem para todos os motores, inclusive offline.' }),
+        el('div', { class: 'tr-refs' }, l.refs.map(r => el('div', { class: 'enh-item ok' }, [
+          el('span', { class: 'enh-name' }, [el('b', { text: r.name }), el('small', { class: 'muted', text: `${fmt(r.pairs)} trechos · ${r.glossary} nome(s) no glossário · ${r.srcName || ''} → ${r.tgtName || ''}` })]),
+          el('button', { class: 'icon-btn', title: 'Remover referência', text: '✕', onclick: async () => { await api.tmRemove(r.id); draw(); } })
+        ]))),
+        el('div', { class: 'inline wrap' }, [el('button', { text: '+ Adicionar livro traduzido de referência', onclick: () => addReference(draw) })]),
+        el('label', { class: 'chk' }, [use, ' Usar os livros de referência na tradução']),
+        el('label', { class: 'flabel', text: 'Glossário da editora (tem prioridade sobre o aprendido)' }), gl
+      );
+    };
+    draw();
+    return box;
+  }
+  function engineName(c) {
+    const ai = c.aiReview && (c.hasOrKey || c.hasGgKey) ? ' + revisão por IA (' + (c.hasOrKey ? 'OpenRouter' : 'Gemini') + ')' : '';
+    if (c.effective === 'gtrans') return 'Google Tradutor' + ai + (c.offline && c.offline.installed ? ' · motor offline de reserva' : '');
+    if (c.effective === 'offline') return 'Motor offline' + (c.offline && c.offline.active ? ' (' + (c.offline.models.find(m => m.key === c.offline.active) || {}).name.split(' (')[0] + ')' : '') + ai;
+    if (c.provider === 'ollama') return 'Ollama · ' + c.ollamaModel;
+    if (c.provider === 'openrouter') return 'OpenRouter · ' + c.orModel;
+    if (c.provider === 'google') return 'Google Gemini · ' + c.ggModel;
+    if (c.provider === 'mock') return 'simulação';
+    return (c.models.find(m => m.id === c.model) || {}).name || c.model;
   }
 
   // ---------------------------------------------------------------- fila

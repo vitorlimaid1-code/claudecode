@@ -1,0 +1,1 @@
+{ "name": "empty-stub", "version": "1.0.0", "description": "Pacote vazio: o motor de tradução offline roda no navegador (onnxruntime-web); as versões nativas não são usadas.", "main": "index.js" }

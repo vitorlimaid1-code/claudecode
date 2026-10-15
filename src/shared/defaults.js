@@ -415,11 +415,12 @@
     header: 'title-chapter',
     // número da página: rodapé à esquerda, em branco dentro de um bloco preto (ou outra forma: naipes, estrela…)
     pageNumbers: 'left',
-    pageNumberShape: 'block',
+    pageNumberShape: 'circle',
     pageNumberBg: '#000000',
     pageNumberFg: '#ffffff',
     pageNumberShapeSize: 7,
     folioOnOpenings: true,
+    folioV: 2,
     // página com moldura: some o cabeçalho (obra e autor) e o filete
     frameHidesHeader: true,
     // “Título” no texto = mesma fonte do título do capítulo, começando em página nova; “Subtítulo” = mesma fonte, em negrito
@@ -705,7 +706,8 @@
     }
     if (ps.index) ps.index = Object.assign({}, DEFAULT_SETTINGS.index, ps.index);
     // 4.17: número da página à esquerda, num bloco preto (uma vez; depois vale a escolha do usuário)
-    if (ps.pageNumberShape === undefined && p.chapters) { ps.pageNumberShape = 'block'; if (!ps.pageNumbers || ps.pageNumbers === 'outer') ps.pageNumbers = 'left'; }
+    // 4.18: padrão = círculo preto com o número branco, à esquerda nas duas páginas (uma vez; depois vale a escolha)
+    if (ps.folioV !== 2 && p.chapters) { if (!ps.pageNumberShape || ps.pageNumberShape === 'block') ps.pageNumberShape = 'circle'; if (!ps.pageNumbers || ps.pageNumbers === 'outer') ps.pageNumbers = 'left'; ps.folioV = 2; }
     mergeSettings(settings, ps);
     const chapters = Array.isArray(p.chapters)
       ? p.chapters.map(c => ({

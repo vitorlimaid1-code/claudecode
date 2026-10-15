@@ -147,7 +147,7 @@
     document.querySelectorAll('.pagedjs_page').forEach(pg => {
       const sc = pg.querySelector('section[data-frame]');
       let id = sc ? sc.dataset.frame : frameAll;
-      if (pg.classList.contains('pagedjs_blank_page') || pg.classList.contains('pagedjs_fullbleed_page') || pg.querySelector('.immersion, .fullbleed, .book-cover, .pre-image, .copyright-page')) id = ''; // (ficha catalográfica: sem moldura)
+      if (pg.classList.contains('pagedjs_blank_page') || pg.classList.contains('pagedjs_fullbleed_page') || pg.querySelector('.immersion, .fullbleed, .book-cover, .pre-image, .copyright-page, .title-page, .half-title')) id = ''; // (rosto, falso rosto e ficha: sem moldura)
       if (id) pg.dataset.frame = id; else pg.removeAttribute('data-frame');
     });
     if (!options.segment) {

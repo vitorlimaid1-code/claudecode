@@ -4,3 +4,4 @@ src/renderer/vendor/
 *.log
 assets/seals/
 assets/library/separadores/cv-filete-*.png
+src/mt/vendor/

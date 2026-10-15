@@ -179,9 +179,32 @@
       compact ? null : b('❝ Citação ▾', 'Colocar o trecho selecionado numa caixa de citação', e => styleMenu(e.currentTarget, 'quote', run)),
       compact ? null : el('span', { class: 'qs-sep' }),
       b('Aa Estilo ▾', 'Estilo de caractere no trecho selecionado (Ênfase, Versalete, Termo estrangeiro…): mudar o estilo muda todos os trechos marcados', e => charMenu(e.currentTarget)),
+      b('🖍 Marcador ▾', 'Marcador de texto: contorno colorido atrás do trecho selecionado (cinza, preto, verde, amarelo, rosa neon ou caixa de linha fina)', e => hlMenu(e.currentTarget)),
       compact ? null : b('N', 'Negrito', () => fmt('bold'), 'qs-b'),
       compact ? null : b('I', 'Itálico', () => fmt('italic'), 'qs-i')
     ].filter(Boolean);
+  }
+  // marcador de texto (contorno colorido); preto e rosa deixam a letra branca
+  const HL = [['yellow', 'Amarelo neon'], ['green', 'Verde neon'], ['pink', 'Rosa neon'], ['gray', 'Cinza'], ['black', 'Preto'], ['outline', 'Branco com contorno fino']];
+  function highlight(color) {
+    if (locked()) return;
+    let ok = false;
+    if (onStage && App.live) ok = App.live.highlight(color);
+    else if (App.live && App.live.applyHighlight) { ok = App.live.applyHighlight(window.getSelection(), color); if (ok) editor().dispatchEvent(new Event('input', { bubbles: true })); }
+    if (!ok) return App.toast('Selecione o trecho no texto primeiro.');
+    App.commit(color ? 'Marcador de texto: ' + (HL.find(x => x[0] === color) || [, color])[1] : 'Marcador removido');
+    hide();
+  }
+  function hlMenu(anchor) {
+    const sw = ([k, name]) => el('button', { class: 'hl-sw', title: name, onmousedown: e => e.preventDefault(), onclick: () => { menu.remove(); highlight(k); } }, [el('span', { class: 'hl hl-' + k, text: 'Aa' })]);
+    const menu = el('div', { class: 'qs-menu' }, [el('div', { class: 'qs-menu-title', text: 'Marcador de texto' }), el('div', { class: 'hl-menu' }, HL.map(sw)),
+      el('button', { class: 'bx-tile cs-tile', onmousedown: e => e.preventDefault(), onclick: () => { menu.remove(); highlight(''); } }, [el('span', { class: 'bx-name' }, ['Sem marcador', el('small', { text: 'Tira o marcador do trecho' })])])]);
+    document.body.appendChild(menu);
+    const r = anchor.getBoundingClientRect();
+    menu.style.left = Math.max(8, Math.min(window.innerWidth - 270, r.left)) + 'px';
+    menu.style.top = Math.min(window.innerHeight - menu.offsetHeight - 8, r.bottom + 4) + 'px';
+    const close = e => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('mousedown', close, true); } };
+    setTimeout(() => document.addEventListener('mousedown', close, true), 0);
   }
   // menu dos estilos de caractere do livro
   function charMenu(anchor) {
@@ -275,5 +298,7 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountToolbar); else mountToolbar();
 
-  App.quickStyle = { makeCaption, block, wrap, showStage, hide };
+  App.quickStyle = { makeCaption, block, wrap, showStage, hide, highlight,
+    // botão da barra de ferramentas: a seleção pode estar no texto em coluna ou nas páginas
+    hlMenu: anchor => { onStage = !!(App.live && App.live.focusedOnStage && App.live.focusedOnStage() && App.view === 'chapter'); hlMenu(anchor); } };
 })();

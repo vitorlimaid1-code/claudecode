@@ -98,6 +98,15 @@ contextBridge.exposeInMainWorld('api', {
   trReport: req => inv('tr:report', req),
   trSavePdf: (html, name, target) => inv('tr:savePdf', html, name, target),
   onTrProgress: cb => ipcRenderer.on('tr:progress', (e, m) => cb(m)),
+  mtStatus: () => inv('mt:status'),
+  mtInstall: key => inv('mt:install', key),
+  mtRemove: key => inv('mt:remove', key),
+  mtSelect: key => inv('mt:select', key),
+  onMtProgress: cb => { const f = (e, m) => cb(m); ipcRenderer.on('mt:progress', f); return () => ipcRenderer.removeListener('mt:progress', f); },
+  tmList: () => inv('tm:list'),
+  tmAdd: req => inv('tm:add', req),
+  tmRemove: id => inv('tm:remove', id),
+  tmOptions: patch => inv('tm:options', patch),
   onRequestClose: cb => ipcRenderer.on('request-close', () => cb()),
   pathForFile: file => { try { return webUtils.getPathForFile(file); } catch (e) { return ''; } }
 });

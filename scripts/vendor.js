@@ -113,3 +113,22 @@ for (const font of FONTS) {
 }
 fs.writeFileSync(path.join(out, 'fonts.css'), css);
 console.log('vendor: Paged.js e', FONTS.length, 'famílias de fontes copiadas para', path.relative(root, out));
+
+// Tradutor offline: transformers.js empacotado para o navegador + o ONNX Runtime em WebAssembly
+// (o modelo em si é baixado pelo app na primeira vez). Refeito só quando a versão muda.
+(function vendorMt() {
+  const mtOut = path.join(root, 'src', 'mt', 'vendor');
+  const tf = path.join(nm, '@huggingface', 'transformers', 'package.json');
+  const ortDir = path.join(nm, 'onnxruntime-web', 'dist');
+  if (!fs.existsSync(tf) || !fs.existsSync(ortDir)) { console.warn('vendor: @huggingface/transformers ausente — tradutor offline indisponível nesta compilação'); return; }
+  const stamp = 'transformers ' + require(tf).version + ' / ort ' + require(path.join(nm, 'onnxruntime-web', 'package.json')).version;
+  const stampFile = path.join(mtOut, 'VERSION.txt');
+  const files = ['ort-wasm-simd-threaded.asyncify.mjs', 'ort-wasm-simd-threaded.asyncify.wasm'];
+  if (fs.existsSync(stampFile) && fs.readFileSync(stampFile, 'utf8') === stamp && fs.existsSync(path.join(mtOut, 'transformers.js')) && files.every(f => fs.existsSync(path.join(mtOut, f)))) return;
+  fs.rmSync(mtOut, { recursive: true, force: true });
+  fs.mkdirSync(mtOut, { recursive: true });
+  require('esbuild').buildSync({ entryPoints: [path.join(__dirname, 'mt-entry.mjs')], bundle: true, format: 'esm', platform: 'browser', minify: true, legalComments: 'eof', outfile: path.join(mtOut, 'transformers.js'), logLevel: 'warning' });
+  files.forEach(f => fs.copyFileSync(path.join(ortDir, f), path.join(mtOut, f)));
+  fs.writeFileSync(stampFile, stamp);
+  console.log('vendor: tradutor offline (' + stamp + ') em', path.relative(root, mtOut));
+})();

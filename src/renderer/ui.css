@@ -585,3 +585,10 @@ body.ws-book .nav-item[data-ws="periodical"] { display: none !important; }
 .upd-bar { height: 8px; border-radius: 99px; background: rgba(127,127,127,.2); overflow: hidden; }
 .upd-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #6d28d9, #c026d3); transition: width .2s; }
 .upd-notes { white-space: pre-wrap; max-height: 160px; overflow: auto; }
+/* tradução: motor offline e livros de referência */
+.tr-sub { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 8px; }
+.tr-sub h4 { margin: 0; font-size: 13px; }
+.tr-sub textarea { width: 100%; box-sizing: border-box; font: 12.5px/1.4 ui-monospace, monospace; }
+.tr-refs { display: grid; gap: 6px; }
+.tr-model { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tr-model .chk { flex: 1; min-width: 0; }

@@ -171,6 +171,11 @@
       x.setAttribute('data-cs', node.getAttribute('data-cs'));
       return children(node, doc, x);
     }
+    // marcador de texto (contorno colorido atrás da frase)
+    if (outTag === 'span' && cls.contains('hl')) {
+      const k = Array.from(cls).find(c => /^hl-(gray|black|green|yellow|pink|outline)$/.test(c));
+      if (k) { const x = doc.createElement('span'); x.className = 'hl ' + k; return children(node, doc, x); }
+    }
     if (outTag === 'span' && cls.contains('comment')) {
       // comentário de revisão (Word/ODT): anotação no editor, não sai no livro
       const c = doc.createElement('span');

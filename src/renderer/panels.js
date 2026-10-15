@@ -246,6 +246,16 @@
       const cur = single ? single.style[key] : (chs.every(c => c.style[key] === chs[0].style[key]) ? chs[0].style[key] : undefined);
       let input;
       const setVal = v => {
+        // fonte do título / do texto: vale para o livro inteiro (todos os títulos, todo o texto)
+        if (type === 'font') {
+          const st = App.project.settings.styles;
+          const base = key === 'titleFont' ? ['chapterTitle', 'chapterLabel', 'h2', 'h3', 'h4'] : ['body'];
+          if (v) { base.forEach(k => { if (st[k]) st[k].font = v; }); if (key === 'font') ['quote', 'poem', 'phrase'].forEach(k => { if (st[k] && st[k].font) delete st[k].font; }); }
+          App.project.chapters.forEach(c => { if (c.style) delete c.style[key]; });
+          App.changed(key === 'titleFont' ? `Fonte de todos os títulos: ${v || 'padrão'}` : `Fonte de todo o texto: ${v || 'padrão'}`);
+          App.renderChapterList();
+          return;
+        }
         if (single) {
           if (single.locked) { App.toast('Capítulo bloqueado.'); return; }
           if (v === '' || v == null) delete single.style[key]; else single.style[key] = v;
@@ -262,10 +272,11 @@
         App.fontOptions(true).forEach(o => {
           if (o.group) { const g = el('optgroup', { label: o.group }); o.items.forEach(it => g.appendChild(el('option', { value: it.value, text: it.label }))); input.appendChild(g); } else input.appendChild(el('option', { value: o.value, text: '(padrão do livro)' }));
         });
-        input.value = cur || '';
+        // mostra a fonte do livro (a escolha vale para todos os capítulos)
+        input.value = (key === 'titleFont' ? App.project.settings.styles.chapterTitle.font : App.project.settings.styles.body.font) || cur || '';
       }
       const reset = el('button', { class: 'ghost small-btn', text: '↺', title: 'Voltar ao padrão do livro', onclick: () => { if (type === 'select' || type === 'font') input.value = ''; else if (type === 'number') input.value = ''; setVal(''); if (!single) pending[key] = ''; } });
-      return el('label', { class: 'field' }, [el('span', { class: 'flabel', text: label + (!single && cur === undefined ? ' (vários)' : '') }), el('div', { class: 'inline' }, [input, reset])]);
+      return el('label', { class: 'field' }, [el('span', { class: 'flabel', text: label + (type === 'font' ? ' (todo o livro)' : !single && cur === undefined ? ' (vários)' : '') }), el('div', { class: 'inline' }, [input, reset])]);
     });
     // separador e imagem de abertura
     const sepSel = el('select', { onchange: e => { if (e.target.value === 'pick') { e.target.value = ''; App.library.pick('separadores').then(id => { if (id) { if (single) { single.separator = id; App.changed('Separador do capítulo'); rerender && rerender(); } else { pending.separator = id; App.toast('Separador escolhido — clique em Aplicar.'); } } }); return; } if (single) { single.separator = e.target.value || 'default'; App.changed('Separador do capítulo'); } else pending.separator = e.target.value || 'default'; } }, [

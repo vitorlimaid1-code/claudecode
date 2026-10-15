@@ -3,10 +3,15 @@
 //  - OpenRouter (padrão) — modelos gratuitos como o NVIDIA Nemotron 3 Ultra, precisa de internet e de uma chave;
 //  - Google Gemini (API do Google AI Studio) — precisa de internet e de uma chave (há cota gratuita);
 //  - Claude (API da Anthropic, SDK oficial) — fora da tela por enquanto, o código fica pronto para voltar;
-//  - Ollama (modelo rodando no próprio computador) — sem internet, qualidade conforme o modelo instalado.
+//  - Ollama (modelo rodando no próprio computador) — sem internet, qualidade conforme o modelo instalado;
+//  - Google Tradutor (gratuito, sem chave) e o motor offline (M2M100 ou NLLB-200, no computador, sem internet), com as
+//    expressões idiomáticas reescritas antes e a revisão por IA depois, quando há chave.
+// Em todos, os livros de referência enviados pelo usuário (memória de tradução, src/main/tmstore.js) entram:
+// traduções idênticas são reaproveitadas, nomes seguem o glossário e a IA recebe exemplos da editora.
 // Depois, a pós-edição local (src/shared/ptbr.js) aplica travessões, ortografia, dicionário e pontuação.
 const fs = require('fs');
 const path = require('path');
+const K = require('../shared/mtkit');
 
 // diretrizes editoriais (texto do editor) + regras técnicas de entrada e saída
 const SYSTEM = `Você é um tradutor literário sênior, copidesque e preparador de textos com décadas de experiência no mercado editorial premium. Seu objetivo é traduzir o texto fornecido para o português do Brasil, garantindo que o resultado final pareça ter sido escrito originalmente em português, mantendo o rigor técnico, a elegância estilística e a adequação ao layout de um livro físico. O texto de origem pode estar em qualquer idioma: identifique-o e traduza.
@@ -45,10 +50,12 @@ const OR_URL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1'
 const OR_DEFAULT_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b:free';
 const GG_URL = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta'; // (trocável só para testes)
 const GG_DEFAULT_MODEL = 'gemini-2.5-flash';
-const PROVIDERS = ['openrouter', 'google', 'gtrans', 'ollama'];
+const PROVIDERS = ['openrouter', 'google', 'gtrans', 'offline', 'ollama'];
 const GT_URL = process.env.GTRANSLATE_BASE_URL || 'https://translate.googleapis.com'; // Google Tradutor (gratuito, sem chave)
 
-function createTranslator({ userFile, safeStorage }) {
+function createTranslator({ userFile, safeStorage, offline, tm }) {
+  const memory = () => (tm ? tm.memory() : K.createMemory([], []));
+  const offlineReady = () => !!(offline && offline.status().installed);
   const cfgFile = userFile('tradutor.json');
   const read = () => { try { return JSON.parse(fs.readFileSync(cfgFile, 'utf8')); } catch (e) { return {}; } };
   const write = c => { fs.mkdirSync(path.dirname(cfgFile), { recursive: true }); fs.writeFileSync(cfgFile, JSON.stringify(c, null, 1)); };
@@ -76,6 +83,7 @@ function createTranslator({ userFile, safeStorage }) {
       hasKey: !!key || !!process.env.ANTHROPIC_API_KEY,
       keyHint: key ? key.slice(0, 7) + '…' + key.slice(-4) : process.env.ANTHROPIC_API_KEY ? 'variável ANTHROPIC_API_KEY' : '',
       models: MODELS.map(m => ({ id: m.id, name: m.name })),
+      offline: offline ? offline.status() : { installed: false },
       mock: !!process.env.TRANSLATE_MOCK
     };
     o.effective = effectiveProvider(o);
@@ -202,10 +210,45 @@ function createTranslator({ userFile, safeStorage }) {
     return { body, notes: list, glossary, lang };
   }
 
-  function userMessage({ title, author, glossary, context, html, first }) {
+  // livros de referência: glossário da editora e exemplos parecidos com o trecho
+  function refsFor(html) {
+    const mem = memory();
+    if (!mem.size && !mem.glossary.length) return null;
+    const plain = K.strip(String(html || '').replace(/\n/g, ' '));
+    return { examples: mem.examples(plain, 4), terms: mem.terms(plain) };
+  }
+  const refsText = refs => !refs ? '' : [
+    refs.terms.length ? `Glossário da editora (obrigatório):\n${refs.terms.map(([a, b]) => `${a} → ${b}`).join('\n')}` : '',
+    refs.examples.length ? `Exemplos de traduções aprovadas pela editora (siga o mesmo estilo, vocabulário e pontuação; não os traduza):\n${refs.examples.map(([a, b]) => `ORIGINAL: ${a}\nTRADUÇÃO: ${b}`).join('\n\n')}` : ''
+  ].filter(Boolean).join('\n\n');
+  // blocos que existem idênticos nas referências: a tradução aprovada substitui a do motor
+  function tmExact(lines, min) {
+    const mem = memory();
+    if (!mem.size) return lines.map(() => null);
+    return lines.map(l => {
+      const pl = K.planLine(l);
+      if (pl.keep !== undefined || pl.notes.length || pl.texts.length !== 1 || !pl.texts[0]) return null;
+      const h = mem.lookup(pl.texts[0], min || 0.999);
+      return h ? K.buildLine(pl, [h.target], []) : null;
+    });
+  }
+  function applyExact(req, out) {
+    const src = String(req.html || '').split('\n').filter(l => l.trim());
+    const got = String(out.body || '').split('\n').filter(l => l.trim());
+    if (got.length !== src.length) return out;
+    const ex = tmExact(src);
+    const n = ex.filter(Boolean).length;
+    if (!n) return out;
+    out.body = got.map((l, i) => ex[i] || l).join('\n');
+    out.notes = (out.notes || []).concat([`${n} bloco(s) com a tradução dos livros de referência.`]);
+    return out;
+  }
+
+  function userMessage({ title, author, glossary, context, html, first, refs }) {
     return [
       `Livro: ${title || '(sem título)'}${author ? ' — ' + author : ''}`,
       glossary && glossary.length ? `Glossário já usado neste livro (mantenha):\n${glossary.map(([a, b]) => `${a} → ${b}`).join('\n')}` : '',
+      refsText(refs),
       context ? `Trecho anterior já traduzido (só para manter o tom e a continuidade; não traduza nem repita):\n${context}` : '',
       first ? 'Este é o primeiro trecho do livro: informe o IDIOMA DE ORIGEM nas notas.' : '',
       `Texto a traduzir:\n${html}`
@@ -239,21 +282,31 @@ function createTranslator({ userFile, safeStorage }) {
     const out = lines.slice();
     const idx = lines.map((l, i) => (l.trim() && !/^\[\[FIG:\d+\]\]$/.test(l.trim()) ? i : -1)).filter(i => i >= 0);
     let lang = '';
+    const batches = [];
     for (let k = 0; k < idx.length;) {
       const batch = [];
       let size = 0;
       while (k < idx.length && (batch.length === 0 || size + lines[idx[k]].length < 4500) && batch.length < 40) { batch.push(idx[k]); size += lines[idx[k]].length; k++; }
-      const res = await gtBatch(batch.map(i => lines[i]));
-      res.forEach((r, n) => { out[batch[n]] = r.text.replace(/\n+/g, ' ').trim() || lines[batch[n]]; if (!lang && r.lang) lang = r.lang; });
+      batches.push(batch);
     }
+    // três lotes ao mesmo tempo (mais rápido, sem exagerar nos pedidos)
+    let next = 0;
+    const worker = async () => {
+      while (next < batches.length) {
+        const batch = batches[next++];
+        const res = await gtBatch(batch.map(i => lines[i]));
+        res.forEach((r, n) => { out[batch[n]] = r.text.replace(/\n+/g, ' ').trim() || lines[batch[n]]; if (!lang && r.lang) lang = r.lang; });
+      }
+    };
+    await Promise.all([worker(), worker(), worker()].slice(0, Math.max(1, Math.min(3, batches.length))));
     return { lines: out, lang };
   }
   const LANG_NAMES = { en: 'inglês', fr: 'francês', es: 'espanhol', it: 'italiano', de: 'alemão', ru: 'russo', ja: 'japonês', zh: 'chinês', 'zh-CN': 'chinês', la: 'latim', nl: 'holandês', pl: 'polonês', sv: 'sueco', da: 'dinamarquês', no: 'norueguês', cs: 'tcheco', el: 'grego', hu: 'húngaro', fi: 'finlandês', ko: 'coreano', ar: 'árabe', he: 'hebraico', tr: 'turco', pt: 'português' };
   // revisão por IA da tradução do Google (quando há chave do OpenRouter ou do Gemini)
   const aiAvailable = cfg => (dec(read().orKey) || process.env.OPENROUTER_API_KEY) ? 'openrouter' : (dec(read().ggKey) || process.env.GEMINI_API_KEY) ? 'google' : '';
-  const REVIEW = `Você recebe um trecho de livro no idioma original e a tradução automática dele para o português do Brasil, feita pelo Google Tradutor. Reescreva a tradução como um tradutor literário sênior e preparador de textos: corrija sentido, coesão e coerência, ritmo, regência, concordância e escolhas de vocabulário, mantendo a voz do autor, sem omitir nem acrescentar conteúdo. Mantenha exatamente os mesmos blocos HTML, na mesma ordem e quantidade, um por linha, com as mesmas tags; linhas [[FIG:n]] ficam iguais.`;
+  const REVIEW = `Você recebe um trecho de livro no idioma original e a tradução automática dele para o português do Brasil. Reescreva a tradução como um tradutor literário sênior e preparador de textos: corrija sentido, coesão e coerência, ritmo, regência, concordância e escolhas de vocabulário, mantendo a voz do autor, sem omitir nem acrescentar conteúdo. Mantenha exatamente os mesmos blocos HTML, na mesma ordem e quantidade, um por linha, com as mesmas tags; linhas [[FIG:n]] ficam iguais.`;
   async function aiReview(provider, req, draft) {
-    const user = [`Livro: ${req.title || ''}${req.author ? ' — ' + req.author : ''}`, req.glossary && req.glossary.length ? 'Glossário a manter:\n' + req.glossary.map(([a, b]) => `${a} → ${b}`).join('\n') : '', `ORIGINAL:\n${req.html}`, `TRADUÇÃO AUTOMÁTICA A REVISAR:\n${draft}`].filter(Boolean).join('\n\n');
+    const user = [`Livro: ${req.title || ''}${req.author ? ' — ' + req.author : ''}`, req.glossary && req.glossary.length ? 'Glossário a manter:\n' + req.glossary.map(([a, b]) => `${a} → ${b}`).join('\n') : '', refsText(refsFor(req.html)), `ORIGINAL:\n${req.html}`, `TRADUÇÃO AUTOMÁTICA A REVISAR:\n${draft}`].filter(Boolean).join('\n\n');
     const system = SYSTEM + '\n\nTAREFA DESTE PEDIDO\n' + REVIEW;
     const res = provider === 'openrouter' ? await openrouter([{ role: 'system', content: system }, { role: 'user', content: user }], 32000) : await gemini(system, user, 32000);
     const out = parse(res.text);
@@ -261,24 +314,87 @@ function createTranslator({ userFile, safeStorage }) {
     if (!out.body || n(out.body) !== n(draft)) throw new Error('a revisão mudou a quantidade de blocos');
     return Object.assign(out, { usage: res.usage && res.usage.prompt_tokens !== undefined ? { input_tokens: res.usage.prompt_tokens || 0, output_tokens: res.usage.completion_tokens || 0 } : (res.usage || {}), model: res.model });
   }
-  async function translateGoogleFree(req, onProgress) {
+  const short = m => String(m || '').replace(/\s+/g, ' ').slice(0, 140);
+  // tradução automática pronta → revisão por IA (se houver chave e a opção estiver ligada)
+  async function finishDraft(req, draft, engine, lang, notes, opt) {
     const cfg = config();
-    if (onProgress) onProgress(0);
-    const lines = String(req.html || '').split('\n');
-    const g = await gtranslateLines(lines);
-    const draft = g.lines.join('\n');
-    if (onProgress) onProgress(draft.length);
-    const lang = req.first && g.lang ? (LANG_NAMES[g.lang] || g.lang) : '';
-    const ai = cfg.aiReview ? aiAvailable(cfg) : '';
+    const ai = cfg.aiReview && !(opt && opt.noReview) ? aiAvailable(cfg) : '';
     if (ai) {
       try {
         const out = await aiReview(ai, req, draft);
-        return Object.assign(out, { lang: out.lang || lang, model: 'Google Tradutor + revisão ' + (out.model || ai), stop: 'end_turn', price: { in: 0, out: 0 } });
+        return Object.assign(out, { notes: notes.concat(out.notes || []), lang: out.lang || lang, model: engine + ' + revisão ' + (out.model || ai), stop: 'end_turn', price: { in: 0, out: 0 } });
       } catch (e) {
-        return { body: draft, notes: [`Revisão por IA indisponível neste trecho (${String(e.message || e).slice(0, 120)}); ficou a tradução do Google com as correções do sistema.`], glossary: [], lang, usage: {}, model: 'Google Tradutor', stop: 'end_turn', price: { in: 0, out: 0 } };
+        notes = notes.concat([`Revisão por IA indisponível neste trecho (${short(e.message || e)}); ficou a tradução automática com as correções do sistema.`]);
       }
     }
-    return { body: draft, notes: [], glossary: [], lang, usage: {}, model: 'Google Tradutor', stop: 'end_turn', price: { in: 0, out: 0 } };
+    return { body: draft, notes, glossary: memory().terms(K.strip(req.html)), lang, usage: {}, model: engine, stop: 'end_turn', price: { in: 0, out: 0 } };
+  }
+  async function translateGoogleFree(req, onProgress, opt) {
+    if (onProgress) onProgress(0);
+    const lines = String(req.html || '').split('\n');
+    const mem = memory();
+    const lang0 = K.detectLang(req.html);
+    const pre = tmExact(lines, 0.92);
+    let idioms = 0;
+    const send = lines.map((l, i) => { if (pre[i]) return ''; const r = K.literalizeHtml(l, lang0); idioms += r.hits; return r.html; });
+    let g;
+    try { g = await gtranslateLines(send); } catch (e) {
+      // sem Google (sem internet, bloqueio ou limite): o motor offline assume o trecho
+      if (e.retry && offlineReady()) {
+        const r = await translateOffline(req, onProgress, opt);
+        r.notes = [`Sem o Google Tradutor neste trecho (${short(e.message)}); traduzido pelo motor offline.`].concat(r.notes || []);
+        return r;
+      }
+      throw e;
+    }
+    let names = 0;
+    const draft = g.lines.map((l, i) => { if (pre[i]) return pre[i]; const r = mem.enforce(K.strip(lines[i]), l); names += r.hits; return r.text; }).join('\n');
+    if (onProgress) onProgress(draft.length);
+    const lang = req.first ? (g.lang ? (LANG_NAMES[g.lang] || g.lang) : K.NAMES[lang0] || '') : '';
+    const notes = [];
+    const hits = pre.filter(Boolean).length;
+    if (hits) notes.push(`${hits} bloco(s) com a tradução dos livros de referência.`);
+    if (idioms) notes.push(`${idioms} expressão(ões) idiomática(s) reescrita(s) antes da tradução automática.`);
+    if (names) notes.push(`${names} nome(s) ajustado(s) pelo glossário.`);
+    return finishDraft(req, draft, 'Google Tradutor', lang, notes, opt);
+  }
+  // motor offline (no computador): frase a frase, com as referências antes e o glossário depois
+  async function translateOffline(req, onProgress, opt) {
+    if (!offlineReady()) throw Object.assign(new Error('o motor offline ainda não foi baixado (Configurações da tradução → Tradução offline).'), { fatal: true });
+    if (onProgress) onProgress(0);
+    const lines = String(req.html || '').split('\n');
+    const mem = memory();
+    const lang = K.detectLang(req.html);
+    if (!offline.supports(lang)) throw Object.assign(new Error(`o motor offline não traduz ${K.NAMES[lang] || lang}; o trecho fica no original.`), { refusal: true });
+    const plans = lines.map(K.planLine);
+    const queue = [];
+    let hits = 0, idioms = 0, names = 0;
+    const piece = t => {
+      if (!t) return { parts: [] };
+      const h = mem.lookup(t, 0.92);
+      if (h) { hits++; return { fixed: h.target }; }
+      return { parts: K.splitSentences(t).map(x => {
+        const h2 = mem.lookup(x, 0.95);
+        if (h2) { hits++; return { fixed: h2.target }; }
+        const r = K.literalize(x, lang); idioms += r.hits;
+        queue.push(r.text);
+        return { q: queue.length - 1 };
+      }) };
+    };
+    const jobs = plans.map(pl => (pl.keep !== undefined ? null : { texts: pl.texts.map(piece), notes: pl.notes.map(n => piece(n.text)) }));
+    const tr = queue.length ? await offline.translateSentences(queue, lang, (d, t) => { if (onProgress) onProgress(Math.round(d / t * String(req.html).length)); }) : [];
+    const join = (p, srcText) => {
+      const t = p.fixed != null ? p.fixed : (p.parts || []).map(x => (x.fixed != null ? x.fixed : tr[x.q] || '')).join(' ');
+      const r = mem.enforce(srcText, t); names += r.hits;
+      return r.text;
+    };
+    const draft = plans.map((pl, i) => (pl.keep !== undefined ? pl.keep : K.buildLine(pl, jobs[i].texts.map((p, k) => join(p, pl.texts[k])), jobs[i].notes.map((p, k) => join(p, pl.notes[k].text))))).join('\n');
+    if (onProgress) onProgress(draft.length);
+    const notes = [];
+    if (hits) notes.push(`${hits} trecho(s) com a tradução dos livros de referência.`);
+    if (idioms) notes.push(`${idioms} expressão(ões) idiomática(s) reescrita(s) antes da tradução automática.`);
+    if (names) notes.push(`${names} nome(s) ajustado(s) pelo glossário.`);
+    return finishDraft(req, draft, `Motor offline (${offline.name()})`, req.first ? K.NAMES[lang] || lang : '', notes, opt);
   }
   // motor que realmente vai trabalhar: sem a chave do motor escolhido, o tradutor não para — usa o Google Tradutor
   function effectiveProvider(cfg) {
@@ -287,12 +403,32 @@ function createTranslator({ userFile, safeStorage }) {
     return cfg.provider;
   }
 
+  async function viaOpenRouter(msg, onProgress) {
+    if (onProgress) onProgress(0);
+    const res = await openrouter([{ role: 'system', content: SYSTEM }, { role: 'user', content: msg }], 32000);
+    if (res.finish === 'length') throw Object.assign(new Error('Trecho longo demais para uma resposta.'), { tooLong: true });
+    if (!res.text) throw Object.assign(new Error('O modelo devolveu uma resposta vazia.'), { retry: true });
+    if (onProgress) onProgress(res.text.length);
+    const out = parse(res.text);
+    return Object.assign(out, { usage: { input_tokens: res.usage.prompt_tokens || 0, output_tokens: res.usage.completion_tokens || 0 }, model: res.model, stop: res.finish || 'end_turn', price: { in: 0, out: 0 } });
+  }
+  async function viaGemini(msg, onProgress) {
+    if (onProgress) onProgress(0);
+    const res = await gemini(SYSTEM, msg, 32000);
+    if (res.finish === 'MAX_TOKENS') throw Object.assign(new Error('Trecho longo demais para uma resposta.'), { tooLong: true });
+    if (!res.text) throw Object.assign(new Error('O modelo devolveu uma resposta vazia.'), { retry: true });
+    if (onProgress) onProgress(res.text.length);
+    const out = parse(res.text);
+    return Object.assign(out, { usage: res.usage, model: res.model, stop: res.finish || 'end_turn', price: { in: 0, out: 0 } });
+  }
+
   // um trecho: devolve { body, notes, glossary, lang, usage, model, stop }
   async function translate(req, onProgress) {
     const cfg0 = config();
     const cfg = Object.assign({}, cfg0, { provider: effectiveProvider(cfg0) });
     if (cfg.provider === 'gtrans') return translateGoogleFree(req, onProgress);
-    const msg = userMessage(req);
+    if (cfg.provider === 'offline') return translateOffline(req, onProgress);
+    const msg = userMessage(Object.assign({}, req, { refs: refsFor(req.html) }));
     if (cfg.provider === 'mock') return mock(req, onProgress);
     if (cfg.provider === 'ollama') {
       const r = await fetch(cfg.ollamaUrl.replace(/\/$/, '') + '/api/chat', {
@@ -301,26 +437,21 @@ function createTranslator({ userFile, safeStorage }) {
       });
       if (!r.ok) throw new Error(`Ollama respondeu ${r.status}: ${(await r.text()).slice(0, 200)}`);
       const j = await r.json();
-      const out = parse(j.message && j.message.content);
+      const out = applyExact(req, parse(j.message && j.message.content));
       return Object.assign(out, { usage: { input_tokens: j.prompt_eval_count || 0, output_tokens: j.eval_count || 0 }, model: cfg.ollamaModel, stop: 'end_turn' });
     }
-    if (cfg.provider === 'openrouter') {
-      if (onProgress) onProgress(0);
-      const res = await openrouter([{ role: 'system', content: SYSTEM }, { role: 'user', content: msg }], 32000);
-      if (res.finish === 'length') throw Object.assign(new Error('Trecho longo demais para uma resposta.'), { tooLong: true });
-      if (!res.text) throw Object.assign(new Error('O modelo devolveu uma resposta vazia.'), { retry: true });
-      if (onProgress) onProgress(res.text.length);
-      const out = parse(res.text);
-      return Object.assign(out, { usage: { input_tokens: res.usage.prompt_tokens || 0, output_tokens: res.usage.completion_tokens || 0 }, model: res.model, stop: res.finish || 'end_turn', price: { in: 0, out: 0 } });
-    }
-    if (cfg.provider === 'google') {
-      if (onProgress) onProgress(0);
-      const res = await gemini(SYSTEM, msg, 32000);
-      if (res.finish === 'MAX_TOKENS') throw Object.assign(new Error('Trecho longo demais para uma resposta.'), { tooLong: true });
-      if (!res.text) throw Object.assign(new Error('O modelo devolveu uma resposta vazia.'), { retry: true });
-      if (onProgress) onProgress(res.text.length);
-      const out = parse(res.text);
-      return Object.assign(out, { usage: res.usage, model: res.model, stop: res.finish || 'end_turn', price: { in: 0, out: 0 } });
+    if (cfg.provider === 'openrouter' || cfg.provider === 'google') {
+      // limite do plano gratuito ou queda de conexão: uma nova tentativa e, se continuar, o trecho segue pelo
+      // Google Tradutor (ou pelo motor offline) — a fila não para
+      for (let attempt = 0; ; attempt++) {
+        try { return applyExact(req, await (cfg.provider === 'openrouter' ? viaOpenRouter : viaGemini)(msg, onProgress)); } catch (e) {
+          if (!e.retry) throw e;
+          if (attempt === 0) { await new Promise(r => setTimeout(r, Number(process.env.TR_RETRY_MS || 15000))); continue; }
+          const r = await translateGoogleFree(req, onProgress, { noReview: true });
+          r.notes = [`${cfg.provider === 'openrouter' ? 'OpenRouter' : 'Google Gemini'} indisponível neste trecho (${short(e.message)}); traduzido por ${r.model} com as correções do sistema.`].concat(r.notes || []);
+          return r;
+        }
+      }
     }
     const { client: c, A } = anthropic();
     const m = MODELS.find(x => x.id === cfg.model) || MODELS[0];
@@ -351,7 +482,7 @@ function createTranslator({ userFile, safeStorage }) {
     if (final.stop_reason === 'refusal') throw Object.assign(new Error('O modelo recusou este trecho' + (final.stop_details && final.stop_details.category ? ` (${final.stop_details.category})` : '') + '.'), { refusal: true });
     if (final.stop_reason === 'max_tokens') throw Object.assign(new Error('Trecho longo demais para uma resposta.'), { tooLong: true });
     const text = final.content.filter(b => b.type === 'text').map(b => b.text).join('');
-    const out = parse(text);
+    const out = applyExact(req, parse(text));
     return Object.assign(out, { usage: final.usage || {}, model: final.model || m.id, stop: final.stop_reason, price: { in: m.in, out: m.out } });
   }
 
@@ -359,14 +490,14 @@ function createTranslator({ userFile, safeStorage }) {
   async function report(req) {
     const cfg0 = config();
     const cfg = Object.assign({}, cfg0, { provider: effectiveProvider(cfg0) });
-    if (cfg.provider === 'gtrans') {
+    if (cfg.provider === 'gtrans' || cfg.provider === 'offline') {
       // parecer pela IA de revisão, se houver chave; senão, um parecer feito a partir dos números
       const ai = aiAvailable(cfg);
       if (ai) cfg.provider = ai;
       else {
         const st = req.stats || {};
         return {
-          parecer: `Tradução automática feita pelo Google Tradutor${req.lang ? ' a partir do ' + req.lang : ''} e preparada pelo sistema para o padrão editorial brasileiro: diálogos com travessão, Novo Acordo Ortográfico, dicionário de estilo e pontuação editorial. Para um acabamento literário (tom, ritmo, coesão e coerência revisados por IA), informe uma chave do OpenRouter ou do Google Gemini em Configurações da tradução.`,
+          parecer: `Tradução automática feita pelo ${cfg.provider === 'offline' ? 'motor offline (no próprio computador)' : 'Google Tradutor'}${req.lang ? ' a partir do ' + req.lang : ''} e preparada pelo sistema para o padrão editorial brasileiro: diálogos com travessão, Novo Acordo Ortográfico, dicionário de estilo e pontuação editorial. Para um acabamento literário (tom, ritmo, coesão e coerência revisados por IA), informe uma chave do OpenRouter ou do Google Gemini em Configurações da tradução.`,
           changes: ['Tradução automática bloco a bloco, preservando títulos, ênfases e notas de rodapé.', 'Diálogos convertidos para o travessão no padrão brasileiro.', 'Formas do português europeu trocadas pelas do Brasil.'],
           corrections: ['Novo Acordo Ortográfico (acentos, hífen, trema).', 'Pontuação editorial: aspas curvas, reticências e travessões.', 'Dicionário de estilo: pleonasmos e falsos cognatos.'].concat(st.fixes ? [`${st.fixes} correções automáticas no total.`] : [])
         };
@@ -409,12 +540,17 @@ ${(req.notes || []).slice(0, 120).map(n => '- ' + n).join('\n') || '(sem notas)'
   async function test() {
     const cfg0 = config();
     const cfg = Object.assign({}, cfg0, { provider: effectiveProvider(cfg0) });
+    const refsMsg = () => { const l = tm ? tm.list() : { refs: [] }; return l.refs.length && l.use ? ` · ${l.refs.length} livro(s) de referência (${l.segments.toLocaleString('pt-BR')} trechos)` : ''; };
+    if (cfg.provider === 'offline') { if (!offline) return { ok: false, msg: 'motor offline indisponível.' }; const t = await offline.test(); return t.ok ? Object.assign(t, { msg: t.msg + refsMsg() }) : t; }
     if (cfg.provider === 'gtrans') {
       try {
         const r = await gtBatch(['<p>Hello, world.</p>']);
         const ai = cfg0.aiReview ? aiAvailable(cfg0) : '';
-        return { ok: true, msg: `Google Tradutor funcionando (“${r[0].text.replace(/<[^>]+>/g, '')}”)${cfg0.provider !== 'gtrans' ? ' — sem a chave do motor escolhido, a tradução usa o Google Tradutor' : ''}${ai ? ' · revisão por IA: ' + (ai === 'openrouter' ? 'OpenRouter' : 'Google Gemini') : ' · sem revisão por IA (informe uma chave do OpenRouter ou do Gemini para ativar)'}` };
-      } catch (e) { return { ok: false, msg: String(e.message || e) }; }
+        return { ok: true, msg: `Google Tradutor funcionando (“${r[0].text.replace(/<[^>]+>/g, '')}”)${refsMsg()}${cfg0.provider !== 'gtrans' ? ' — sem a chave do motor escolhido, a tradução usa o Google Tradutor' : ''}${ai ? ' · revisão por IA: ' + (ai === 'openrouter' ? 'OpenRouter' : 'Google Gemini') : ' · sem revisão por IA (informe uma chave do OpenRouter ou do Gemini para ativar)'}` };
+      } catch (e) {
+        if (offlineReady()) return { ok: true, msg: `Google Tradutor indisponível (${short(e.message)}); a tradução usa o motor offline${refsMsg()}` };
+        return { ok: false, msg: String(e.message || e) + ' Sem internet, baixe o motor offline em Configurações da tradução.' };
+      }
     }
     if (cfg.provider === 'mock') return { ok: true, msg: 'Modo de simulação (teste).' };
     if (cfg.provider === 'openrouter') {
@@ -477,7 +613,7 @@ ${(req.notes || []).slice(0, 120).map(n => '- ' + n).join('\n') || '(sem notas)'
     return { body: req.html, notes: ['Nota de simulação: trecho mantido para teste do fluxo.'], glossary: [['Toto', 'Totó']], lang: req.first ? 'inglês (simulação)' : '', usage: { input_tokens: Math.round(req.html.length / 4), output_tokens: Math.round(req.html.length / 4) }, model: 'simulação', stop: 'end_turn', price: { in: 0, out: 0 } };
   }
 
-  return { config, setConfig, translate, report, test, SYSTEM, effectiveProvider };
+  return { config, setConfig, translate, report, test, SYSTEM, effectiveProvider, offline, tm };
 }
 
 module.exports = { createTranslator };
