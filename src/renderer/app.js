@@ -340,7 +340,7 @@
         card('upload', 'Enviar um livro', 'Word, PDF, EPUB, ODT, TXT ou Markdown', () => App.importer.fromDialog(), true),
         card('folder', 'Abrir um projeto', 'Continuar um livro salvo (.livro)', () => runCommand('open')),
         card('plus', 'Começar do zero', 'Livro, revista ou jornal em branco', () => runCommand('new')),
-        card('sparkles', 'Melhoramento', 'EPUBs do Gutenberg → DOCX no padrão, um ou vários', () => App.enhance.open()),
+        card('sparkles', 'Melhoramento', 'EPUB (Gutenberg) ou PDF (Domínio Público) → DOCX no padrão', () => App.enhance.open()),
         card('globe', 'Tradução', 'Qualquer idioma → português do Brasil, em DOCX no padrão', () => App.translate.open()),
         card('images', 'Ferramentas', 'Converter imagens e textos de qualquer formato e remover fundo', () => App.toolbox.open())
       ]),

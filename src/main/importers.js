@@ -266,7 +266,14 @@ async function importPdf(filePath) {
     }
     pages.push({ n, width: vp.width, height: vp.height, lines: lines.filter(l => l.parts.some(p => p.text.trim())) });
   }
-  return { kind: 'pdf', pages };
+  // título e autor gravados no PDF (muitos vêm do Word: “Microsoft Word - arquivo.doc”, “Usuário”…)
+  let meta = {};
+  try {
+    const info = (await doc.getMetadata()).info || {};
+    const ok = t => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t && !/microsoft|word|\.(docx?|rtf|odt|pdf|txt)$|untitled|sem t[íi]tulo|^(usu[áa]rio|user|admin|administrador|owner|propriet[áa]rio|autor|author|pc|default)\b/i.test(t) && t.length < 160 ? t : ''; };
+    meta = { title: ok(info.Title), author: ok(info.Author) };
+  } catch (e) { /* sem metadados */ }
+  return { kind: 'pdf', pages, meta };
 }
 
 async function importText(filePath) {

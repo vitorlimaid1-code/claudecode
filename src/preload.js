@@ -85,7 +85,7 @@ contextBridge.exposeInMainWorld('api', {
   closeConfirmed: () => ipcRenderer.send('app:closeConfirmed'),
   setTitle: title => ipcRenderer.send('app:setTitle', title),
   onMenu: cb => ipcRenderer.on('menu', (e, cmd) => cb(cmd)),
-  enhPick: () => inv('enh:pick'),
+  enhPick: kind => inv('enh:pick', kind),
   enhRead: p => inv('enh:read', p),
   enhTarget: (base, ext, nextTo) => inv('enh:target', base, ext, nextTo),
   enhReplace: (src, docx) => inv('enh:replace', src, docx),

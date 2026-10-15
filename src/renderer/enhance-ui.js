@@ -1,13 +1,15 @@
 /* global App, BookText */
-// Melhoramento: EPUBs do Project Gutenberg viram DOCX no padrão do livro (títulos, alinhamento, tamanho do
-// texto, parágrafos e sumário do sistema), gravados no lugar do EPUB (que vai para a Lixeira) ou em Downloads. Tira avisos e licença do Gutenberg,
-// capa, folha de rosto, créditos, notas do transcritor, dedicatória, sumário e listas do arquivo — fica só
-// o texto dos capítulos. Um livro ou vários, um depois do outro, com registro de cada etapa.
+// Melhoramento: EPUBs do Project Gutenberg (seção EPUB) e PDFs do Domínio Público (seção PDF, separada) viram
+// DOCX no padrão do livro (Garamond, títulos, alinhamento, tamanho do texto, espaçamentos e parágrafos do
+// sistema, sem sumário), gravados no lugar do EPUB (que vai para a Lixeira), na pasta do PDF ou em Downloads.
+// Tira avisos e licença do Gutenberg ou do acervo, capa, folha de rosto, créditos, notas do transcritor,
+// dedicatória, sumário/índice e listas do arquivo — fica só o texto dos capítulos. Um livro ou vários, um
+// depois do outro, com registro de cada etapa.
 (function () {
   const { el, $, api, D } = App;
   const queue = []; // { path, name, status: 'wait'|'run'|'ok'|'err', out, msg }
   let running = false;
-  let screen = null, logBox = null, listBox = null, dlDir = '';
+  let screen = null, dlDir = '';
 
   const FRONT_RE = /^(contents|table of contents|sum[áa]rio|[íi]ndice|conte[úu]do|list of illustrations|illustrations|lista de ilustra[çc][õo]es|dedication|dedicat[óo]ria|to the (children|reader)|transcriber'?s? notes?|nota do transcritor|copyright|title page|errata|preface to the (\w+ )?edition|publisher'?s? note|acknowledg(e)?ments?|agradecimentos?|about (the|this) (author|book|e-?book)|by the same author|also by|frontispiece|half-title)\b/i;
   const BACK_RE = /^(footnotes?|notes?|notas?|transcriber'?s? notes?|nota do transcritor|advertisements?|an[úu]ncios|catalog(ue)?|books by|also by|other books|index|[íi]ndice remissivo|glossary|gloss[áa]rio|the full project gutenberg|end of (the )?project gutenberg|colophon|colofão)\b/i;
@@ -169,12 +171,79 @@
     return { width: w, align: side, wrap: side === 'center' ? 'none' : 'square' };
   }
 
+  // ---------------------------------------------------------------- PDF (Domínio Público)
+  // avisos, créditos e endereços que os acervos públicos põem nos PDFs (Biblioteca Virtual do Estudante,
+  // Ministério da Cultura/Biblioteca Nacional, NEAD/UNAMA, eBooksBrasil, Domínio Público…)
+  const BOILER_RE = /(texto proveniente d[eo]|biblioteca virtual do estudante|bibvirt|escola do futuro|permitido o uso apenas|fins educacionais|redistribu[íi]do livremente|desde que n[ãa]o seja alterado|informa[çc][õo]es acima sejam mantidas|patrocinadores e volunt[áa]rios|para maiores informa[çc][õo]es|minist[ée]rio da cultura|funda[çc][ãa]o biblioteca nacional|departamento nacional do livro|n[úu]cleo de educa[çc][ãa]o a dist[âa]ncia|\bnead\b|universidade da amaz[ôo]nia|\bunama\b|ebooks ?brasil|vers[ãa]o para e-?book|fonte digital|digitaliza[çc][ãa]o|digitalizad[oa] por|texto-base|dom[íi]nio p[úu]blico|www\.|https?:\/\/|[\w.-]+@[\w-]+\.[a-z]{2,}|virtual ?books|e-?books? gratuitos?|livros gr[áa]tis|edi[çc][ãa]o eletr[ôo]nica|vers[ãa]o eletr[ôo]nica|todos os direitos reservados|copyright|©|\bisbn\b|bel[ée]m\s*[-–—]\s*par[áa])/i;
+  const TOC_HEAD_RE = /^(sum[áa]rio|[íi]ndices?( geral| dos cap[íi]tulos)?|conte[úu]do|contents|table of contents)\s*[.:]?$/i;
+  const PDF_BACK_RE = /^(biografia|sobre o autor|sobre a autora|dados biogr[áa]ficos|vida e obra|cronologia|obras d[oa] autor[a]?|outras obras|do mesmo autor|da mesma autora)\b/i;
+
+  // tira do PDF as páginas de sumário/índice, avisos e créditos do acervo e páginas de capa/rosto; o resto
+  // (títulos, capítulos, fim e páginas pós-textuais) segue a mesma limpeza do EPUB
+  function cleanPdf(res, log) {
+    const T = BookText.pdfLineText;
+    const pages = (res.pages || []).filter(p => p.lines && p.lines.length);
+    const body = BookText.pdfBodySize(pages);
+    const endsNum = t => /(\.{2,}|…|_{2,}|-{3,}|\s)\s*\d{1,4}$/.test(t) && !/^\d{1,4}$/.test(t);
+    const listLike = t => t.length <= 90 && (!!BookText.chapterMark(t, 'H1') || /^(cap[ií]tulo|parte|livro|canto)\b/i.test(t));
+    let inToc = false;
+    const toc = [];
+    const keep = pages.filter(p => {
+      const ts = p.lines.map(T).filter(Boolean);
+      if (!ts.length) return false;
+      const head = ts.slice(0, 3).some(t => TOC_HEAD_RE.test(t));
+      const nNum = ts.filter(endsNum).length, nList = ts.filter(listLike).length;
+      const short = ts.every(t => t.length <= 90);
+      const isToc = ts.length >= 3 && ((head && (nNum >= ts.length * 0.25 || nList >= ts.length * 0.4 || short)) || (inToc && (nNum >= ts.length * 0.4 || nList >= ts.length * 0.6)) || (ts.length >= 6 && nNum >= ts.length * 0.6));
+      inToc = isToc;
+      if (isToc) toc.push(p.n);
+      return !isToc;
+    });
+    if (toc.length) log(`· sumário/índice do PDF removido (página${toc.length > 1 ? 's' : ''} ${toc.join(', ')})`);
+    if (pages.length - keep.length - toc.length > 0) log(`· ${pages.length - keep.length - toc.length} página(s) em branco removida(s)`);
+    // título e autor: os do arquivo ou, na falta, a maior linha das primeiras páginas (folha de rosto)
+    const meta = Object.assign({}, res.meta || {});
+    if (!meta.title) {
+      let best = null;
+      keep.slice(0, 4).forEach(p => p.lines.forEach(l => { const t = T(l); if (t.length >= 2 && t.length <= 80 && !BOILER_RE.test(t) && !BookText.chapterMark(t, 'H1') && l.size > body * 1.2 && (!best || l.size > best.l.size)) best = { l, t, p }; }));
+      if (best) {
+        meta.title = best.t;
+        if (!meta.author) {
+          const name = /^[A-ZÀ-Ú][\p{L}.'’-]+(\s+(de|da|do|dos|das|e|[A-ZÀ-Ú][\p{L}.'’-]*)){1,5}$/u;
+          const a = best.p.lines.map(T).find(t => t !== best.t && name.test(t) && !BOILER_RE.test(t) && !TOC_HEAD_RE.test(t) && !BookText.chapterMark(t, 'H1'));
+          if (a) meta.author = a;
+        }
+      }
+    }
+    res.meta = meta;
+    // texto reconstruído (parágrafos, títulos, notas, sem cabeçalhos e números de página)
+    const box = document.createElement('div');
+    box.innerHTML = BookText.pdfToHtml(Object.assign({}, res, { pages: keep }));
+    let bp = 0;
+    box.querySelectorAll('p, h1, h2, h3, h4').forEach(x => {
+      const t = clean(x.textContent);
+      if (!t) { x.remove(); return; }
+      if (t.length < 900 && BOILER_RE.test(t)) { x.remove(); bp++; }
+    });
+    if (bp) log(`· ${bp} bloco(s) de avisos, créditos e endereços do acervo removido(s)`);
+    // páginas pós-textuais próprias dos PDFs (biografia, cronologia, outras obras…) viram título para a limpeza geral
+    box.querySelectorAll('p').forEach(x => { const t = clean(x.textContent); if (t.length <= 60 && PDF_BACK_RE.test(t) && !/[.;,]$/.test(t)) { const h = document.createElement('h2'); h.textContent = t; x.replaceWith(h); } });
+    return box.innerHTML;
+  }
+
   // ---------------------------------------------------------------- um livro
-  async function processOne(item) {
-    const log = (m, k) => addLog(`${item.name} — ${m}`, k);
-    item.status = 'run'; renderList();
-    const { proj } = await loadBook(item.path, item.name, log, { images: $('#enhImages').checked });
-    const replace = $('#enhReplace').checked;
+  async function processOne(item, sec) {
+    const log = (m, k) => addLog(sec, `${item.name} — ${m}`, k);
+    item.status = 'run'; renderList(sec);
+    if (sec.kind === 'pdf') {
+      const { proj } = await loadBook(item.path, item.name, log, { images: false });
+      const next = sec.opt.next.checked;
+      item.out = await saveDocx(proj, log, '', next ? { nextTo: item.path, name: item.path.split(/[\\/]/).pop().replace(/\.pdf$/i, '') } : null);
+      item.status = 'ok';
+      return;
+    }
+    const { proj } = await loadBook(item.path, item.name, log, { images: sec.opt.images.checked });
+    const replace = sec.opt.replace.checked;
     // substituir: o DOCX vai para a pasta do EPUB, com o mesmo nome do arquivo, e o EPUB para a Lixeira
     item.out = await saveDocx(proj, log, '', replace ? { nextTo: item.path, name: item.path.split(/[\\/]/).pop().replace(/\.epub$/i, '') } : null);
     if (replace) {
@@ -185,14 +254,19 @@
     item.status = 'ok';
   }
 
-  // Lê um livro (EPUB, DOCX, DOC, ODT…), tira avisos do Gutenberg e páginas pré/pós-textuais e monta um
-  // projeto temporário no padrão do sistema, com os capítulos e as ilustrações. Usado também pela Tradução.
+  // Lê um livro (EPUB, PDF, DOCX, DOC, ODT…), tira avisos do Gutenberg/do acervo e páginas pré/pós-textuais e
+  // monta um projeto temporário no padrão do sistema, com os capítulos e as ilustrações. Usado também pela
+  // Tradução e pelas Ferramentas. Sem sumário, a não ser que opts.toc peça.
   async function loadBook(filePath, name, log, opts) {
     opts = opts || {};
     log('lendo o arquivo…');
     const res = await api.enhRead(filePath);
     if (!res || res.error) throw new Error(res ? res.error : 'arquivo ilegível');
-    if (res.kind !== 'epub') {
+    if (res.kind === 'pdf' && opts.clean !== false) {
+      if (!(res.pages || []).some(p => p.lines && p.lines.length)) throw new Error('o PDF não tem texto (é só imagem escaneada)');
+      log(`${res.pages.length} página(s) no PDF`);
+      res.docs = [{ id: 'pdf', html: cleanPdf(res, m => log(m)) }];
+    } else if (res.kind !== 'epub') {
       // Word/ODT/texto: capítulos do importador, depois a mesma limpeza (avisos, páginas extras)
       const chs = BookText.convertImport(Object.assign({ name }, res));
       const meta = chs.meta || {};
@@ -201,7 +275,8 @@
       if (!opts.allowAny && !/\.(docx?|odt|epub|rtf|txt|html?)$/i.test(filePath)) throw new Error('formato não suportado');
     }
     res.meta = res.meta || {};
-    log(`${(res.docs || []).length} arquivo(s) internos · “${decode(res.meta.title) || name}”${res.meta.author ? ' · ' + decode(res.meta.author) : ''}`);
+    if (!res.meta.title) res.meta.title = name;
+    log(`${res.kind === 'pdf' ? 'texto do PDF reconstruído' : (res.docs || []).length + ' arquivo(s) internos'} · “${decode(res.meta.title) || name}”${res.meta.author ? ' · ' + decode(res.meta.author) : ''}`);
     // conversão de formato (Ferramentas): sem a limpeza do Gutenberg, o arquivo fica inteiro
     const html = opts.clean === false ? (res.docs || []).map(d => d.html).join('\n') : cleanGutenberg(res, m => log(m));
     let chapters = BookText.htmlToChapters(html, decode(res.meta.title) || name);
@@ -215,7 +290,8 @@
     proj.meta.author = decode(res.meta.author);
     proj.meta.language = decode(res.meta.language) || proj.meta.language;
     if (det) { proj.settings.chapterNumbering = det.style === 'words' ? 'arabic' : det.style; proj.settings.chapterLabel = det.labeled ? 'Capítulo' : ''; }
-    proj.front.toc = true;
+    // sem sumário automático (nem o do arquivo, que a limpeza já tirou)
+    proj.front.toc = !!opts.toc;
     let imgs = 0;
     proj.chapters = [];
     for (const c of chapters) proj.chapters.push(await (async () => {
@@ -239,10 +315,10 @@
   }
 
   // Grava o DOCX na pasta Downloads (ou ao lado do arquivo de origem: where.nextTo), no padrão do sistema
-  // (Garamond, títulos, alinhamentos, sumário)
+  // (Garamond no texto e nos títulos, espaçamentos, alinhamentos e tamanhos do sistema)
   async function saveDocx(proj, log, suffix, where) {
     const words = proj.chapters.reduce((s, c) => s + BookText.countWords(c.html), 0);
-    log(`${words.toLocaleString('pt-BR')} palavras · gerando o DOCX no padrão do sistema (títulos, alinhamento, tamanho do texto, parágrafos e sumário)…`);
+    log(`${words.toLocaleString('pt-BR')} palavras · gerando o DOCX no padrão do sistema (Garamond, títulos, alinhamento, tamanho do texto e parágrafos${proj.front.toc ? ', sumário' : ''})…`);
     const target = await api.enhTarget((where && where.name) || proj.meta.title + (suffix || ''), 'docx', where && where.nextTo);
     const doc = App.exportPrep.buildDoc(proj);
     doc.fontOverride = 'Garamond'; // texto e títulos em Garamond, com tamanhos, alinhamentos e espaços do sistema
@@ -252,117 +328,185 @@
     return r.files[0];
   }
 
-  async function start() {
-    if (running) return;
-    const todo = queue.filter(q => q.status === 'wait' || q.status === 'err');
-    if (!todo.length) return App.toast('Envie um ou mais arquivos EPUB.');
-    running = true;
-    renderControls();
+  // ---------------------------------------------------------------- seções da tela (EPUB e PDF, separadas)
+  const SECT = {
+    epub: { kind: 'epub', ext: /\.epub$/i, label: 'EPUB', queue, running: false, opt: {} },
+    pdf: { kind: 'pdf', ext: /\.pdf$/i, label: 'PDF', queue: [], running: false, opt: {} }
+  };
+
+  async function start(sec) {
+    sec = sec && sec.kind ? sec : SECT.epub;
+    if (sec.running) return;
+    const todo = sec.queue.filter(q => q.status === 'wait' || q.status === 'err');
+    if (!todo.length) return App.toast(`Envie um ou mais arquivos ${sec.label}.`);
+    sec.running = true;
+    running = SECT.epub.running || SECT.pdf.running;
+    renderControls(sec);
     const t0 = Date.now();
-    addLog(`Início: ${todo.length} livro(s) · ${$('#enhReplace').checked ? 'cada DOCX substitui o seu EPUB, na mesma pasta' : 'saída em ' + dlDir}`);
+    const where = sec.kind === 'pdf' ? (sec.opt.next.checked ? 'cada DOCX na pasta do seu PDF (o PDF é mantido)' : 'saída em ' + dlDir) : (sec.opt.replace.checked ? 'cada DOCX substitui o seu EPUB, na mesma pasta' : 'saída em ' + dlDir);
+    addLog(sec, `Início: ${todo.length} livro(s) · ${where}`);
     let ok = 0;
     for (const item of todo) {
-      try { await processOne(item); ok++; } catch (e) { item.status = 'err'; item.msg = String(e.message || e); addLog(`${item.name} — erro: ${item.msg}`, 'bad'); }
-      renderList();
+      try { await processOne(item, sec); ok++; } catch (e) { item.status = 'err'; item.msg = String(e.message || e); addLog(sec, `${item.name} — erro: ${item.msg}`, 'bad'); }
+      renderList(sec);
     }
-    running = false;
-    addLog(`Fim: ${ok} de ${todo.length} livro(s) processado(s) em ${((Date.now() - t0) / 1000).toFixed(1).replace('.', ',')} s`, ok === todo.length ? 'ok' : 'bad');
-    renderControls();
-    if (ok && $('#enhOpen').checked) { const last = todo.filter(x => x.out).pop(); if (last) api.showItem(last.out); }
+    sec.running = false;
+    running = SECT.epub.running || SECT.pdf.running;
+    addLog(sec, `Fim: ${ok} de ${todo.length} livro(s) processado(s) em ${((Date.now() - t0) / 1000).toFixed(1).replace('.', ',')} s`, ok === todo.length ? 'ok' : 'bad');
+    renderControls(sec);
+    if (ok && sec.opt.open.checked) { const last = todo.filter(x => x.out).pop(); if (last) api.showItem(last.out); }
   }
 
   // ---------------------------------------------------------------- tela
-  function addLog(m, kind) {
-    if (!logBox) return;
+  function addLog(sec, m, kind) {
+    if (typeof sec === 'string') { kind = m; m = sec; sec = SECT.epub; }
+    const box = sec.logBox;
+    if (!box) return;
     const now = new Date();
-    logBox.appendChild(el('li', { class: kind || '' }, [el('span', { class: 'pg-t', text: now.toLocaleTimeString('pt-BR') }), el('span', { class: 'pg-m', text: m })]));
-    logBox.scrollTop = logBox.scrollHeight;
+    box.appendChild(el('li', { class: kind || '' }, [el('span', { class: 'pg-t', text: now.toLocaleTimeString('pt-BR') }), el('span', { class: 'pg-m', text: m })]));
+    box.scrollTop = box.scrollHeight;
   }
-  function addFiles(paths) {
+  function addFiles(paths, sec) {
+    sec = sec || SECT[(paths || []).some(p => /\.pdf$/i.test(p)) && !(paths || []).some(p => /\.epub$/i.test(p)) ? 'pdf' : 'epub'];
     let n = 0;
-    paths.filter(p => /\.epub$/i.test(p)).forEach(p => { if (!queue.some(q => q.path === p)) { queue.push({ path: p, name: p.split(/[\\/]/).pop().replace(/\.epub$/i, ''), status: 'wait' }); n++; } });
-    if (paths.length && !n) App.toast('Só arquivos .epub (ou já estão na lista).');
-    renderList();
-    renderControls();
+    paths.filter(p => sec.ext.test(p)).forEach(p => { if (!sec.queue.some(q => q.path === p)) { sec.queue.push({ path: p, name: p.split(/[\\/]/).pop().replace(sec.ext, ''), status: 'wait' }); n++; } });
+    if (paths.length && !n) App.toast(`Só arquivos .${sec.kind} (ou já estão na lista).`);
+    renderList(sec);
+    renderControls(sec);
+    return n;
   }
-  function renderList() {
-    if (!listBox) return;
-    listBox.innerHTML = '';
-    if (!queue.length) { listBox.appendChild(el('p', { class: 'muted enh-empty', text: 'Nenhum livro na lista.' })); return; }
+  function renderList(sec) {
+    sec = sec || SECT.epub;
+    const box = sec.listBox;
+    if (!box) return;
+    box.innerHTML = '';
+    if (!sec.queue.length) { box.appendChild(el('p', { class: 'muted enh-empty', text: 'Nenhum livro na lista.' })); return; }
     const L = { wait: 'aguardando', run: 'processando…', ok: 'concluído', err: 'erro' };
-    queue.forEach((q, i) => listBox.appendChild(el('div', { class: 'enh-item ' + q.status }, [
+    sec.queue.forEach((q, i) => box.appendChild(el('div', { class: 'enh-item ' + q.status }, [
       el('span', { class: 'enh-ic', html: App.icons ? App.icons.svg('book') : '' }),
       el('span', { class: 'enh-name' }, [el('b', { text: q.name }), el('small', { class: 'muted', text: q.out ? q.out : q.msg || q.path })]),
       el('span', { class: 'enh-st', text: L[q.status] }),
       q.out ? el('button', { class: 'icon-btn', title: 'Mostrar na pasta', text: '📂', onclick: () => api.showItem(q.out) }) : null,
-      !running && q.status !== 'run' ? el('button', { class: 'icon-btn', title: 'Tirar da lista', text: '✕', onclick: () => { queue.splice(i, 1); renderList(); renderControls(); } }) : null
+      !sec.running && q.status !== 'run' ? el('button', { class: 'icon-btn', title: 'Tirar da lista', text: '✕', onclick: () => { sec.queue.splice(i, 1); renderList(sec); renderControls(sec); } }) : null
     ])));
   }
-  function renderControls() {
-    const b = $('#enhStart');
+  function renderControls(sec) {
+    sec = sec || SECT.epub;
+    const b = sec.startBtn;
     if (!b) return;
-    const n = queue.filter(q => q.status === 'wait' || q.status === 'err').length;
-    b.disabled = running || !n;
-    b.textContent = running ? 'Processando…' : n > 1 ? `▶ Iniciar (${n} livros, um após o outro)` : '▶ Iniciar';
+    const n = sec.queue.filter(q => q.status === 'wait' || q.status === 'err').length;
+    b.disabled = sec.running || !n;
+    b.textContent = sec.running ? 'Processando…' : n > 1 ? `▶ Iniciar (${n} livros, um após o outro)` : '▶ Iniciar';
   }
 
-  async function open() {
-    if (screen) { screen.classList.add('show'); return; }
-    dlDir = await api.enhDownloads();
-    logBox = el('ol', { class: 'pg-log enh-log' });
-    // preferência lembrada: substituir o EPUB de origem (padrão) ou salvar uma cópia em Downloads
-    let pref = true;
-    try { pref = localStorage.getItem('enh.replace') !== '0'; } catch (e) { /* ok */ }
-    const whereTxt = el('span', { class: 'muted small' });
-    const replaceChk = el('input', { type: 'checkbox', id: 'enhReplace', checked: pref });
-    const showWhere = () => { whereTxt.textContent = replaceChk.checked ? 'Salvo na pasta de cada EPUB, no lugar dele' : 'Salvo em: ' + dlDir; };
-    replaceChk.addEventListener('change', () => { try { localStorage.setItem('enh.replace', replaceChk.checked ? '1' : '0'); } catch (e) { /* ok */ } showWhere(); });
-    showWhere();
-    listBox = el('div', { class: 'enh-list' });
-    const drop = el('button', { class: 'enh-drop', onclick: async () => addFiles(await api.enhPick()) }, [
+  // uma seção completa: envio, lista, opções, o que é feito, botão e registro próprios
+  function section(sec, cfg) {
+    sec.logBox = el('ol', { class: 'pg-log enh-log' });
+    sec.listBox = el('div', { class: 'enh-list' });
+    sec.startBtn = el('button', { class: 'primary big', id: sec.kind === 'pdf' ? 'pdfStart' : 'enhStart', onclick: () => start(sec) });
+    const drop = el('button', { class: 'enh-drop', onclick: async () => addFiles(await api.enhPick(sec.kind), sec) }, [
       el('span', { class: 'enh-drop-ic', html: App.icons ? App.icons.svg('upload') : '' }),
-      el('b', { text: 'Enviar EPUBs do Project Gutenberg' }),
-      el('span', { class: 'muted', text: 'Clique ou arraste aqui um ou vários arquivos .epub (modo em massa: processados um após o outro)' })
+      el('b', { text: cfg.drop }),
+      el('span', { class: 'muted', text: cfg.dropHint })
     ]);
     drop.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); drop.classList.add('over'); });
     drop.addEventListener('dragleave', () => drop.classList.remove('over'));
-    drop.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); drop.classList.remove('over'); addFiles(Array.from(e.dataTransfer.files || []).map(f => api.pathForFile(f))); });
+    drop.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); drop.classList.remove('over'); addFiles(Array.from(e.dataTransfer.files || []).map(f => api.pathForFile(f)), sec); });
+    const node = el('main', { class: 'enh-main', 'data-sec': sec.kind }, [
+      el('section', { class: 'enh-col' }, [
+        drop,
+        sec.listBox,
+        el('div', { class: 'enh-opts' }, cfg.opts),
+        el('div', { class: 'enh-what' }, [el('b', { text: 'O que é feito em cada livro' }), el('ul', {}, cfg.what.map(t => el('li', { text: t })))]),
+        el('div', { class: 'enh-run' }, [sec.startBtn, cfg.whereTxt])
+      ]),
+      el('section', { class: 'enh-col' }, [el('h3', { text: 'Registro — ' + sec.label }), sec.logBox])
+    ]);
+    // arrastar arquivos para qualquer ponto da seção
+    node.addEventListener('dragover', e => { if (Array.from(e.dataTransfer.types).includes('Files')) { e.preventDefault(); e.stopPropagation(); } });
+    node.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); addFiles(Array.from(e.dataTransfer.files || []).map(f => api.pathForFile(f)), sec); });
+    return node;
+  }
+  const pref = (k, def) => { try { const v = localStorage.getItem(k); return v === null ? def : v !== '0'; } catch (e) { return def; } };
+  const remember = (k, chk, after) => chk.addEventListener('change', () => { try { localStorage.setItem(k, chk.checked ? '1' : '0'); } catch (e) { /* ok */ } if (after) after(); });
+
+  async function open(tab) {
+    if (screen) { screen.classList.add('show'); if (tab) setTab(tab); return; }
+    dlDir = await api.enhDownloads();
+    // EPUB: substituir o EPUB de origem (padrão, lembrado) ou salvar uma cópia em Downloads
+    const E = SECT.epub;
+    E.opt.images = el('input', { type: 'checkbox', id: 'enhImages', checked: true });
+    E.opt.replace = el('input', { type: 'checkbox', id: 'enhReplace', checked: pref('enh.replace', true) });
+    E.opt.open = el('input', { type: 'checkbox', id: 'enhOpen', checked: true });
+    const eWhere = el('span', { class: 'muted small' });
+    const showE = () => { eWhere.textContent = E.opt.replace.checked ? 'Salvo na pasta de cada EPUB, no lugar dele' : 'Salvo em: ' + dlDir; };
+    remember('enh.replace', E.opt.replace, showE); showE();
+    const epubNode = section(E, {
+      drop: 'Enviar EPUBs do Project Gutenberg',
+      dropHint: 'Clique ou arraste aqui um ou vários arquivos .epub (modo em massa: processados um após o outro)',
+      opts: [
+        el('label', { class: 'chk' }, [E.opt.images, ' Manter as ilustrações dentro dos capítulos']),
+        el('label', { class: 'chk', title: 'O DOCX é gravado na pasta do EPUB, com o mesmo nome; só depois de conferido o EPUB vai para a Lixeira (dá para recuperar de lá).' }, [E.opt.replace, ' Substituir o EPUB original pelo DOCX (o EPUB vai para a Lixeira)']),
+        el('label', { class: 'chk' }, [E.opt.open, ' Mostrar a pasta ao terminar'])
+      ],
+      what: [
+        'remove capa, folha de rosto, créditos, dedicatória, notas do transcritor, listas de ilustrações e o sumário do arquivo',
+        'remove os avisos, o cabeçalho e a licença do Project Gutenberg e as páginas pós-textuais (anúncios, índices, notas finais)',
+        'identifica os capítulos (CHAPTER 1, I, II…) — sem sumário automático',
+        'converte as notas de rodapé e aplica o padrão do sistema: Garamond no texto e nos títulos, alinhamento, tamanho do texto, entrelinha e recuo de parágrafo'
+      ],
+      whereTxt: eWhere
+    });
+    // PDF: o DOCX vai para a pasta do PDF (padrão, lembrado) ou para Downloads; o PDF nunca é apagado
+    const P = SECT.pdf;
+    P.opt.next = el('input', { type: 'checkbox', id: 'pdfNext', checked: pref('enh.pdfNext', true) });
+    P.opt.open = el('input', { type: 'checkbox', id: 'pdfOpen', checked: true });
+    const pWhere = el('span', { class: 'muted small' });
+    const showP = () => { pWhere.textContent = P.opt.next.checked ? 'Salvo na pasta de cada PDF (o PDF é mantido)' : 'Salvo em: ' + dlDir; };
+    remember('enh.pdfNext', P.opt.next, showP); showP();
+    const pdfNode = section(P, {
+      drop: 'Enviar livros em PDF (Domínio Público)',
+      dropHint: 'Clique ou arraste aqui um ou vários arquivos .pdf baixados do dominiopublico.gov.br (modo em massa: um após o outro)',
+      opts: [
+        el('label', { class: 'chk', title: 'O PDF original nunca é apagado nem alterado.' }, [P.opt.next, ' Salvar o DOCX na pasta de cada PDF, com o mesmo nome (o PDF é mantido)']),
+        el('label', { class: 'chk' }, [P.opt.open, ' Mostrar a pasta ao terminar'])
+      ],
+      what: [
+        'reconstrói os parágrafos do PDF (junta as linhas, desfaz hifenizações, tira cabeçalhos, rodapés e números de página)',
+        'remove capa, folha de rosto, avisos e créditos do acervo (Biblioteca Virtual do Estudante, Ministério da Cultura, NEAD, eBooksBrasil…), apresentação e o sumário/índice do PDF',
+        'remove as páginas pós-textuais (FIM, biografia, cronologia, outras obras, índice, notas finais)',
+        'identifica os capítulos (CAPÍTULO I, II, 1, 2…) — sem sumário automático',
+        'aplica o padrão do sistema: Garamond no texto e nos títulos, espaçamentos, alinhamento, tamanho do texto, entrelinha e recuo de parágrafo'
+      ],
+      whereTxt: pWhere
+    });
+    const tabs = { epub: epubNode, pdf: pdfNode };
+    const head = el('div', { class: 'tr-tabs enh-tabs' }, [['epub', '📗 EPUB — Project Gutenberg'], ['pdf', '📄 PDF — Domínio Público']].map(([k, t]) => el('button', { class: 'tr-tab', 'data-tab': k, text: t, onclick: () => setTab(k) })));
     screen = el('div', { class: 'enh-screen show' }, [
       el('header', { class: 'enh-head' }, [
-        el('div', { class: 'enh-brand' }, [el('span', { class: 'enh-logo', html: App.icons ? App.icons.svg('sparkles') : '' }), el('div', {}, [el('h1', { text: 'Melhoramento' }), el('p', { class: 'muted', text: 'EPUB do Project Gutenberg → DOCX limpo, no padrão do sistema' })])]),
+        el('div', { class: 'enh-brand' }, [el('span', { class: 'enh-logo', html: App.icons ? App.icons.svg('sparkles') : '' }), el('div', {}, [el('h1', { text: 'Melhoramento' }), el('p', { class: 'muted', text: 'EPUB do Project Gutenberg ou PDF do Domínio Público → DOCX limpo, no padrão do sistema' })])]),
+        head,
         el('button', { class: 'enh-back', text: '← Voltar ao editor', onclick: () => screen.classList.remove('show') })
       ]),
-      el('main', { class: 'enh-main' }, [
-        el('section', { class: 'enh-col' }, [
-          drop,
-          listBox,
-          el('div', { class: 'enh-opts' }, [
-            el('label', { class: 'chk' }, [el('input', { type: 'checkbox', id: 'enhImages', checked: true }), ' Manter as ilustrações dentro dos capítulos']),
-            el('label', { class: 'chk', title: 'O DOCX é gravado na pasta do EPUB, com o mesmo nome; só depois de conferido o EPUB vai para a Lixeira (dá para recuperar de lá).' }, [replaceChk, ' Substituir o EPUB original pelo DOCX (o EPUB vai para a Lixeira)']),
-            el('label', { class: 'chk' }, [el('input', { type: 'checkbox', id: 'enhOpen', checked: true }), ' Mostrar a pasta ao terminar'])
-          ]),
-          el('div', { class: 'enh-what' }, [
-            el('b', { text: 'O que é feito em cada livro' }),
-            el('ul', {}, [
-              'remove capa, folha de rosto, créditos, dedicatória, notas do transcritor, listas de ilustrações e o sumário do arquivo',
-              'remove os avisos, o cabeçalho e a licença do Project Gutenberg e as páginas pós-textuais (anúncios, índices, notas finais)',
-              'identifica os capítulos (CHAPTER 1, I, II…) e monta o sumário do sistema',
-              'converte as notas de rodapé e aplica o padrão do sistema: títulos, alinhamento, tamanho do texto, entrelinha e recuo de parágrafo'
-            ].map(t => el('li', { text: t })))
-          ]),
-          el('div', { class: 'enh-run' }, [el('button', { id: 'enhStart', class: 'primary big', onclick: start }), whereTxt])
-        ]),
-        el('section', { class: 'enh-col' }, [el('h3', { text: 'Registro' }), logBox])
-      ])
+      epubNode,
+      pdfNode
     ]);
-    // arrastar arquivos para qualquer ponto da tela
+    screen._tabs = tabs;
+    // arquivo solto fora das seções: vai para a seção aberta
     screen.addEventListener('dragover', e => { if (Array.from(e.dataTransfer.types).includes('Files')) { e.preventDefault(); e.stopPropagation(); } });
-    screen.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); addFiles(Array.from(e.dataTransfer.files || []).map(f => api.pathForFile(f))); });
+    screen.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); addFiles(Array.from(e.dataTransfer.files || []).map(f => api.pathForFile(f)), SECT[screen._tab] || SECT.epub); });
     document.body.appendChild(screen);
-    renderList();
-    renderControls();
-    addLog('Pronto. Envie os arquivos e clique em Iniciar.');
+    [E, P].forEach(s => { renderList(s); renderControls(s); });
+    addLog(E, 'Pronto. Envie os EPUBs e clique em Iniciar.');
+    addLog(P, 'Pronto. Envie os PDFs e clique em Iniciar.');
+    setTab(tab || 'epub');
+  }
+  function setTab(t) {
+    if (!screen || !screen._tabs[t]) return;
+    screen._tab = t;
+    Object.entries(screen._tabs).forEach(([k, n]) => { n.style.display = k === t ? '' : 'none'; });
+    screen.querySelectorAll('.enh-tabs .tr-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   }
 
-  App.enhance = { open, cleanGutenberg, addFiles, start, queue, loadBook, saveDocx };
+  App.enhance = { open, setTab, cleanGutenberg, cleanPdf, addFiles, start, queue, pdfQueue: SECT.pdf.queue, sections: SECT, loadBook, saveDocx };
 })();

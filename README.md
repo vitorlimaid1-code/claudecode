@@ -42,15 +42,25 @@ Como os executáveis não têm assinatura digital, o Windows SmartScreen pode av
 - Ao clicar numa imagem: **alças** para aumentar e reduzir arrastando, e o painel com **legenda**, **caixa de texto**, **recorte**, giro, opacidade, texto ao redor e **remover o fundo** (feito no computador, sem internet; a original continua no projeto; o texto passa a contornar a figura).
 - **Caixa de texto e caixa de citação**: selecione o texto na página e escolha na barra flutuante **▢ Caixa** (contorno, fundo cinza, barra lateral, filetes, fundo escuro) ou **❝ Citação** (recuada, aspas grandes, barra lateral, destaque centralizado). “Sem caixa” desfaz.
 
-### Melhoramento (EPUBs do Project Gutenberg → DOCX no padrão)
-Tela própria, aberta pelo botão **Melhoramento** no topo (ou na tela de boas-vindas). Envie um ou vários EPUBs do Project Gutenberg (botão ou arrastando para a tela) e clique em **Iniciar**:
+### Melhoramento (EPUBs do Project Gutenberg ou PDFs do Domínio Público → DOCX no padrão)
+Tela própria, aberta pelo botão **Melhoramento** no topo (ou na tela de boas-vindas), com duas seções separadas, cada uma com a sua lista, opções e registro: **EPUB — Project Gutenberg** e **PDF — Domínio Público**.
+
+**Seção EPUB.** Envie um ou vários EPUBs do Project Gutenberg (botão ou arrastando para a tela) e clique em **Iniciar**:
 - remove as páginas pré e pós-textuais que não entram no livro: capa do arquivo, cabeçalho e licença do Project Gutenberg (e todos os avisos “START/END OF THE PROJECT GUTENBERG…”), página de rosto original, dedicatória, sumário original, listas de ilustrações, notas do transcritor, números de página da edição impressa e o que vem depois de “THE END”;
 - mantém prólogo/introdução e os capítulos, com as ilustrações e notas de rodapé;
-- monta o **sumário do sistema** (com a nossa estética) e aplica os estilos do app: títulos de capítulo, rótulo “Capítulo N”, alinhamento e tamanho do texto, recuo de parágrafo, citações e legendas;
+- **não gera sumário automático** (nem herda o do arquivo) e aplica os estilos do app: títulos de capítulo, rótulo “Capítulo N”, alinhamento e tamanho do texto, recuo de parágrafo, citações e legendas;
 - preserva o layout do original: alinhamentos (centralizados, à direita), parágrafos sem recuo, ilustrações com a largura e a posição (centro, esquerda, direita) do EPUB e na proporção certa;
 - texto e títulos em **Garamond**, com tamanhos, alinhamentos, recuos e espaços do sistema; cada capítulo começa em página nova por uma quebra única dentro do próprio título (nunca sobra página em branco);
-- gera um **DOCX** (Word) por livro. Com **“Substituir o EPUB original pelo DOCX”** (ligado por padrão, a escolha fica lembrada), o DOCX é gravado na pasta do EPUB, com o mesmo nome, e — só depois de conferido — o EPUB vai para a **Lixeira** (recuperável); se algo falhar, o EPUB é mantido. Com a opção desligada, salva uma cópia na pasta **Downloads** (sem sobrescrever arquivos com o mesmo nome). Ao abrir, o Word pergunta se deve atualizar os campos — responda “Sim” para preencher os números de página do sumário.
+- gera um **DOCX** (Word) por livro. Com **“Substituir o EPUB original pelo DOCX”** (ligado por padrão, a escolha fica lembrada), o DOCX é gravado na pasta do EPUB, com o mesmo nome, e — só depois de conferido — o EPUB vai para a **Lixeira** (recuperável); se algo falhar, o EPUB é mantido. Com a opção desligada, salva uma cópia na pasta **Downloads** (sem sobrescrever arquivos com o mesmo nome). 
 - **Modo em massa**: vários livros na fila são processados um após o outro, com log de cada etapa (capítulos encontrados, páginas removidas, imagens, arquivo salvo) e erros sem interromper os demais.
+
+**Seção PDF.** Envie um ou vários livros em PDF baixados do portal Domínio Público (dominiopublico.gov.br) e clique em **Iniciar** — a mesma limpeza do EPUB, adaptada ao PDF:
+- reconstrói o texto: junta as linhas em parágrafos, desfaz as hifenizações de fim de linha, tira cabeçalhos e rodapés repetidos (ex.: “www.nead.unama.br”) e os números de página — sem confundir com capítulos numerados só com “I”, “II”, “1”, “2”;
+- remove capa, folha de rosto, os avisos e créditos do acervo (“Texto proveniente de: A Biblioteca Virtual do Estudante…”, Ministério da Cultura / Fundação Biblioteca Nacional, NEAD/UNAMA, eBooksBrasil, endereços e e-mails), apresentação/prefácio, e o **sumário/índice do PDF** (no começo ou no fim);
+- remove as páginas pós-textuais: o que vem depois de “FIM”, biografia, cronologia, outras obras do autor, índice e notas finais;
+- identifica os capítulos (“CAPÍTULO I”, “CAPÍTULO PRIMEIRO”, “I”, “1”…) e aplica a configuração padrão do sistema: espaçamentos, títulos, alinhamento, tamanho do texto, entrelinha e recuo — com **Garamond** no texto e nos títulos, **sem sumário automático**;
+- título e autor vêm dos dados do PDF ou, na falta, da folha de rosto;
+- grava um **DOCX** por livro na pasta de cada PDF, com o mesmo nome (opção lembrada; desligada, salva em **Downloads**). O PDF original nunca é apagado nem alterado. PDFs só de imagem (escaneados, sem texto) são apontados no registro.
 
 ### Tradução (qualquer idioma → português do Brasil)
 Tela própria, aberta pelo botão **Tradução** no topo (ou na tela de boas-vindas). Envie um ou vários livros (EPUB, DOCX, DOC, ODT) em qualquer idioma e clique em **Iniciar**; com vários, eles são traduzidos um após o outro, com o registro de cada etapa em tempo real.

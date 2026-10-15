@@ -141,7 +141,7 @@
     const t0 = Date.now();
     const st = { dialogues: 0, ortho: {}, dict: {}, punct: {}, refusals: 0, mismatches: 0, chunks: 0, tokensIn: 0, tokensOut: 0, cost: 0 };
     const cleaning = [];
-    const { proj } = await App.enhance.loadBook(item.path, item.name, (m, k) => { cleaning.push(m.replace(/^·\s*/, '')); log(m, k); }, { images: $('#trImages').checked, allowAny: true });
+    const { proj } = await App.enhance.loadBook(item.path, item.name, (m, k) => { cleaning.push(m.replace(/^·\s*/, '')); log(m, k); }, { images: $('#trImages').checked, allowAny: true, toc: true });
     const srcWords = proj.chapters.reduce((s, c) => s + BookText.countWords(c.html), 0);
     const ctx = { title: proj.meta.title, author: proj.meta.author, glossary: new Map(), context: '', first: true, log, stats: st };
     const notes = [];

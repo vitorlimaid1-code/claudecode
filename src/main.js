@@ -386,8 +386,9 @@ ipcMain.handle('import:file', async () => {
 ipcMain.handle('import:path', async (e, filePath) => require('./shared/defaults').nfcDeep(await importPath(filePath)));
 
 // Melhoramento: EPUBs do Project Gutenberg -> DOCX no padrão do livro, na pasta Downloads
-ipcMain.handle('enh:pick', async () => {
-  const res = await dialog.showOpenDialog(mainWindow, { title: 'Livros EPUB (Project Gutenberg)', filters: [{ name: 'EPUB', extensions: ['epub'] }], properties: ['openFile', 'multiSelections'] });
+ipcMain.handle('enh:pick', async (e, kind) => {
+  const pdf = kind === 'pdf';
+  const res = await dialog.showOpenDialog(mainWindow, { title: pdf ? 'Livros em PDF (Domínio Público)' : 'Livros EPUB (Project Gutenberg)', filters: [pdf ? { name: 'PDF', extensions: ['pdf'] } : { name: 'EPUB', extensions: ['epub'] }], properties: ['openFile', 'multiSelections'] });
   return res.canceled ? [] : res.filePaths;
 });
 ipcMain.handle('enh:read', async (e, filePath) => {

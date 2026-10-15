@@ -788,25 +788,53 @@
   }
 
   // PDF: reconstrói parágrafos, títulos e notas a partir da posição e tamanho do texto
-  function pdfToChapters(res) {
-    const pages = res.pages || [];
+  function pdfBodySize(pages) {
     const sizes = {};
     pages.forEach(p => p.lines.forEach(l => { const k = Math.round(l.size); sizes[k] = (sizes[k] || 0) + l.parts.reduce((s, x) => s + x.text.length, 0); }));
-    const body = Number(Object.entries(sizes).sort((a, b) => b[1] - a[1])[0]?.[0] || 11);
-    const lineText = l => l.parts.map(x => x.text).join('').replace(/\s+/g, ' ').trim();
-    // cabeçalhos/rodapés repetidos e números de página
+    return Number(Object.entries(sizes).sort((a, b) => b[1] - a[1])[0]?.[0] || 11);
+  }
+  const pdfLineText = l => l.parts.map(x => x.text).join('').replace(/\s+/g, ' ').trim();
+  function pdfToHtml(res) {
+    const pages = res.pages || [];
+    const body = pdfBodySize(pages);
+    const lineText = pdfLineText;
+    // cabeçalhos/rodapés repetidos e números de página (as duas linhas mais altas e as duas mais baixas)
+    const edges = p => { const s = p.lines.slice().sort((a, b) => b.y - a.y); return s.length <= 4 ? s : s.slice(0, 2).concat(s.slice(-2)); };
     const freq = {};
+    const edgeSet = new Set();
     pages.forEach(p => {
-      const cand = p.lines.slice(0, 2).concat(p.lines.slice(-2));
+      const cand = edges(p);
+      cand.forEach(l => edgeSet.add(l));
       new Set(cand.map(l => lineText(l).replace(/\d+/g, '#'))).forEach(t => { freq[t] = (freq[t] || 0) + 1; });
     });
-    const isRunning = l => { const t = lineText(l); return /^\d{1,4}$/.test(t) || /^[ivxlcdm]{1,6}$/i.test(t) || (freq[t.replace(/\d+/g, '#')] >= Math.max(3, pages.length * 0.3)); };
+    // número de página: número sozinho na borda da página que acompanha a numeração do arquivo
+    // (número da página = posição no PDF + uma diferença fixa); “I”, “II”, “3” abrindo capítulo ficam
+    const numOf = t => { t = t.replace(/^[-–—\s.]+|[-–—\s.]+$/g, ''); if (/^\d{1,4}$/.test(t)) return Number(t); if (/^[ivxlcdm]{1,7}$/i.test(t) && ROMAN_RE.test(t)) return romanValue(t); return null; };
+    // só a linha mais alta ou a mais baixa da página; separada do texto (margem) ou numa sequência que cobre
+    // boa parte do livro (capítulos curtos em páginas seguidas também formam sequência, mas menor)
+    const extremes = new Set();
+    const isolated = new Set();
+    pages.forEach(p => {
+      if (!p.lines.length) return;
+      const s = p.lines.slice().sort((a, b) => b.y - a.y);
+      [[s[0], s[1]], [s[s.length - 1], s[s.length - 2]]].forEach(([l, nb]) => { extremes.add(l); if (!nb || Math.abs(l.y - nb.y) > body * 2.2) isolated.add(l); });
+    });
+    const offs = {};
+    pages.forEach((p, pi) => p.lines.forEach(l => { if (!extremes.has(l)) return; const v = numOf(lineText(l)); if (v !== null) offs[v - pi] = (offs[v - pi] || 0) + 1; }));
+    const maxOff = Math.max(0, ...Object.values(offs));
+    const isPageNo = (l, pi) => {
+      const v = numOf(lineText(l));
+      if (v === null || !extremes.has(l)) return false;
+      const c = offs[v - pi] || 0;
+      return pages.length < 6 || isolated.has(l) || (c >= Math.max(3, pages.length * 0.25) && c >= maxOff * 0.5);
+    };
+    const isRunning = (l, pi) => isPageNo(l, pi) || (edgeSet.has(l) && freq[lineText(l).replace(/\d+/g, '#')] >= Math.max(3, pages.length * 0.3));
     const out = [];
     let cur = null;
     let pendingNotes = {};
     const flush = () => { if (cur) { out.push(cur); cur = null; } };
-    pages.forEach(p => {
-      let lines = p.lines.filter(l => !isRunning(l));
+    pages.forEach((p, pi) => {
+      let lines = p.lines.filter(l => !isRunning(l, pi));
       // número de nota isolado (sobrescrito no pé da página) + linha seguinte = início de nota
       const merged = [];
       lines.forEach((l, i) => {
@@ -870,8 +898,10 @@
       if (/^(\*\s*){3,}$/.test(b.text)) return '<hr class="scene-break">';
       return `<p${b.center ? ' style="text-align:center"' : ''}>${t}</p>`;
     }).join('');
-    const ch = htmlToChapters(html, res.name);
-    return ch;
+    return html;
+  }
+  function pdfToChapters(res) {
+    return htmlToChapters(pdfToHtml(res), res.name);
   }
 
   function convertImport(res) {
@@ -924,5 +954,5 @@
     return tpl.innerHTML;
   }
 
-  window.BookText = { chapterMark, isTitleLike, chapterMarkers, SPECIAL_RE, sanitizeHtml, normalizeStyles, htmlToChapters, textToChapters, markdownToChapters, convertImport, countWords, escapeHtml, splitChapterTitle };
+  window.BookText = { chapterMark, isTitleLike, chapterMarkers, SPECIAL_RE, sanitizeHtml, normalizeStyles, htmlToChapters, textToChapters, markdownToChapters, convertImport, pdfToHtml, pdfLineText, pdfBodySize, countWords, escapeHtml, splitChapterTitle };
 })();
