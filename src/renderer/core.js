@@ -205,6 +205,20 @@ window.App = (function () {
   };
   App.fileToDataUrl = file => new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(file); });
 
+  // Imagem em tons de cinza (CEDET: miolo só com tinta preta); JPEG continua JPEG, o resto vira PNG
+  App.grayDataUrl = dataUrl => new Promise(res => {
+    const i = new Image();
+    i.onload = () => {
+      const c = document.createElement('canvas'); c.width = i.naturalWidth; c.height = i.naturalHeight;
+      const x = c.getContext('2d'); x.drawImage(i, 0, 0);
+      const d = x.getImageData(0, 0, c.width, c.height), p = d.data;
+      for (let k = 0; k < p.length; k += 4) { const v = Math.round(p[k] * 0.2126 + p[k + 1] * 0.7152 + p[k + 2] * 0.0722); p[k] = p[k + 1] = p[k + 2] = v; }
+      x.putImageData(d, 0, 0);
+      res(/^data:image\/jpe?g/i.test(dataUrl) ? c.toDataURL('image/jpeg', 0.92) : c.toDataURL('image/png'));
+    };
+    i.onerror = () => res(dataUrl);
+    i.src = dataUrl;
+  });
   // Adiciona (ou reaproveita, se for idêntica) uma imagem ao projeto e devolve o id
   App.addAsset = async function (a) {
     const hash = a.hash || await App.hashDataUrl(a.dataUrl);

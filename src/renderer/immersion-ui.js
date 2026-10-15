@@ -27,8 +27,25 @@
     if (x.lib[item.id] && App.project.assets[x.lib[item.id]]) return x.lib[item.id];
     const id = await App.addAssetFromUrl('app://local/assets/' + item.file, { name: 'Imersão — ' + item.name });
     x.lib[item.id] = id;
+    x.libV = 2;
     return id;
   }
+  // a galeria passou a ser em tons de cinza (manual do Cedet: miolo só com tinta preta): livros feitos
+  // antes recebem as versões novas das mesmas imagens
+  async function refreshLibrary() {
+    const p = App.project;
+    if (!p || !p.immersion || !p.immersion.lib || p.immersion.libV >= 2) return;
+    const m = await loadManifest();
+    let n = 0;
+    for (const [key, id] of Object.entries(p.immersion.lib)) {
+      const item = m.find(x => x.id === key), a = p.assets[id];
+      if (!item || !a) continue;
+      try { a.dataUrl = await App.urlToDataUrl('app://local/assets/' + item.file); a.hash = await App.hashDataUrl(a.dataUrl); n++; } catch (e) { /* fica a anterior */ }
+    }
+    p.immersion.libV = 2;
+    if (n) App.changed(`Imersão: ${n} imagem(ns) da galeria trocada(s) pelas versões em tons de cinza`);
+  }
+  App.hooks.afterLoad.push(() => { refreshLibrary(); });
   const chaptersFor = () => App.project.chapters.filter(c => !im().numberedOnly || c.numbered);
 
   // sorteio: todas diferentes se houver imagens para todos; senão, rodadas embaralhadas sem repetir em seguida
@@ -68,7 +85,9 @@
   async function addUploads(l, preset) {
     const x = im();
     const ids = [];
-    for (const a of l) { const id = await App.addAsset(a); ids.push(id); if (!x.uploads.includes(id)) x.uploads.push(id); if (!x.pool.includes(id)) x.pool.push(id); }
+    // CEDET: imersão em tons de cinza (o miolo é impresso só com tinta preta)
+    const gray = App.project.settings.standard === 'cedet';
+    for (const a0 of l) { const a = gray ? Object.assign({}, a0, { dataUrl: await App.grayDataUrl(a0.dataUrl), hash: undefined, info: undefined }) : a0; const id = await App.addAsset(a); ids.push(id); if (!x.uploads.includes(id)) x.uploads.push(id); if (!x.pool.includes(id)) x.pool.push(id); }
     if (!ids.length) return;
     if (x.mode === 'single' || x.mode === 'off') { x.single = ids[ids.length - 1]; if (x.mode === 'off') x.mode = 'single'; }
     const def = preset || (CATS.some(c => c[0] === filter) ? filter : '');

@@ -138,7 +138,7 @@
     settings: {
       standard: 'cedet', marginTop: 28, marginBottom: 28, marginInner: 23, marginOuter: 20, safety: 20,
       bleedAuto: true, bleedTop: 5, bleedBottom: 5, bleedOuter: 5, bleedInner: 0, cropMarks: false, folioGap: 3,
-      pageNumbers: 'left', numberFromFirstChapter: false, pageColor: '#ffffff',
+      pageNumbers: 'outer', numberFromFirstChapter: false, pageColor: '#ffffff',
       outputSheet: { mode: 'marks', w: 210, h: 297, marks: true, markOffset: 5, markLen: 5, markWeight: 0.25 }
     },
     distribution: 'DISTRIBUIÇÃO\nCEDET — Centro de Desenvolvimento Profissional e Tecnológico\nAv. Comendador Aladino Selmi, 4682 — Condomínio GR2, galpão 8\nCEP: 13069-096 — Vila San Martin, Campinas-SP\nTelefones: (19) 3249-0580 / 3327-2257\ne-mail: livros@cedet.com.br',
@@ -189,8 +189,10 @@
   function applyCedet(settings, formatId) {
     const fmt = PAGE_FORMATS.find(p => p.id === (formatId || settings.pageFormat)) || PAGE_FORMATS.find(p => p.id === DEFAULT_FORMAT_ID);
     const ok = fmt && fmt.group === GC ? fmt : PAGE_FORMATS.find(p => p.id === DEFAULT_FORMAT_ID);
+    const prevNumbers = settings.pageNumbers;
     Object.assign(settings, JSON.parse(JSON.stringify(CEDET.settings)), { pageFormat: ok.id, pageWidth: ok.width, pageHeight: ok.height });
-    if (!['outer', 'center', 'left'].includes(settings.pageNumbers)) settings.pageNumbers = 'left';
+    // manual Cedet: número no canto inferior externo ou no centro inferior — nunca no canto interno
+    settings.pageNumbers = ['outer', 'center'].includes(prevNumbers) ? prevNumbers : 'outer';
     if (settings.styles) ['body', 'chapterTitle', 'chapterLabel', 'h2', 'h3', 'header', 'pageNumber', 'footnote', 'quote', 'toc'].forEach(k => { if (settings.styles[k]) settings.styles[k].color = '#000000'; });
     return settings;
   }
@@ -420,7 +422,7 @@
     pageNumberFg: '#ffffff',
     pageNumberShapeSize: 7,
     folioOnOpenings: true,
-    folioV: 2,
+    folioV: 3,
     // página com moldura: some o cabeçalho (obra e autor) e o filete
     frameHidesHeader: true,
     // “Título” no texto = mesma fonte do título do capítulo, começando em página nova; “Subtítulo” = mesma fonte, em negrito
@@ -707,7 +709,10 @@
     if (ps.index) ps.index = Object.assign({}, DEFAULT_SETTINGS.index, ps.index);
     // 4.17: número da página à esquerda, num bloco preto (uma vez; depois vale a escolha do usuário)
     // 4.18: padrão = círculo preto com o número branco, à esquerda nas duas páginas (uma vez; depois vale a escolha)
-    if (ps.folioV !== 2 && p.chapters) { if (!ps.pageNumberShape || ps.pageNumberShape === 'block') ps.pageNumberShape = 'circle'; if (!ps.pageNumbers || ps.pageNumbers === 'outer') ps.pageNumbers = 'left'; ps.folioV = 2; }
+    if (!(ps.folioV >= 2) && p.chapters) { if (!ps.pageNumberShape || ps.pageNumberShape === 'block') ps.pageNumberShape = 'circle'; if (!ps.pageNumbers || ps.pageNumbers === 'outer') ps.pageNumbers = 'left'; ps.folioV = 2; }
+    // CEDET: “à esquerda em todas as páginas” punha o número no canto interno das páginas ímpares,
+    // o que o manual não aceita — passa para o canto externo
+    if (ps.folioV !== 3 && p.chapters) { if (isCedet(ps) && !['outer', 'center', 'none'].includes(ps.pageNumbers)) ps.pageNumbers = 'outer'; ps.folioV = 3; }
     mergeSettings(settings, ps);
     const chapters = Array.isArray(p.chapters)
       ? p.chapters.map(c => ({

@@ -197,7 +197,10 @@
   }
   function hlMenu(anchor) {
     const sw = ([k, name]) => el('button', { class: 'hl-sw', title: name, onmousedown: e => e.preventDefault(), onclick: () => { menu.remove(); highlight(k); } }, [el('span', { class: 'hl hl-' + k, text: 'Aa' })]);
-    const menu = el('div', { class: 'qs-menu' }, [el('div', { class: 'qs-menu-title', text: 'Marcador de texto' }), el('div', { class: 'hl-menu' }, HL.map(sw)),
+    // CEDET: miolo só com tinta preta — o marcador fica em cinza, preto ou contorno
+    const cedet = App.project.settings.standard === 'cedet';
+    const list = cedet ? HL.filter(([k]) => ['gray', 'black', 'outline'].includes(k)) : HL;
+    const menu = el('div', { class: 'qs-menu' }, [el('div', { class: 'qs-menu-title', text: 'Marcador de texto' + (cedet ? ' (CEDET: só tons de cinza)' : '') }), el('div', { class: 'hl-menu' }, list.map(sw)),
       el('button', { class: 'bx-tile cs-tile', onmousedown: e => e.preventDefault(), onclick: () => { menu.remove(); highlight(''); } }, [el('span', { class: 'bx-name' }, ['Sem marcador', el('small', { text: 'Tira o marcador do trecho' })])])]);
     document.body.appendChild(menu);
     const r = anchor.getBoundingClientRect();

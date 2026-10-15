@@ -1109,6 +1109,30 @@ ipcMain.handle('cover:pickIcc', async () => {
   if (info.colorSpace !== 'CMYK') return { error: `O perfil é ${info.colorSpace}; a capa precisa de um perfil de saída CMYK.` };
   return { name: path.basename(res.filePaths[0]), desc: info.desc || path.basename(res.filePaths[0]), data: buf.toString('base64') };
 });
+// perfil U.S. Web Coated (SWOP) v2, recomendado pelo Cedet para a capa: não pode vir no instalador, mas
+// costuma estar instalado com os programas da Adobe (ou no sistema) — o app procura e usa se achar
+ipcMain.handle('cover:findSwop', () => {
+  const names = ['USWebCoatedSWOP.icc', 'USWebCoatedSWOP.icm', 'U.S. Web Coated (SWOP) v2.icc'];
+  const env = process.env;
+  const dirs = [
+    path.join(env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Common Files', 'Adobe', 'Color', 'Profiles', 'Recommended'),
+    path.join(env.ProgramFiles || 'C:\\Program Files', 'Common Files', 'Adobe', 'Color', 'Profiles', 'Recommended'),
+    path.join(env.CommonProgramFiles || 'C:\\Program Files\\Common Files', 'Adobe', 'Color', 'Profiles', 'Recommended'),
+    path.join(env.SystemRoot || 'C:\\Windows', 'System32', 'spool', 'drivers', 'color'),
+    '/Library/Application Support/Adobe/Color/Profiles/Recommended', '/Library/ColorSync/Profiles', path.join(app.getPath('home'), 'Library', 'ColorSync', 'Profiles'),
+    '/usr/share/color/icc', path.join(app.getPath('userData'), 'icc')
+  ];
+  for (const d of dirs) for (const n of names) {
+    const f = path.join(d, n);
+    try {
+      if (!fs.existsSync(f)) continue;
+      const buf = fs.readFileSync(f);
+      const info = cmyk.iccInfo(buf);
+      if (info && info.colorSpace === 'CMYK') return { name: n, desc: info.desc || 'U.S. Web Coated (SWOP) v2', data: buf.toString('base64'), file: f };
+    } catch (e) { /* segue procurando */ }
+  }
+  return null;
+});
 ipcMain.handle('app:pendingOpen', () => { const p = pendingOpenPath; pendingOpenPath = null; return p; });
 ipcMain.handle('app:info', () => ({ version: app.getVersion(), userData: app.getPath('userData'), portable: !!process.env.PORTABLE_EXECUTABLE_DIR }));
 ipcMain.on('app:closeConfirmed', () => { allowClose = true; if (mainWindow) mainWindow.close(); });

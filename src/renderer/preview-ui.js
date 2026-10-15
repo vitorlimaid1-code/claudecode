@@ -275,11 +275,17 @@
     return { x: (x - box.left) / box.width * s.pageWidth, y: (y - box.top) / box.height * s.pageHeight, scale: box.width / s.pageWidth };
   }
 
+  // CEDET: o miolo sai só em tinta preta; a prévia mostra as páginas em tons de cinza, como serão impressas
+  function syncGray(d) { if (d && d.documentElement) d.documentElement.classList.toggle('cv-gray', App.project && App.project.settings.standard === 'cedet' && App.project.kind !== 'magazine' && App.project.kind !== 'newspaper'); }
+  const syncAll = () => document.querySelectorAll('#previewFrames iframe').forEach(f => { try { syncGray(f.contentDocument); } catch (e) { /* ok */ } });
+  App.hooks.afterLoad.push(syncAll);
+  App.hooks.afterChange.push(() => document.querySelectorAll('#previewFrames iframe').forEach(f => { try { syncGray(f.contentDocument); } catch (e) { /* ok */ } }));
   function wire(frame) {
     const d = frame.contentDocument;
     const st = d.createElement('style');
-    st.textContent = '.pagedjs_page.current { outline: 2px solid rgba(197,106,63,.55); outline-offset: 2px; } .ov-handle { position:absolute; right:-5px; bottom:-5px; width:10px; height:10px; background:#d9822b; border:1px solid #fff; cursor:nwse-resize; pointer-events:auto; }';
+    st.textContent = '.cv-gray .pagedjs_page { filter: grayscale(1); } .pagedjs_page.current { outline: 2px solid rgba(197,106,63,.55); outline-offset: 2px; } .ov-handle { position:absolute; right:-5px; bottom:-5px; width:10px; height:10px; background:#d9822b; border:1px solid #fff; cursor:nwse-resize; pointer-events:auto; }';
     d.head.appendChild(st);
+    syncGray(d);
     App.pageTools.attach(d);
 
     d.addEventListener('mousedown', e => {

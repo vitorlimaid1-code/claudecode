@@ -327,6 +327,19 @@
     ], '', 'span-all');
   }
 
+  // CEDET: usa o SWOP v2 (recomendado pelo manual) se ele estiver instalado no computador
+  let swopTried = false;
+  async function autoSwop(c) {
+    if (swopTried || !c.cedet || c.customIcc) return;
+    swopTried = true;
+    const r = await api.coverFindSwop();
+    if (!r) return;
+    c.customIcc = { name: r.name, desc: r.desc, data: r.data };
+    c.profile = 'custom';
+    App.changed('Perfil da capa: ' + r.desc + ' (recomendado pelo Cedet, encontrado no computador)', { preview: false });
+    proof = null;
+    render();
+  }
   async function pickIcc() {
     const r = await api.coverPickIcc();
     if (!r) return;
@@ -344,6 +357,7 @@
     v.innerHTML = '';
     const c = cover();
     syncFromBook();
+    autoSwop(c);
     const f = App.field;
     const on = (obj, key, type, o) => App.bind(obj, key, type, Object.assign({ label: 'Capa', onChange: () => { proof = null; redraw(); } }, o || {}));
     const manualOn = () => { if (c.source === 'book' && !c.confirmed) { c.source = 'manual'; } };
@@ -416,7 +430,7 @@
         brandCard(c, on),
         barcodeCard(c, on),
         App.card('Saída para gráfica — PDF CMYK', [
-          f('Perfil de cor (ICC)', on(c, 'profile', 'select', { options: [{ value: 'fogra39', label: 'ISO Coated v2 (ECI) — FOGRA39 · couchê, offset Brasil/Europa' }, { value: 'gracol', label: 'GRACoL 2013 (CRPC6) · couchê, padrão EUA/KDP' }].concat(c.customIcc ? [{ value: 'custom', label: 'Carregado: ' + c.customIcc.desc }] : []), onChange: () => { proof = null; render(); } }), c.cedet ? 'O Cedet recomenda U.S. Web Coated (SWOP) v2: carregue o arquivo .icc do perfil (ele não pode ser distribuído com o programa).' : 'Use o perfil indicado pela sua gráfica.', 'wide'),
+          f('Perfil de cor (ICC)', on(c, 'profile', 'select', { options: [{ value: 'fogra39', label: 'ISO Coated v2 (ECI) — FOGRA39 · couchê, offset Brasil/Europa' }, { value: 'gracol', label: 'GRACoL 2013 (CRPC6) · couchê, padrão EUA/KDP' }].concat(c.customIcc ? [{ value: 'custom', label: 'Carregado: ' + c.customIcc.desc }] : []), onChange: () => { proof = null; render(); } }), c.cedet ? (c.customIcc && /swop/i.test(c.customIcc.desc + c.customIcc.name) ? '✓ U.S. Web Coated (SWOP) v2, como recomenda o Cedet.' : 'O Cedet recomenda U.S. Web Coated (SWOP) v2: o app procura o perfil instalado com os programas da Adobe; se não achar, carregue o arquivo .icc (ele não pode ser distribuído com o programa).') : 'Use o perfil indicado pela sua gráfica.', 'wide'),
           el('div', { class: 'field' }, [el('span', { class: 'flabel', text: ' ' }), el('button', { text: 'Carregar perfil ICC…', title: 'Ex.: USWebCoatedSWOP.icc (Adobe)', onclick: pickIcc })]),
           f('Intenção de renderização', on(c, 'intent', 'select', { options: [{ value: 'relative', label: 'Colorimétrica relativa + compensação de preto (recomendado)' }, { value: 'perceptual', label: 'Perceptual (fotos muito saturadas)' }] })),
           el('label', { class: 'chk' }, [on(c, 'enhance', 'checkbox'), ' Correção automática de cor (níveis de preto e branco, sem mudar o matiz)']),

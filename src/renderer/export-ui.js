@@ -118,6 +118,16 @@
     if (s.header !== 'none' && Number(s.marginTop) < 27) issues.push({ level: 'warn', type: 'cedet', msg: 'CEDET: com cabeçalho, use margem superior de pelo menos 27 mm para o cabeçalho também ficar dentro da margem de segurança de 20 mm.', fix: 'cedet' });
     if (s.pageNumbers !== 'none' && !(Number(s.folioGap) > 0) && Number(s.marginBottom) < 46) issues.push({ level: 'warn', type: 'cedet', msg: 'CEDET: o número da página fica centrado na margem inferior e pode ficar a menos de 20 mm do corte. Reaplique o modelo CEDET (número logo abaixo do texto).', fix: 'cedet' });
     if (s.pageNumbers === 'top-outer') issues.push({ level: 'info', type: 'cedet', msg: 'CEDET: a numeração no topo não é aceita; ela sai no canto inferior externo.' });
+    if (s.pageNumbers === 'left') issues.push({ level: 'error', type: 'cedet', msg: 'CEDET: com o número à esquerda em todas as páginas, nas páginas ímpares ele fica no canto interno (perto da lombada), o que o manual não aceita. Use o canto inferior externo ou o centro (Formato e diagramação › Cabeçalho, numeração e notas).', fix: 'cedet' });
+    if (s.pageNumbers === 'none') issues.push({ level: 'error', type: 'cedet', msg: 'CEDET: o miolo deve ter numeração de páginas (canto inferior externo ou centro inferior).' });
+    // imagens e marcações coloridas: o miolo sai só com tinta preta
+    const used = new Set();
+    proj.chapters.forEach(c => { String(c.html || '').replace(/data-asset="([^"]+)"/g, (m, id) => { used.add(id); return m; }); if (c.openingImage && c.openingImage.asset) used.add(c.openingImage.asset); });
+    const colorImgs = [...used].map(id => proj.assets[id]).filter(a => a && !(a.info && /gray|grey|cinza/i.test(a.info.colorSpace || '')));
+    if (colorImgs.length) issues.push({ level: 'info', type: 'cedet', msg: `CEDET: ${colorImgs.length} imagem(ns) do miolo ${colorImgs.length > 1 ? 'são convertidas' : 'é convertida'} para tons de cinza na exportação (só tinta preta) — a prévia já mostra as páginas em cinza.` });
+    if (proj.chapters.some(c => /\bhl-(yellow|green|pink)\b/.test(c.html || ''))) issues.push({ level: 'info', type: 'cedet', msg: 'CEDET: os marcadores coloridos (amarelo, verde, rosa) saem em tons de cinza.' });
+    const dist = String((proj.catalog && proj.catalog.distribution) || '').replace(/\s+/g, ' ').trim(), official = C.distribution.replace(/\s+/g, ' ').trim();
+    if (proj.front.copyright && dist !== official) issues.push({ level: 'warn', type: 'cedet', msg: 'CEDET: o crédito de distribuição na ficha não está igual ao texto oficial do manual. Use “Inserir o crédito oficial” em Créditos e ficha.' });
     if (s.numberFromFirstChapter) issues.push({ level: 'info', type: 'cedet', msg: 'Numeração a partir do 1º capítulo: o deslocamento é sempre par, então as páginas ímpares continuam à direita, como exige o manual.' });
     if (!proj.front.copyright) issues.push({ level: 'error', type: 'cedet', msg: 'CEDET: o crédito de distribuição deve constar na ficha catalográfica. Ative a página da ficha (Livro › Páginas iniciais).' });
     else issues.push({ level: 'info', type: 'cedet', msg: 'Crédito de distribuição do Cedet incluído na ficha catalográfica.' });
