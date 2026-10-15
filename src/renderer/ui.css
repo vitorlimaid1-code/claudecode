@@ -610,3 +610,13 @@ body.ws-book .nav-item[data-ws="periodical"] { display: none !important; }
 .cedet-calc-row strong { text-align: right; }
 .cedet-calc button { justify-self: start; margin-top: 4px; }
 .cedet-bc { padding: 8px 10px; border-radius: 10px; background: var(--accent-soft); border: 1px solid var(--accent-line); line-height: 1.45; }
+/* módulo Capa em tela própria */
+.cv-screen .cv-screen-body { flex: 1; min-height: 0; overflow: hidden; }
+.cv-screen #view-cover { height: 100%; }
+.cv-screen .enh-head .inline { gap: 10px; align-items: center; }
+/* modais acima das telas próprias (Capa, Melhoramento, Ferramentas) */
+.modal-back { z-index: 62; }
+.ms-modal { display: grid; gap: 12px; }
+.ms-drop { padding: 18px; }
+.ms-log { max-height: 180px; overflow-y: auto; }
+.ms-log:empty { display: none; }

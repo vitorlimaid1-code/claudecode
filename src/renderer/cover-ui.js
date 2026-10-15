@@ -111,19 +111,110 @@
       : `Corrigido: ${prevPages} → ${c.pages} páginas; lombada ${App.fmtNum(before.spine)} → ${App.fmtNum(g.spine)} mm; capa ${App.fmtNum(g.totalW)} × ${App.fmtNum(g.totalH)} mm.`);
   }
 
-  async function loadManuscript() {
+  // ---------------------------------------------------------------- capa a partir de outro manuscrito
+  // Modal: envia um arquivo de texto (qualquer formato), conta as páginas e passa a calcular a capa por ele,
+  // sem abrir o manuscrito na diagramação. PDF já paginado (formato de livro) vale como está; os demais
+  // (e PDFs em A4/Carta) são paginados no padrão do sistema, no formato escolhido, como na exportação.
+  const MS_EXT = /\.(pdf|docx?|odt|rtf|epub|mobi|azw3?|fb2|txt|text|md|markdown|html?|xhtml)$/i;
+  function manuscriptModal(initialFile) {
+    const D = App.D || window.BookDefaults;
     const s = App.project.settings;
-    const r = await api.coverAnalyze({ pageWidth: s.pageWidth, pageHeight: s.pageHeight, marginInner: s.marginInner, marginOuter: s.marginOuter, marginTop: s.marginTop, marginBottom: s.marginBottom, fontSize: s.styles.body.size, lineHeight: s.styles.body.lineHeight });
-    if (!r) return;
-    const c = cover();
-    c.source = 'file';
-    c.confirmed = null;
-    c.totalsManual = false;
-    c.spineMode = 'auto';
-    c.trimW = r.trimW; c.trimH = r.trimH; c.pages = r.pages;
-    c.fileInfo = { name: r.name, method: r.method, exact: r.exact, notes: [r.pagesNote, r.sizeNote].filter(Boolean) };
-    App.changed('Dimensões da capa a partir de ' + r.name, { preview: false });
-    render();
+    const fmts = (D && D.PAGE_FORMATS ? D.PAGE_FORMATS : []).filter(p => p.width && p.height);
+    const fmtSel = el('select', {}, [el('option', { value: 'book', text: `Formato do livro aberto (${App.fmtNum(s.pageWidth / 10)} × ${App.fmtNum(s.pageHeight / 10)} cm)` })].concat(fmts.map(p => el('option', { value: p.id, text: `${p.label || p.id} (${App.fmtNum(p.width / 10)} × ${App.fmtNum(p.height / 10)} cm)` }))));
+    const logBox = el('ol', { class: 'pg-log ms-log' });
+    const log = (m, k) => { logBox.appendChild(el('li', { class: k || '' }, [el('span', { class: 'pg-m', text: m })])); logBox.scrollTop = logBox.scrollHeight; };
+    const result = el('div', { class: 'ms-result' });
+    let file = null, found = null, busy = false;
+    const fileTxt = el('span', { class: 'muted', text: 'Nenhum arquivo escolhido' });
+    const setFile = f => { if (!f) return; if (!MS_EXT.test(f)) { App.toast('Formato não suportado: envie PDF, DOCX, DOC, ODT, RTF, EPUB, MOBI, FB2, TXT, MD ou HTML.'); return; } file = f; found = null; fileTxt.textContent = f.split(/[\\/]/).pop(); result.innerHTML = ''; logBox.innerHTML = ''; };
+    const drop = el('button', { class: 'enh-drop ms-drop', onclick: async () => setFile(await api.coverPickManuscript()) }, [
+      el('span', { class: 'enh-drop-ic', html: App.icons ? App.icons.svg('upload') : '' }),
+      el('b', { text: 'Enviar o manuscrito' }),
+      el('span', { class: 'muted small', text: 'PDF, DOCX, DOC, ODT, RTF, EPUB, MOBI/AZW3, FB2, TXT, Markdown ou HTML — clique ou arraste aqui' }),
+      fileTxt
+    ]);
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+    drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); const f = (e.dataTransfer.files || [])[0]; if (f) setFile(api.pathForFile(f)); });
+    async function count() {
+      if (busy) return false;
+      if (!file) { App.toast('Escolha o manuscrito primeiro.'); return false; }
+      busy = true; found = null; result.innerHTML = ''; logBox.innerHTML = '';
+      try {
+        const fmt = fmtSel.value === 'book' ? null : fmts.find(p => p.id === fmtSel.value);
+        const W = fmt ? fmt.width : s.pageWidth, H = fmt ? fmt.height : s.pageHeight;
+        const name = file.split(/[\\/]/).pop();
+        // PDF já no formato de livro: as páginas do próprio arquivo
+        if (/\.pdf$/i.test(file)) {
+          log('lendo o PDF…');
+          const a = await api.coverAnalyzePath(file, { pageWidth: W, pageHeight: H, marginInner: s.marginInner, marginOuter: s.marginOuter, marginTop: s.marginTop, marginBottom: s.marginBottom, fontSize: s.styles.body.size, lineHeight: s.styles.body.lineHeight });
+          if (a && !a.error && a.exact && a.exact.pages && a.exact.size) {
+            found = { pages: a.pages, trimW: a.trimW, trimH: a.trimH, name, method: `PDF pronto — ${a.method}`, words: null };
+            log(`PDF em formato de livro: ${a.pages} páginas, ${App.fmtNum(a.trimW / 10)} × ${App.fmtNum(a.trimH / 10)} cm (usado como está)`, 'ok');
+          } else log('PDF em formato de escritório ou sem formato definido: o texto será paginado no padrão do sistema');
+        }
+        if (!found && /\.(mobi|azw3?)$/i.test(file)) {
+          // Kindle: sem leitura do texto completo; estimativa pelo tamanho do texto no formato escolhido
+          const a = await api.coverAnalyzePath(file, { pageWidth: W, pageHeight: H, marginInner: s.marginInner, marginOuter: s.marginOuter, marginTop: s.marginTop, marginBottom: s.marginBottom, fontSize: s.styles.body.size, lineHeight: s.styles.body.lineHeight });
+          if (!a || a.error) throw new Error((a && a.error) || 'arquivo ilegível');
+          found = { pages: a.pages, trimW: W, trimH: H, name, method: 'MOBI/AZW3 — estimado pelo tamanho do texto', words: a.words };
+          log(`estimativa: ${a.pages} páginas (${a.pagesNote || 'MOBI/AZW3'}) — para o número exato, envie o livro em EPUB, DOCX ou PDF`, 'ok');
+        }
+        if (!found) {
+          // paginação no padrão do sistema: o texto vira um livro temporário com o formato escolhido
+          const { proj } = await App.enhance.loadBook(file, name.replace(/\.[^.]+$/, ''), m => log(m), { clean: false, allowAny: true, toc: true, images: true });
+          proj.settings = JSON.parse(JSON.stringify(s));
+          if (fmt) {
+            if (s.standard === 'cedet' && D.applyCedet && /CEDET/.test(fmt.group || fmt.id)) D.applyCedet(proj.settings, fmt.id);
+            else Object.assign(proj.settings, { pageFormat: fmt.id, pageWidth: fmt.width, pageHeight: fmt.height });
+          }
+          const words = proj.chapters.reduce((a, c) => a + BookText.countWords(c.html), 0);
+          log(`${words.toLocaleString('pt-BR')} palavras · paginando no formato ${App.fmtNum(proj.settings.pageWidth / 10)} × ${App.fmtNum(proj.settings.pageHeight / 10)} cm, como na exportação do PDF (com rosto, ficha, sumário e página-convite)…`);
+          const r = await api.coverBookPages(proj);
+          if (!r || !r.pages) throw new Error((r && r.error) || 'não foi possível paginar o manuscrito');
+          const pages = r.pages % 2 ? r.pages + 1 : r.pages;
+          found = { pages, trimW: proj.settings.pageWidth, trimH: proj.settings.pageHeight, name, method: 'paginado no padrão do sistema', words, title: proj.meta.title };
+          log(`paginado: ${r.pages} página(s)${pages !== r.pages ? ` → ${pages} (número par)` : ''}${r.complete === false ? ' · atenção: a paginação não chegou ao fim' : ''}`, 'ok');
+        }
+        const c = cover();
+        const tmp = Object.assign({}, c, { pages: found.pages, trimW: found.trimW, trimH: found.trimH, spineMode: 'auto', totalsManual: false, source: 'file' });
+        const g = CoverGeometry.geometry(tmp);
+        result.append(
+          el('div', { class: 'cover-total' }, [
+            el('div', {}, [el('span', { class: 'muted small', text: 'Páginas do manuscrito' }), el('strong', { text: String(found.pages) })]),
+            el('div', {}, [el('span', { class: 'muted small', text: 'Formato' }), el('strong', { text: `${App.fmtNum(found.trimW / 10)} × ${App.fmtNum(found.trimH / 10)} cm` })]),
+            el('div', {}, [el('span', { class: 'muted small', text: c.cedet ? 'Lombada (calculadora do Cedet)' : 'Lombada' }), el('strong', { text: g.cedetCalc && !g.cedetCalc.ok ? '—' : `${App.fmtNum(g.spine)} mm` })]),
+            el('div', {}, [el('span', { class: 'muted small', text: 'Capa aberta (com sangria)' }), el('strong', { text: `${App.fmtNum(g.totalW)} × ${App.fmtNum(g.totalH)} mm` })])
+          ]),
+          g.cedetCalc && !g.cedetCalc.ok ? el('div', { class: 'small warn', text: g.cedetCalc.error }) : null
+        );
+      } catch (err) { log('erro: ' + String(err.message || err), 'bad'); found = null; }
+      busy = false;
+      return false; // o modal continua aberto para conferir
+    }
+    function apply() {
+      if (!found) { App.toast('Clique em “Contar páginas” primeiro.'); return false; }
+      const c = cover();
+      c.source = 'file'; c.totalsManual = false; c.spineMode = 'auto'; c.confirmed = null;
+      c.trimW = found.trimW; c.trimH = found.trimH; c.pages = found.pages;
+      c.fileInfo = { name: found.name, method: found.method, exact: { pages: true, size: true }, notes: [found.words ? `${found.words.toLocaleString('pt-BR')} palavras` : ''].filter(Boolean) };
+      App.changed('Capa calculada pelo manuscrito ' + found.name, { preview: false });
+      proof = null;
+      render();
+      App.toast(`Capa calculada pelo manuscrito “${found.name}”: ${found.pages} páginas.`);
+    }
+    if (initialFile) setTimeout(() => setFile(initialFile), 0);
+    App.modal({
+      title: 'Calcular a capa por outro manuscrito', wide: true,
+      body: el('div', { class: 'ms-modal' }, [
+        el('p', { class: 'muted small', text: 'Para criar a capa de um livro que não está aberto na diagramação: envie o manuscrito e o sistema conta as páginas e calcula lombada e capa aberta. O livro aberto não é alterado.' }),
+        drop,
+        App.field('Formato do livro (para paginar textos)', fmtSel, 'Textos (DOCX, EPUB, TXT…) são paginados no padrão do sistema neste formato; um PDF já em formato de livro é usado como está.'),
+        result,
+        logBox
+      ]),
+      buttons: [{ label: 'Contar páginas', onClick: count }, { label: 'Usar na capa', primary: true, onClick: apply }, { label: 'Fechar' }]
+    });
   }
 
   function useBook() {
@@ -420,7 +511,7 @@
           el('div', { class: 'inline wrap' }, [
             el('button', { class: 'primary', text: 'Confirmar medidas', onclick: confirmDims }),
             el('button', { text: 'Usar o livro em diagramação', onclick: useBook }),
-            el('button', { text: 'Carregar manuscrito…', title: 'Opcional: PDF, DOC, DOCX, ODT, HTML, EPUB ou MOBI', onclick: loadManuscript })
+            el('button', { text: '📄 Outro manuscrito…', title: 'Calcular a capa por um manuscrito que não está aberto (PDF, DOCX, DOC, ODT, RTF, EPUB, MOBI, FB2, TXT, MD, HTML)', onclick: manuscriptModal })
           ])
         ]),
         el('div', { id: 'coverSummary', class: 'card' }),
@@ -493,5 +584,45 @@
   }
 
   App.hooks.viewRender.cover = render;
+
+  // ---------------------------------------------------------------- tela própria
+  // O módulo Capa abre numa tela só dele, por cima do editor (como Melhoramento e Ferramentas); “Voltar”
+  // devolve à vista em que se estava. A capa continua ligada ao livro aberto (ou ao manuscrito enviado).
+  let screenEl = null, lastView = 'book';
+  function ensureScreen() {
+    if (screenEl) return screenEl;
+    const sec = $('#view-cover');
+    screenEl = el('div', { class: 'enh-screen cv-screen' }, [
+      el('header', { class: 'enh-head' }, [
+        el('div', { class: 'enh-brand' }, [el('span', { class: 'enh-logo', html: App.icons ? App.icons.svg('book') : '' }), el('div', {}, [el('h1', { text: 'Capa' }), el('p', { class: 'muted', text: 'Capa, lombada e contracapa para gráfica — calculadas pelo livro aberto ou por outro manuscrito' })])]),
+        el('div', { class: 'inline wrap' }, [
+          el('button', { text: '📄 Outro manuscrito…', title: 'Calcular a capa por um manuscrito que não está aberto', onclick: () => manuscriptModal() }),
+          el('button', { class: 'enh-back', text: '← Voltar ao editor', onclick: () => App.setView(lastView && lastView !== 'cover' ? lastView : 'book') })
+        ])
+      ]),
+      el('div', { class: 'cv-screen-body' }, [sec])
+    ]);
+    // arquivo de texto solto na tela da capa: abre o cálculo por outro manuscrito
+    screenEl.addEventListener('dragover', e => { if (Array.from(e.dataTransfer.types).includes('Files')) e.preventDefault(); });
+    screenEl.addEventListener('drop', e => {
+      const f = (e.dataTransfer.files || [])[0];
+      if (!f) return;
+      const p = api.pathForFile(f);
+      if (!MS_EXT.test(p) || e.target.closest('.modal-back')) return;
+      e.preventDefault();
+      manuscriptModal(p);
+    });
+    document.body.appendChild(screenEl);
+    return screenEl;
+  }
+  const baseSetView = App.setView;
+  App.setView = function (view) {
+    if (view === 'cover') {
+      if (App.view && App.view !== 'cover') lastView = App.view;
+      ensureScreen().classList.add('show');
+    } else if (screenEl) screenEl.classList.remove('show');
+    return baseSetView.apply(this, arguments);
+  };
+  App.coverScreen = { open: () => App.setView('cover'), manuscript: f => { App.setView('cover'); manuscriptModal(f); } };
   App.cover = { ensure: cover, syncFromBook, render };
 })();

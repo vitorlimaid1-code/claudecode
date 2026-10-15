@@ -331,6 +331,15 @@ ipcMain.handle('cover:bookPages', async (e, project) => {
     });
   } catch (err) { return { error: String(err && err.message || err) }; }
 });
+// Capa por outro manuscrito (modal do módulo Capa): escolhe o arquivo; o PDF pronto é lido como está
+const MANUSCRIPT_EXT = ['pdf', 'docx', 'doc', 'odt', 'rtf', 'epub', 'mobi', 'azw', 'azw3', 'fb2', 'txt', 'text', 'md', 'markdown', 'html', 'htm', 'xhtml'];
+ipcMain.handle('cover:pickManuscript', async () => {
+  const res = await dialog.showOpenDialog(mainWindow, { title: 'Manuscrito para calcular a capa', filters: [{ name: 'Textos e livros', extensions: MANUSCRIPT_EXT }, { name: 'Todos os arquivos', extensions: ['*'] }], properties: ['openFile'] });
+  return res.canceled || !res.filePaths.length ? null : res.filePaths[0];
+});
+ipcMain.handle('cover:analyzePath', async (e, file, settings) => {
+  try { return Object.assign(await manuscript.analyze(file, settings || {}), { name: path.basename(file) }); } catch (err) { return { error: String(err.message || err) }; }
+});
 ipcMain.handle('cover:analyze', async (e, settings) => {
   const res = await dialog.showOpenDialog(mainWindow, { title: 'Manuscrito para calcular a capa', filters: [{ name: 'Livros', extensions: ['pdf', 'doc', 'docx', 'odt', 'html', 'htm', 'epub', 'mobi', 'azw', 'azw3', 'txt', 'md'] }], properties: ['openFile'] });
   if (res.canceled || !res.filePaths.length) return null;

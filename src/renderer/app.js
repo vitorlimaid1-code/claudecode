@@ -258,7 +258,7 @@
 
   const commands = {
     new: newBook, open: () => open(), save: () => save(false), saveAs: () => save(true),
-    import: () => App.importer.fromDialog(), export: () => App.setView('export'), enhance: () => App.enhance.open(), translate: () => App.translate.open(), toolbox: () => App.toolbox.open(),
+    import: () => App.importer.fromDialog(), export: () => App.setView('export'), enhance: () => App.enhance.open(), translate: () => App.translate.open(), toolbox: () => App.toolbox.open(), cover: () => App.setView('cover'),
     refresh: () => App.preview.schedule(true), help,
     projectUndo: () => App.undo(), projectRedo: () => App.redo(), history: () => App.showHistory(), settings: () => App.settingsUi && App.settingsUi.open(),
     library: () => App.library.toggle(), find: () => App.tools.find(),
@@ -342,7 +342,8 @@
         card('plus', 'Começar do zero', 'Livro, revista ou jornal em branco', () => runCommand('new')),
         card('sparkles', 'Melhoramento', 'EPUB (Gutenberg) ou PDF (Domínio Público) → DOCX no padrão', () => App.enhance.open()),
         card('globe', 'Tradução', 'Qualquer idioma → português do Brasil, em DOCX no padrão', () => App.translate.open()),
-        card('images', 'Ferramentas', 'Converter imagens e textos de qualquer formato e remover fundo', () => App.toolbox.open())
+        card('images', 'Ferramentas', 'Converter imagens e textos de qualquer formato e remover fundo', () => App.toolbox.open()),
+        card('book', 'Capa', 'Capa, lombada e contracapa para gráfica — do livro aberto ou de outro manuscrito', () => App.setView('cover'))
       ]),
       el('button', { class: 'wl-skip', text: 'Entrar no aplicativo →', onclick: go() }),
       el('p', { class: 'wl-foot', text: 'Tudo fica no seu computador e funciona sem internet — só a tradução (OpenRouter ou Google) usa a internet.' })
