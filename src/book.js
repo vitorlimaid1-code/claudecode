@@ -710,6 +710,7 @@ function buildHtml(project, ctx) {
   // Ordem padrão: página de rosto > ficha catalográfica > sumário > (dedicatória/epígrafe) > capítulos > páginas extras
   if (front.halfTitle) push(`<section class="front half-title"><div class="ht-title">${esc(meta.title)}</div></section>`);
   if (front.titlePage) {
+    // com o logotipo/selo da editora no rosto, o nome da editora não se repete embaixo (o selo já identifica)
     const logo = titlePage.logo && ctx.assets[titlePage.logo];
     push(`<section class="front title-page">
       <div class="tp-author">${esc(meta.author)}</div>
@@ -718,7 +719,7 @@ function buildHtml(project, ctx) {
       ${logo && titlePage.logoPlacement === 'below-title' ? `<div class="tp-brand"><img class="tp-logo" src="${logo.dataUrl}" style="width:${num(titlePage.logoWidth, 25)}mm">${titlePage.imprint && titlePage.imprint.trim() ? `<div class="tp-imprint">${multiline(titlePage.imprint)}</div>` : ''}</div>` : ''}
       <div class="tp-foot">
         ${logo && titlePage.logoPlacement !== 'below-title' ? `<img class="tp-logo" src="${logo.dataUrl}" style="width:${num(titlePage.logoWidth, 25)}mm">` : ''}
-        ${titlePage.showPublisher && meta.publisher ? `<div class="tp-publisher">${esc(meta.publisher)}</div>` : ''}
+        ${titlePage.showPublisher && meta.publisher && !logo ? `<div class="tp-publisher">${esc(meta.publisher)}</div>` : ''}
         ${titlePage.showYear && (meta.city || meta.year) ? `<div class="tp-place">${esc([meta.city, meta.year].filter(Boolean).join(' · '))}</div>` : ''}
       </div>
     </section>`);

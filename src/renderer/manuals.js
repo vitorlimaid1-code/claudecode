@@ -158,7 +158,7 @@
           'Cadastrar editoras, escolher selo e logotipo para o rosto (e a capa).',
           ['Editoras…: adicione, edite e salve a lista.', 'Clique num logotipo para aplicá-lo no rosto, abaixo do título.'],
           'A lista e os logotipos ficam guardados para todos os livros.',
-          ['O logotipo da página de rosto também vai para o pé da contracapa.'],
+          ['O logotipo da página de rosto também vai para o pé da contracapa.', 'Com o selo ou logotipo no rosto, o nome da editora não é repetido embaixo (o selo já identifica a editora); o nome continua na ficha catalográfica. Sem logotipo, “Mostrar nome da editora” põe o nome no pé do rosto.'],
           ['Logotipos que faltarem são baixados uma vez e guardados.']),
         M('Biografia, conteúdo extra e página-convite',
           'Livro → Páginas finais.',

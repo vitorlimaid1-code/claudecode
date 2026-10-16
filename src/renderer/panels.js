@@ -394,7 +394,7 @@
           logo ? el('button', { text: 'Remover', onclick: () => { tp.logo = null; App.changed('Logotipo removido'); App.hooks.viewRender.book(); } }) : null
         ])]),
         field('Largura do logotipo (mm)', bind(tp, 'logoWidth', 'number', { min: 5, max: 80, step: 1 })),
-        el('label', { class: 'chk' }, [bind(tp, 'showPublisher', 'checkbox'), ' Mostrar nome da editora']),
+        el('label', { class: 'chk' }, [bind(tp, 'showPublisher', 'checkbox'), ' Mostrar nome da editora (só quando não há logotipo ou selo — o selo já identifica a editora)']),
         el('label', { class: 'chk' }, [bind(tp, 'showYear', 'checkbox'), ' Mostrar cidade e ano'])
       ], 'Título do livro, nome do autor e logotipo da editora.'),
       card('Dedicatória e epígrafe', [
