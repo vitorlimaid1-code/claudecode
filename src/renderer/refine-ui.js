@@ -2,8 +2,8 @@
 // VBO Refinamento: envie livros em qualquer formato (um, vários ou pastas inteiras, sem limite) e cada um recebe
 // toda a edição automática do sistema — estilo e tamanho de fonte padrão, títulos e capítulos reconhecidos, falas
 // com travessão (hífen ou aspas → —), Novo Acordo Ortográfico, pontuação editorial, sujeira de PDF limpa, notas de
-// rodapé ligadas, sumário automático — menos a ficha catalográfica. O resultado vai para a pasta Downloads, com
-// “(refinado)” no nome; o original nunca é alterado. Tudo no computador, sem internet, com registro ao vivo.
+// rodapé ligadas, sumário automático — menos a ficha catalográfica. O resultado vai para a pasta Downloads (em PDF, a menos que se escolha
+// outro formato), com “(refinado)” no nome; o original nunca é alterado. Tudo no computador, sem internet, com registro ao vivo.
 (function () {
   const { el, $, api } = App;
   const queue = []; // { path, name, status: 'wait'|'run'|'ok'|'err', out, msg }
@@ -11,7 +11,10 @@
   let running = false, stopAsked = false, dlDir = '';
   const opt = {};
   const TOC_RE = /^(sum[áa]rio|[íi]ndice|conte[úu]do|contents|table of contents)$/i;
-  const FORMATS = [['same', 'Mesmo formato do original'], ['docx', 'Word (DOCX)'], ['pdf', 'PDF diagramado'], ['epub', 'EPUB'], ['odt', 'OpenDocument (ODT)']];
+  const FORMATS = [['pdf', 'PDF diagramado (padrão)'], ['docx', 'Word (DOCX)'], ['epub', 'EPUB'], ['odt', 'OpenDocument (ODT)'], ['same', 'Mesmo formato do original']];
+  // formato de saída: PDF, a menos que a pessoa escolha outro (a escolha fica guardada neste computador)
+  const FMT_KEY = 'refine.format';
+  const savedFormat = () => { try { const v = localStorage.getItem(FMT_KEY); return FORMATS.some(f => f[0] === v) ? v : 'pdf'; } catch (e) { return 'pdf'; } };
   const fmtN = n => Number(n || 0).toLocaleString('pt-BR');
   const fileName = p => String(p).split(/[\\/]/).pop();
   const baseName = p => fileName(p).replace(/\.[^.]+$/, '');
@@ -147,7 +150,8 @@
     logBox = el('ol', { class: 'pg-log enh-log rf-log' });
     listBox = el('div', { class: 'enh-list' });
     countBox = el('p', { class: 'small muted rf-count' });
-    opt.format = el('select', {}, FORMATS.map(([v, t]) => el('option', { value: v, text: t })));
+    opt.format = el('select', {}, FORMATS.map(([v, t]) => el('option', { value: v, text: t, selected: v === savedFormat() })));
+    opt.format.addEventListener('change', () => { try { localStorage.setItem(FMT_KEY, opt.format.value); } catch (e) { /* sem armazenamento */ } addLog('Formato de saída: ' + opt.format.selectedOptions[0].text.replace(' (padrão)', '')); });
     opt.toc = el('input', { type: 'checkbox', checked: true });
     opt.images = el('input', { type: 'checkbox', checked: true });
     opt.glue = el('input', { type: 'checkbox', checked: true });
@@ -177,7 +181,7 @@
           ]),
           listBox,
           el('div', { class: 'tr-cfg' }, [
-            el('div', { class: 'tr-cfg-row' }, [el('label', { class: 'flabel', text: 'Formato do arquivo refinado' }), opt.format, el('span', { class: 'small muted', text: 'Padrão: o mesmo do original (DOC antigo sai como DOCX). O PDF sai diagramado, com as páginas do sistema.' })]),
+            el('div', { class: 'tr-cfg-row' }, [el('label', { class: 'flabel', text: 'Formato do arquivo refinado' }), opt.format, el('span', { class: 'small muted', text: 'Padrão: PDF diagramado, com as páginas do sistema. A escolha fica guardada para as próximas vezes. “Mesmo formato do original” mantém o formato de cada arquivo (DOC antigo sai como DOCX).' })]),
             el('label', { class: 'chk' }, [opt.toc, ' Sumário automático']),
             el('label', { class: 'chk' }, [opt.images, ' Manter as ilustrações']),
             el('label', { class: 'chk' }, [opt.glue, ' Travessão colado na fala (—Olá — disse ele.)']),
@@ -207,7 +211,7 @@
     screen.addEventListener('drop', onDrop);
     document.body.appendChild(screen);
     renderList(); renderControls();
-    addLog('Pronto. Envie os livros (ou pastas) e clique em Refinar.');
+    addLog(`Pronto. Envie os livros (ou pastas) e clique em Refinar. Formato de saída: ${opt.format.selectedOptions[0].text.replace(' (padrão)', '')}.`);
   }
 
   App.refine = { open, addFiles, start, queue, opt, _live: live };

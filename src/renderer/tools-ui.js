@@ -632,24 +632,19 @@
     return out.join(', ');
   };
 
-  function pdfTab() {
-    let sub = 'merge';
-    const box = el('div', {});
-    const subs = [['merge', '🧩 Mesclar'], ['cut', '✂ Remover páginas'], ['order', '↕ Reorganizar'], ['jpg', '🖼 PDF → JPG'], ['lock', '🔒 Proteger com senha'], ['unlock', '🔓 Remover senha']];
-    const bar = el('div', { class: 'tr-tabs pdf-subs' }, subs.map(([k, t]) => el('button', { class: 'tr-tab', 'data-sub': k, text: t, onclick: () => { sub = k; show(); } })));
-    const panels = { merge: mergePanel(), cut: pagesPanel('cut'), order: pagesPanel('order'), jpg: jpgPanel(), lock: lockPanel(), unlock: unlockPanel() };
-    function show() {
-      box.innerHTML = '';
-      box.appendChild(panels[sub]);
-      bar.querySelectorAll('.tr-tab').forEach(b => b.classList.toggle('on', b.dataset.sub === sub));
+  // PDF: cada ferramenta é um painel próprio no menu da tela (o progresso vai para o registro)
+  let pdfProgressOn = false;
+  function pdfPanels() {
+    if (api.onPdfProgress && !pdfProgressOn) {
+      pdfProgressOn = true;
+      api.onPdfProgress(p => {
+        if (!p) return;
+        const what = { thumbs: 'Preparando as miniaturas', merge: 'Mesclando', jpg: 'Gravando as páginas em JPG' }[p.stage] || 'Processando';
+        live(`${what}: ${p.done} de ${p.total}`);
+      });
     }
-    if (api.onPdfProgress) api.onPdfProgress(p => {
-      if (!p) return;
-      const what = { thumbs: 'Preparando as miniaturas', merge: 'Mesclando', jpg: 'Gravando as páginas em JPG' }[p.stage] || 'Processando';
-      live(`${what}: ${p.done} de ${p.total}`);
-    });
-    show();
-    return el('div', { class: 'tl-tab' }, [bar, box]);
+    const wrap = n => el('div', { class: 'tl-tab' }, [n]);
+    return { merge: wrap(mergePanel()), cut: wrap(pagesPanel('cut')), order: wrap(pagesPanel('order')), jpg: wrap(jpgPanel()), lock: wrap(lockPanel()), unlock: wrap(unlockPanel()) };
   }
 
   // ---- mesclar: lista ordenável (arraste ou ↑ ↓), um PDF depois do outro
@@ -861,30 +856,46 @@
     ]), el('p', { class: 'small muted', text: 'É preciso saber a senha: o app abre o PDF com ela e grava uma cópia sem proteção (“nome (sem senha).pdf”). PDFs com senha só do proprietário (abrem sem senha, mas não deixam imprimir/copiar) são liberados sem pedir senha.' })]);
   }
 
+  // Tela única FERRAMENTAS: todas as ferramentas à vista, agrupadas (imagens, textos, PDF); um clique abre a
+  // ferramenta logo abaixo do menu, e o registro fica ao lado
+  const TOOLS = [
+    ['Imagens', [['img', '🖼', 'Converter imagens', 'Qualquer formato → JPG, PNG, WebP, TIFF, PDF…'], ['bg', '✂', 'Remover fundo', 'Fundo transparente, no computador']]],
+    ['Textos e livros', [['txt', '📄', 'Converter textos', 'DOCX, EPUB, PDF, ODT, RTF, TXT, MD, HTML, FB2']]],
+    ['PDF', [['merge', '🧩', 'Mesclar PDFs', 'Vários PDFs → um só'], ['cut', '✂', 'Remover páginas', 'Tirar páginas específicas'], ['order', '↕', 'Reorganizar páginas', 'Mudar a ordem e salvar'], ['jpg', '🖼', 'PDF → JPG', 'Uma imagem por página'], ['lock', '🔒', 'Proteger com senha', 'Senha e permissões'], ['unlock', '🔓', 'Remover senha', 'Cópia sem proteção']]]
+  ];
+  const TOOL_NAME = Object.fromEntries(TOOLS.flatMap(([, list]) => list.map(([k, , t]) => [k, t])));
   function open(tab) {
     if (screen) { screen.classList.add('show'); if (tab) setTab(tab); return; }
     logBox = el('ol', { class: 'pg-log enh-log' });
-    const tabs = { img: imageTab(), txt: textTab(), bg: bgTab(), pdf: pdfTab() };
-    const body = el('section', { class: 'enh-col tl-main' }, Object.values(tabs));
-    const head = el('div', { class: 'tr-tabs' }, [['img', '🖼 Imagens'], ['txt', '📄 Textos'], ['bg', '✂ Remover fundo'], ['pdf', '📑 PDF']].map(([k, t]) => el('button', { class: 'tr-tab', 'data-tab': k, text: t, onclick: () => setTab(k) })));
+    const tabs = Object.assign({ img: imageTab(), txt: textTab(), bg: bgTab() }, pdfPanels());
+    const title = el('h2', { class: 'tl-cur' });
+    const body = el('section', { class: 'tl-main' }, [title].concat(Object.values(tabs)));
+    const menu = el('nav', { class: 'tl-menu' }, TOOLS.map(([group, list]) => el('div', { class: 'tl-group' }, [
+      el('div', { class: 'tl-group-name', text: group }),
+      el('div', { class: 'tl-cards' }, list.map(([k, ic, t, d]) => el('button', { class: 'tl-card', 'data-tab': k, title: d, onclick: () => setTab(k) }, [el('span', { class: 'tl-card-ic', text: ic }), el('b', { text: t }), el('small', { class: 'muted', text: d })])))
+    ])));
     screen = el('div', { class: 'enh-screen tl-screen show' }, [
       el('header', { class: 'enh-head' }, [
-        el('div', { class: 'enh-brand' }, [el('span', { class: 'enh-logo', html: App.icons ? App.icons.svg('images') : '' }), el('div', {}, [el('h1', { text: 'Ferramentas' }), el('p', { class: 'muted', text: 'Converter imagens e textos, remover o fundo de imagens e trabalhar com PDF (mesclar, remover páginas, reorganizar, JPG, senha) — tudo no computador' })])]),
+        el('div', { class: 'enh-brand' }, [el('span', { class: 'enh-logo', html: App.icons ? App.icons.svg('images') : '' }), el('div', {}, [el('h1', { text: 'FERRAMENTAS' }), el('p', { class: 'muted', text: 'Converter imagens e textos, remover fundo e trabalhar com PDF (mesclar, remover páginas, reorganizar, JPG, senha) — tudo numa tela só, no computador' })])]),
         el('button', { class: 'enh-back', text: '← Voltar ao editor', onclick: () => screen.classList.remove('show') })
       ]),
-      el('main', { class: 'enh-main' }, [el('div', { class: 'enh-col' }, [head, body]), el('section', { class: 'enh-col' }, [el('b', { text: 'Registro' }), logBox])])
+      el('main', { class: 'enh-main' }, [el('div', { class: 'enh-col' }, [menu, body]), el('section', { class: 'enh-col' }, [el('b', { text: 'Registro' }), logBox])])
     ]);
     screen._tabs = tabs;
+    screen._title = title;
     screen.addEventListener('dragover', e => { if (Array.from(e.dataTransfer.types).includes('Files')) { e.preventDefault(); e.stopPropagation(); } });
     screen.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); });
     document.body.appendChild(screen);
     setTab(tab || 'img');
-    addLog('Pronto. Escolha a aba, envie os arquivos e clique em Converter.');
+    addLog('Pronto. Escolha a ferramenta, envie os arquivos e clique para começar.');
   }
   function setTab(t) {
     if (!screen) return;
+    if (t === 'pdf') t = 'merge'; // nome antigo da aba de PDF
+    if (!screen._tabs[t]) t = 'img';
     Object.entries(screen._tabs).forEach(([k, n]) => { n.style.display = k === t ? '' : 'none'; });
-    screen.querySelectorAll('.tr-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+    screen.querySelectorAll('.tl-card').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+    screen._title.textContent = TOOL_NAME[t] || '';
   }
 
   App.toolbox = { open, setTab, IMG_OUT, TXT_OUT, IMG_IN_LIST, TXT_IN_LIST, toHtml, toRtf, toFb2, toMarkdown, removeBg, loadImages, saveImage, work, state, _convertText: convertText, writeBook, sameFormat };

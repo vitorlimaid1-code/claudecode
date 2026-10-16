@@ -357,7 +357,7 @@
         card('sparkles', 'Melhoramento', 'EPUB (Gutenberg) ou PDF (Domínio Público) → DOCX no padrão', () => App.enhance.open()),
         card('feather', 'VBO Refinamento', 'Edição automática completa em lote, qualquer formato, salva em Downloads', () => App.refine.open()),
         card('globe', 'Tradução', 'Qualquer idioma → português do Brasil, no mesmo formato do original', () => App.translate.open()),
-        card('images', 'Ferramentas', 'Converter imagens e textos de qualquer formato e remover fundo', () => App.toolbox.open()),
+        card('images', 'Ferramentas', 'Imagens, textos, remover fundo e PDF (mesclar, cortar, reorganizar, JPG, senha) — numa tela só', () => App.toolbox.open()),
         card('book', 'Capa', 'Capa, lombada e contracapa para gráfica — do livro aberto ou de outro manuscrito', () => App.setView('cover'))
       ]),
       el('button', { class: 'wl-skip', text: 'Entrar no aplicativo →', onclick: go() }),

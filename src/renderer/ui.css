@@ -709,3 +709,15 @@ html[data-theme="dark"] .rc-icon { color: #e6b98f; }
 .rf-log-title { margin: 0 0 8px; font-size: 14px; color: var(--muted); font-weight: 600; }
 .rf-screen .rf-log { flex: 1; min-height: 0; }
 .rf-count { margin: 0 0 0 auto; }
+
+/* FERRAMENTAS: menu único com todas as ferramentas à vista */
+.tl-menu { display: grid; gap: 10px; margin-bottom: 14px; }
+.tl-group-name { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px 2px; }
+.tl-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.tl-card { display: grid; grid-template-columns: 26px 1fr; grid-template-rows: auto auto; column-gap: 8px; align-items: center; text-align: left; padding: 9px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.tl-card:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,.06); }
+.tl-card.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--side); }
+.tl-card-ic { grid-row: 1 / span 2; font-size: 18px; text-align: center; }
+.tl-card b { font-size: 13px; }
+.tl-card small { font-size: 11px; line-height: 1.25; }
+.tl-cur { margin: 4px 0 0; font-size: 16px; }
