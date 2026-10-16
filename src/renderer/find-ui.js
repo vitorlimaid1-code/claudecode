@@ -199,7 +199,7 @@
     return { html: count ? root.innerHTML : html, count };
   }
   const QUICK = [
-    { id: 'dash', label: 'Hífen de diálogo → travessão (—)', help: 'Falas que começam com hífen ou meia-risca (- Olá / – Olá) passam a começar com travessão; os incisos do narrador (“ - disse ele - ”) também.', run: h => BookText.dialogueHtml(h, { glue: glueOpt() }) },
+    { id: 'dash', label: 'Hífen de diálogo → travessão (—)', help: 'Falas que começam com hífen ou meia-risca (- Olá / – Olá) passam a começar com travessão; os incisos do narrador (“ - disse ele - ”) também. Palavras com hífen (guarda-chuva, disse-lhe), números (-5 °C, 10-20) e listas feitas com hífen ficam como estão.', run: (h, acc) => BookText.dialogueHtml(h, { glue: glueOpt(), samples: acc.samples, kept: acc.kept }) },
     { id: 'lists', label: 'Listas com marcadores (•) → falas com travessão', help: 'Cada item de lista com marcador (bolinha) vira um parágrafo de fala começando com travessão — para livros em que as falas vieram do Word como lista.', run: h => BookText.listsHtml(h, { glue: glueOpt() }) },
     { id: 'quotes', label: 'Falas entre aspas → travessão', help: 'Parágrafos que começam com fala entre aspas (“Olá”, disse ele) passam para o travessão (— Olá — disse ele).', run: quotesToDash },
     { id: 'spaces', label: 'Espaços duplos → um espaço', help: 'Dois ou mais espaços seguidos entre palavras viram um só.', run: doubleSpaces }
@@ -207,12 +207,15 @@
   async function quick(q) {
     App.flush();
     const plan = [];
-    scopeChapters().forEach(c => { const r = q.run(c.html); if (r.count) plan.push({ c, r }); });
+    const acc = { samples: [], kept: [] };
+    scopeChapters().forEach(c => { const r = q.run(c.html, c.locked ? {} : acc); if (r.count) plan.push({ c, r }); });
     const lockedHits = plan.filter(x => x.c.locked);
     const go2 = plan.filter(x => !x.c.locked);
     if (!go2.length) return App.toast(lockedHits.length ? 'Só há ocorrências em capítulos bloqueados (🔒).' : 'Nada para corrigir: nenhuma ocorrência encontrada.');
     const total = go2.reduce((n, x) => n + x.r.count, 0);
-    const ok = await App.confirmPreview(q.label, `${q.help} Serão alterados ${total} trecho(s) em ${go2.length} capítulo(s)` + (lockedHits.length ? ` (${lockedHits.length} capítulo(s) bloqueado(s) ficam como estão)` : '') + ':', go2.map(x => `${x.c.title}: ${x.r.count}`), 'Aplicar');
+    const ok = await App.confirmPreview(q.label, `${q.help} Serão alterados ${total} trecho(s) em ${go2.length} capítulo(s)` + (lockedHits.length ? ` (${lockedHits.length} capítulo(s) bloqueado(s) ficam como estão)` : '') + ':', go2.map(x => `${x.c.title}: ${x.r.count}`)
+      .concat(acc.samples.length ? ['', 'Exemplos do que muda:'].concat(acc.samples.map(t => '   ' + t + '…')) : [])
+      .concat(acc.kept.length ? ['', 'Começam com hífen mas não são falas (ficam como estão):'].concat(acc.kept.map(t => '   ' + t)) : []), 'Aplicar');
     if (!ok) return;
     go2.forEach(x => { x.c.html = x.r.html; });
     commit(`${q.label} (${total})`);

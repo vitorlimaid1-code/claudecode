@@ -71,6 +71,9 @@ async function prepareDocx(filePath) {
       doc = doc.replace(/<w:p(?=[\s>])[^>]*>(?:(?!<w:p[\s>])[\s\S])*?<\/w:p>/g, para => {
         const id = (/<w:numPr>[\s\S]*?<w:numId\b[^>]*w:val="(\d+)"[\s\S]*?<\/w:numPr>/.exec(para) || [])[1];
         if (!id || !dashNum.has(id)) return para;
+        // só falas: frase terminada (. ! ? …) começando sem minúscula; listas com traço continuam listas
+        const text = (para.match(/<w:t\b[^>]*>[^<]*<\/w:t>/g) || []).map(t => t.replace(/<[^>]+>/g, '')).join('').replace(/&quot;/g, '"').replace(/&amp;/g, '&').trim();
+        if (!/[.!?…»”"')]$/.test(text) || /^\p{Ll}/u.test(text) || text.split(/\s+/).length < 2) return para;
         dialogs++;
         return para.replace(/<w:numPr>[\s\S]*?<\/w:numPr>/, '').replace(/<\/w:pPr>/, '</w:pPr><w:r><w:t xml:space="preserve">\u2014 </w:t></w:r>');
       });

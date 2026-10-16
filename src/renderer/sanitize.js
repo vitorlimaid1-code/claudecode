@@ -1079,36 +1079,68 @@
 
   // ---------------------------------------------------------------- diálogos
   // Hífen (ou meia-risca) abrindo a fala → travessão. glue: true = colado (—Olá), false = com espaço
-  // (— Olá), undefined = mantém o espaço que já havia. Dentro da fala, “ - disse ele” também vira “ — ”.
+  // (— Olá), undefined = mantém o espaço que já havia. Dentro da fala, “ - disse ele - ” também vira “ — ”.
+  // Nem todo hífen é fala: palavras compostas (guarda-chuva, disse-lhe), números (-5 °C, 10-20),
+  // pedaços de palavra (-se, -ção) e listas feitas com hífen ficam como estão. É fala quando o hífen abre
+  // o parágrafo seguido de espaço ou de maiúscula/aspas, e o parágrafo termina como frase (. ! ? …);
+  // sem pontuação final, só se não parecer item de lista (vizinhos também com hífen e sem ponto, frase
+  // anterior terminando em “:” ou começando com minúscula).
   const EMDASH = '—';
+  const DASH_RE = /^[-–‒−‐‑]+/;
+  // o parágrafo é uma fala aberta por hífen?
+  function speechKind(info, i) {
+    const x = info[i];
+    const m = /^[-–‒−‐‑]+(\s*)(\S)/u.exec(x.t);
+    if (!m) return false;
+    const sp = m[1], ch = m[2];
+    if (/[\d+\-–.,;:%°]/.test(ch)) return false; // -5 graus, - 10 kg, --
+    if (!/[\p{L}“"«¿¡…'(]/u.test(ch)) return false;
+    if (!sp && !/[\p{Lu}“"«¿¡…'(]/u.test(ch)) return false; // -se, -ção: pedaço de palavra
+    if (x.t.replace(DASH_RE, '').trim().split(/\s+/).length < 2 && !x.end) return false; // “- item”
+    if (x.end) return true;
+    const prev = info[i - 1], next = info[i + 1];
+    const listy = /^\p{Ll}/u.test(ch) || (prev && /:\s*$/.test(prev.t)) || (prev && prev.dash && !prev.end) || (next && next.dash && !next.end);
+    return !listy;
+  }
   function fixDialogueDashes(root, opts) {
     opts = opts || {};
     let n = 0;
-    root.querySelectorAll('p, li, blockquote > p').forEach(p => {
-      if (p.closest('figure, table, .footnote, pre')) return;
+    const blocks = Array.from(root.querySelectorAll('p, li, blockquote > p')).filter(p => !p.closest('figure, table, .footnote, pre'));
+    const info = blocks.map(p => {
+      const t = p.textContent.replace(/ /g, ' ').trim();
+      return { p, t, dash: DASH_RE.test(t), em: /^—/.test(t), end: /[.!?…»”"')\]]$/.test(t.replace(/\s*[—–-]\s*$/, '.')) };
+    });
+    info.forEach((x, i) => {
+      if (!x.dash && !x.em) return;
+      const speech = x.em || speechKind(info, i);
+      if (!speech) { if (opts.kept && opts.kept.length < 6) opts.kept.push(x.t.slice(0, 90)); return; }
+      const p = x.p;
       const tw = p.ownerDocument.createTreeWalker(p, NodeFilter.SHOW_TEXT);
       let first = tw.nextNode();
       while (first && !first.data.trim()) first = tw.nextNode();
       if (!first) return;
-      const m = /^(\s*)[-–‒−‐‑]+(\s*)(?=[\p{L}\p{N}“"'«¿¡(…])/u.exec(first.data);
-      const already = /^\s*—/.test(first.data);
-      if (!m && !already) return;
-      if (m) {
+      if (x.dash) {
+        const m = /^(\s*)[-–‒−‐‑]+(\s*)/.exec(first.data);
+        if (!m) return;
         const space = opts.glue === true ? '' : opts.glue === false ? ' ' : m[2];
         first.data = m[1] + EMDASH + space + first.data.slice(m[0].length);
         n++;
+        if (opts.samples && opts.samples.length < 6) opts.samples.push(p.textContent.trim().slice(0, 90));
       } else if (opts.glue !== undefined) {
         const v = first.data.replace(/^(\s*)—\s*/, '$1' + EMDASH + (opts.glue ? '' : ' '));
         if (v !== first.data) { first.data = v; n++; }
       }
-      // incisos do narrador na mesma fala: “ - disse ele - ” → “ — disse ele — ”
+      // incisos do narrador na mesma fala: “ - disse ele - ” → “ — disse ele — ”. Só o hífen solto entre
+      // espaços e seguido de minúscula (verbo de elocução); “guarda-chuva”, “10 - 20”, “Rio - São Paulo” ficam.
+      // o inciso que fecha antes da pontuação (“ -, mas”, “ -.”) também
       const tw2 = p.ownerDocument.createTreeWalker(p, NodeFilter.SHOW_TEXT);
-      let t;
+      let t, inc = false;
       while ((t = tw2.nextNode())) {
         if (t.parentElement.closest('.footnote')) continue;
-        const v = t.data.replace(/(\S)\s+[-–‒−]\s+(?=\p{L})/gu, '$1 ' + EMDASH + ' ').replace(/(\p{L}[.!?…,]?)\s+[-–‒−]\s*$/u, '$1 ' + EMDASH);
-        if (v !== t.data) t.data = v;
+        const v = t.data.replace(/([\p{L}.!?…,;”"])\s+[-–‒−]\s+(?=\p{Ll})/gu, '$1 ' + EMDASH + ' ').replace(/(\p{L})\s+[-–‒−](?=[,.;:!?…])/gu, '$1 ' + EMDASH);
+        if (v !== t.data) { t.data = v; inc = true; }
       }
+      if (inc && !x.dash) n++;
     });
     return n;
   }
