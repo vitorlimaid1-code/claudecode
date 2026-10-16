@@ -202,12 +202,13 @@
     return c;
   };
 
-  App.chapters.remove = async function (ids) {
+  // opts.confirmed: a confirmação já foi feita (janela de exclusão ao lado da página)
+  App.chapters.remove = async function (ids, opts) {
     const chs = App.project.chapters.filter(c => ids.includes(c.id));
     const locked = chs.filter(c => c.locked);
     const ok = chs.filter(c => !c.locked);
     if (!ok.length) return App.toast('Capítulos bloqueados não podem ser excluídos. Desbloqueie-os primeiro.');
-    const confirmed = await App.confirmPreview('Excluir capítulos', `Serão excluídos ${ok.length} capítulo(s):` + (locked.length ? ` (${locked.length} bloqueado(s) serão mantidos)` : ''), ok.map(c => c.title), 'Excluir');
+    const confirmed = (opts && opts.confirmed) || await App.confirmPreview('Excluir capítulos', `Serão excluídos ${ok.length} capítulo(s):` + (locked.length ? ` (${locked.length} bloqueado(s) serão mantidos)` : ''), ok.map(c => c.title), 'Excluir');
     if (!confirmed) return;
     App.flush();
     const idx = App.project.chapters.findIndex(c => c.id === ok[0].id);
@@ -338,6 +339,7 @@
       });
     });
     App.changed(`Edição em massa (${targets.length} capítulos)`);
+    if (keys.includes('locked')) { if (App.preview && App.preview.refreshTools) App.preview.refreshTools(); if (App.live) { App.live.invalidate(); App.live.refresh(); } }
     App.toast('Alterações aplicadas.');
     App.hooks.viewRender.bulk();
   }

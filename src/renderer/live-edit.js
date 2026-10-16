@@ -19,6 +19,11 @@
   let state = null; // { chId, idx, R, S, r2s, s2r? }
   let lock = null; // cursor a recolocar depois da próxima paginação: { chId, caret: [a, b] (posições do modelo) }
   let lastFocus = 'stage';
+  // seleção que atravessa páginas: cada página é um trecho editável separado, e o navegador não deixa a
+  // seleção sair do trecho onde começou. Enquanto o mouse arrasta para outra página (ou Shift+clique,
+  // Ctrl+A), as páginas deixam de ser editáveis e a seleção corre livre; o que for digitado, apagado,
+  // recortado ou colado sobre ela é aplicado no texto do capítulo.
+  let cross = false, drag = null;
   App.editSeq = App.editSeq || 0;
 
   // ---------------------------------------------------------------- texto V
@@ -352,6 +357,13 @@
     if (!stageDoc || !state) return null;
     const sel = stageDoc.getSelection();
     if (!sel || !sel.rangeCount) return null;
+    if (cross) {
+      const r = clampedRange();
+      if (!r) return null;
+      const ra = posOf(state.R, r.startContainer, r.startOffset), rb = posOf(state.R, r.endContainer, r.endOffset);
+      if (ra === null || rb === null || !hostOf(r.startContainer) || chapterOfNode(r.startContainer) !== chapterOfNode(r.endContainer)) return null;
+      return [state.r2s[Math.min(ra, rb)], state.r2s[Math.max(ra, rb)]];
+    }
     const a = posOf(state.R, sel.anchorNode, sel.anchorOffset);
     const f = posOf(state.R, sel.focusNode, sel.focusOffset);
     if (a === null || f === null) return null;
@@ -443,7 +455,7 @@
   }
   function prepHost(sec, force) {
     if (!stageDoc) return;
-    const can = L.enabled && App.view !== 'layers';
+    const can = L.enabled && App.view !== 'layers' && !cross;
     {
       const c = App.project.chapters[Number(sec.dataset.chapter)];
       const ok = can && c && !c.locked;
@@ -468,6 +480,123 @@
     if (!sec) return null;
     return App.project.chapters[Number(sec.dataset.chapter)] || null;
   }
+  // ---------------------------------------------------------------- seleção entre páginas
+  const HOST_SEL = 'section[data-chapter] > .chapter-body';
+  const pageOf = n => { const e = n && (n.nodeType === 1 ? n : n.parentNode); return e && e.closest ? e.closest('.pagedjs_page') : null; };
+  const hostOf = n => { const e = n && (n.nodeType === 1 ? n : n.parentNode); return e && e.closest ? e.closest(HOST_SEL) : null; };
+  function enterCross() {
+    if (cross || !stageDoc) return;
+    cross = true;
+    stageDoc.querySelectorAll('.chapter-body[contenteditable], .chapter-title[contenteditable]').forEach(x => x.removeAttribute('contenteditable'));
+    stageDoc.querySelectorAll('section[data-chapter]').forEach(s => { s.__liveState = 'x'; });
+    stageDoc.documentElement.classList.add('live-cross');
+  }
+  function exitCross() {
+    if (!cross) return;
+    cross = false;
+    if (!stageDoc) return;
+    stageDoc.documentElement.classList.remove('live-cross');
+    attachHosts(true);
+  }
+  // a seleção nas páginas, sem as partes fora do texto (cabeçalhos, números de página, intervalo entre páginas)
+  function clampedRange() {
+    const sel = stageDoc && stageDoc.getSelection();
+    if (!sel || !sel.rangeCount) return null;
+    const r = sel.getRangeAt(0).cloneRange();
+    if (!hostOf(r.startContainer)) {
+      const h = Array.from(stageDoc.querySelectorAll(HOST_SEL)).find(x => r.comparePoint(x, 0) >= 0);
+      if (!h || r.comparePoint(h, 0) > 0) return null;
+      r.setStart(h, 0);
+    }
+    if (!hostOf(r.endContainer)) {
+      const hs = Array.from(stageDoc.querySelectorAll(HOST_SEL));
+      let h = null;
+      for (let i = hs.length - 1; i >= 0; i--) if (r.comparePoint(hs[i], hs[i].childNodes.length) <= 0) { h = hs[i]; break; }
+      if (!h || r.comparePoint(h, h.childNodes.length) < 0) return null;
+      r.setEnd(h, h.childNodes.length);
+    }
+    return r;
+  }
+  // capítulo da seleção entre páginas (um só; vários capítulos: só copiar)
+  function crossChapter(quiet) {
+    const r = clampedRange();
+    if (!r) return null;
+    const ca = chapterOfNode(r.startContainer), cb = chapterOfNode(r.endContainer);
+    if (!ca || ca !== cb) { if (!quiet) App.toast('A seleção abrange mais de um capítulo: ela pode ser copiada, mas para apagar ou substituir selecione dentro de um capítulo só. Capítulos inteiros saem pelo botão 🗑 ao lado da página.'); return null; }
+    if (ca.locked) { if (!quiet) App.toast('Capítulo bloqueado: desbloqueie no cadeado ao lado da página.'); return null; }
+    return activate(ca) ? ca : null;
+  }
+  // digitar, apagar ou Enter sobre a seleção entre páginas: feito no texto do capítulo
+  function crossEdit(ins) {
+    if (!crossChapter()) return;
+    const ss = stageSelection();
+    if (!ss) return;
+    replaceModel(ss[0], ss[1], ins);
+    exitCross();
+    const pos = ss[0] + ins.length;
+    modelChanged('Edição de texto');
+    beginLock([pos, pos]);
+  }
+  function collapseCross(toEnd) {
+    const sel = stageDoc.getSelection();
+    if (sel && sel.rangeCount) { if (toEnd) sel.collapseToEnd(); else sel.collapseToStart(); }
+    exitCross();
+    const h = sel && sel.rangeCount && hostOf(sel.focusNode);
+    if (h && h.isContentEditable) h.focus({ preventScroll: true });
+  }
+  // Ctrl+A: o capítulo inteiro, em todas as páginas
+  function selectWholeChapter(c) {
+    const hs = hostsOf(chIndex(c.id));
+    if (!hs.length) return;
+    activate(c);
+    enterCross();
+    const last = hs[hs.length - 1];
+    stageDoc.getSelection().setBaseAndExtent(hs[0], 0, last, last.childNodes.length);
+  }
+  // copiar a seleção entre páginas: só o texto do livro (sem cabeçalhos, números de página e hifens da paginação)
+  function copyCross(e) {
+    const r = clampedRange();
+    if (!r) return;
+    const box = stageDoc.createElement('div');
+    box.appendChild(r.cloneContents());
+    box.querySelectorAll('[class*="pagedjs_margin"], .pagedjs_footnote_area, .page-tools, .footnote, .sidenote, .sn-box, .guide, .xref-num, style, script').forEach(x => x.remove());
+    const clean = s => s.replace(/[\u00ad\u200b\u2060-\u2064\ufeff]/g, '');
+    const lines = [];
+    box.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, figcaption, td, th, pre, .chapter-label').forEach(b => {
+      if (b.querySelector('p, li, h1, h2, h3, h4, h5, h6')) return;
+      const t = clean(b.textContent).replace(/\s+/g, ' ').trim();
+      if (!t) return;
+      // parágrafo que continua na página seguinte: volta a ser um só
+      if (b.hasAttribute('data-split-from') && lines.length) {
+        const prev = lines[lines.length - 1];
+        lines[lines.length - 1] = /\u2011$/.test(prev) ? prev.slice(0, -1) + t : prev + ' ' + t;
+      } else lines.push(t);
+    });
+    const text = (lines.length ? lines.join('\n') : clean(box.textContent)).replace(/\u2011/g, '');
+    box.querySelectorAll('.pagedjs_hyphen').forEach(x => { x.textContent = x.textContent.replace(/\u2011$/, ''); });
+    e.clipboardData.setData('text/plain', text);
+    e.clipboardData.setData('text/html', clean(box.innerHTML));
+    e.preventDefault();
+  }
+  function crossKey(e) {
+    const mod = e.ctrlKey || e.metaKey;
+    const k = e.key;
+    if (k === 'Escape') { e.preventDefault(); collapseCross(false); return; }
+    if (mod && /^[cC]$/.test(k)) return; // evento copy
+    if (mod && /^[vV]$/.test(k)) return; // evento paste
+    if (mod && /^[aA]$/.test(k)) { e.preventDefault(); const c = chapterOfNode(stageDoc.getSelection().anchorNode) || App.chapter(); if (c) selectWholeChapter(c); return; }
+    if (mod && /^[zZ]$/.test(k)) { e.preventDefault(); exitCross(); undo(e.shiftKey); return; }
+    if (mod && /^[yY]$/.test(k)) { e.preventDefault(); exitCross(); undo(true); return; }
+    if (mod && /^[xX]$/.test(k)) { e.preventDefault(); if (!crossChapter()) return; stageDoc.execCommand('copy'); crossEdit(''); return; }
+    const fmt = { b: 'bold', i: 'italic', u: 'underline' }[mod ? k.toLowerCase() : ''];
+    if (fmt) { e.preventDefault(); if (crossChapter()) L.exec(fmt); return; }
+    if (mod || e.altKey) return;
+    if (k === 'Backspace' || k === 'Delete') { e.preventDefault(); crossEdit(''); return; }
+    if (k === 'Enter') { e.preventDefault(); crossEdit(SEP); return; }
+    if (k.length === 1) { e.preventDefault(); crossEdit(k); return; }
+    if (!e.shiftKey && /^(Arrow|Home$|End$|Page)/.test(k)) { e.preventDefault(); collapseCross(/Right|Down|End|PageDown/.test(k)); }
+  }
+
   function activate(c) {
     if (!c) return false;
     if (App.view !== 'chapter' || App.editorChapterId !== c.id) {
@@ -488,7 +617,11 @@
       .chapter-head .chapter-title[contenteditable] { outline: none; cursor: text; }
       .chapter-head .chapter-title[contenteditable]:focus { box-shadow: 0 1px 0 rgba(0,0,0,.25); }
       .chapter-body [data-src]:focus-within { }
-      ::selection { background: rgba(70, 120, 220, .28); }`;
+      ::selection { background: rgba(70, 120, 220, .28); }
+      .live-cross .chapter-body { cursor: text; }
+      ::highlight(cvh-find) { background-color: rgba(255, 200, 40, .6); text-decoration: underline 2px #c77700; }
+      ::highlight(cvh-find-cur) { background-color: #1652c4; color: #fff; }
+      .live-cross .pagedjs_page [class*="pagedjs_margin"] ::selection, .live-cross .page-tools ::selection { background: transparent; }`;
     d.head.appendChild(st);
 
     d.addEventListener('focusin', e => {
@@ -570,6 +703,21 @@
       syncFromStage();
     });
     d.addEventListener('paste', e => {
+      if (cross) {
+        // colar sobre a seleção entre páginas: substitui o trecho no texto do capítulo
+        e.preventDefault();
+        if (!crossChapter()) return;
+        const ss = stageSelection();
+        if (!ss) return;
+        const html = e.clipboardData.getData('text/html').normalize('NFC');
+        const text = e.clipboardData.getData('text/plain').normalize('NFC');
+        const files = Array.from(e.clipboardData.files || []);
+        setEditorSelection(ss[0], ss[1]);
+        exitCross();
+        App.editor.paste({ html, text, files });
+        beginLock(editorSelectionPos() || [ss[0], ss[0]]);
+        return;
+      }
       const host = e.target.closest && e.target.closest('.chapter-body');
       if (!host) return;
       e.preventDefault();
@@ -592,7 +740,56 @@
     });
     d.addEventListener('mousedown', () => { lock = null; });
     // clique numa página que ainda não foi preparada (rolagem muito rápida): prepara na hora
-    d.addEventListener('mousedown', e => { const sec = e.target.closest && e.target.closest('section[data-chapter]'); if (sec) prepHost(sec, false); }, true);
+    d.addEventListener('mousedown', e => {
+      if (e.button !== 0) return; // botão direito: a seleção fica (menu de colunas, copiar…)
+      // Shift+clique em outra página: a seleção se estende até lá
+      const sel = d.getSelection();
+      if (e.shiftKey && sel && sel.rangeCount && (cross || (pageOf(sel.anchorNode) && pageOf(e.target) && pageOf(sel.anchorNode) !== pageOf(e.target)))) {
+        drag = null;
+        enterCross();
+        return;
+      }
+      if (cross) exitCross();
+      const sec = e.target.closest && e.target.closest('section[data-chapter]');
+      if (sec) prepHost(sec, false);
+      const host = hostOf(e.target);
+      // arrastar imagens, alças e blocos tem o próprio arrastar: não é seleção de texto
+      const own = App.view === 'layers' || (e.target.closest && e.target.closest('figure, .fig, img, .img-handle, .fullbleed, .ph, .ov, .page-tools'));
+      drag = host && !own ? { host, page: pageOf(host) } : null;
+    }, true);
+    // arrastar a seleção para fora da página: as páginas deixam de ser editáveis até o próximo clique
+    d.addEventListener('mousemove', e => {
+      if (!drag || cross) return;
+      if (!(e.buttons & 1)) { drag = null; return; }
+      const host = hostOf(e.target);
+      if ((host && host !== drag.host) || pageOf(e.target) !== drag.page) enterCross();
+    }, true);
+    d.addEventListener('mouseup', () => {
+      if (!drag) return;
+      drag = null;
+      if (!cross) return;
+      const sel = d.getSelection();
+      if (!sel || !sel.rangeCount || sel.isCollapsed || hostOf(sel.anchorNode) === hostOf(sel.focusNode)) {
+        // ficou numa página só: volta a editar ali
+        const r = sel && sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
+        exitCross();
+        const h = r && hostOf(r.startContainer);
+        if (h && h.isContentEditable) { h.focus({ preventScroll: true }); sel.removeAllRanges(); sel.addRange(r); }
+      } else {
+        const c = chapterOfNode(sel.anchorNode);
+        if (c) activate(c);
+      }
+    }, true);
+    d.addEventListener('copy', e => { if (cross) copyCross(e); });
+    d.addEventListener('cut', e => { if (cross) e.preventDefault(); });
+    d.addEventListener('keydown', e => {
+      if (cross) { crossKey(e); return; }
+      const h0 = e.target.closest && e.target.closest('.chapter-body');
+      if (h0 && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && /^[aA]$/.test(e.key)) {
+        const c = chapterOfNode(h0);
+        if (c) { e.preventDefault(); selectWholeChapter(c); return; }
+      }
+    }, true);
     d.addEventListener('keydown', e => {
       const host = e.target.closest && e.target.closest('.chapter-body');
       if (!host) return;
@@ -761,6 +958,7 @@
 
   // ---------------------------------------------------------------- integração com a prévia
   L.attach = function (d) {
+    if (stageDoc !== d) { cross = false; drag = null; }
     stageDoc = d;
     wire(d);
     attachHosts();
@@ -782,6 +980,8 @@
     if (!stageDoc) return;
     if (keys.includes('all') || (App.editorChapterId && keys.includes('ch:' + App.editorChapterId))) state = null;
     if (lock && keys.includes('ch:' + lock.chId)) lock = null;
+    // seleção entre páginas que sumiu com a nova paginação: as páginas voltam a ser editáveis
+    if (cross) { const s = stageDoc.getSelection(); if (!s || !s.rangeCount || s.isCollapsed) exitCross(); }
     attachHosts();
     if (saved && saved.title) {
       const idx = chIndex(App.editorChapterId);
@@ -790,6 +990,7 @@
       return;
     }
     if (saved && saved.caret && App.view === 'chapter') restoreStageCaret(saved.caret[0], saved.caret[1]);
+    if (L.onApplied) { try { L.onApplied(); } catch (e) { /* ok */ } }
   };
   // a paginação que chegou ainda corresponde ao texto atual do capítulo?
   L.fresh = function (key, seq) {
@@ -799,6 +1000,50 @@
   // seleção nas páginas: barra flutuante de estilos (caixa, citação, título…)
   let selT = null;
   L.onSelection = sel => { clearTimeout(selT); selT = setTimeout(() => { if (App.quickStyle) App.quickStyle.showStage(stageDoc.getSelection()); }, 180); };
+  // ---------------------------------------------------------------- busca (Buscar e substituir)
+  // posição no texto do capítulo aberto (modelo) de um ponto do editor
+  L.modelPos = (node, offset) => posOf(modelV(), node, offset);
+  // destaca nas páginas os trechos encontrados no capítulo aberto (posições do modelo); cur = o atual
+  L.mark = function (ranges, cur) {
+    if (!stageDoc) return false;
+    const win = stageDoc.defaultView;
+    if (!win || !win.CSS || !win.CSS.highlights || !win.Highlight) return false;
+    win.CSS.highlights.delete('cvh-find');
+    win.CSS.highlights.delete('cvh-find-cur');
+    if (!ranges || !ranges.length) return true;
+    const st = ensureState(App.editorChapterId);
+    if (!st || !st.R.text.length) return false;
+    const toRange = ab => {
+      const pa = pointAt(st.R, s2rOf(st, ab[0])), pb = pointAt(st.R, s2rOf(st, ab[1]));
+      if (!pa || !pb) return null;
+      const r = stageDoc.createRange();
+      try { r.setStart(pa[0], pa[1]); r.setEnd(pb[0], pb[1]); } catch (e) { return null; }
+      return r;
+    };
+    const all = ranges.map(toRange).filter(Boolean);
+    if (all.length) win.CSS.highlights.set('cvh-find', new win.Highlight(...all));
+    const r = cur != null && ranges[cur] ? toRange(ranges[cur]) : null;
+    if (r) {
+      win.CSS.highlights.set('cvh-find-cur', new win.Highlight(r));
+      const el = r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentNode;
+      const rect = r.getBoundingClientRect();
+      if (!rect.height || rect.top < 70 || rect.bottom > win.innerHeight - 70) el.scrollIntoView({ block: 'center' });
+    }
+    return true;
+  };
+  L.unmark = function () {
+    const win = stageDoc && stageDoc.defaultView;
+    if (win && win.CSS && win.CSS.highlights) { win.CSS.highlights.delete('cvh-find'); win.CSS.highlights.delete('cvh-find-cur'); }
+  };
+  // Ctrl+A (menu): com o cursor nas páginas, o capítulo inteiro
+  L.selectAll = function () {
+    if (!stageDoc || document.activeElement !== (stageDoc.defaultView && stageDoc.defaultView.frameElement)) return false;
+    const sel = stageDoc.getSelection();
+    const c = (sel && sel.rangeCount && chapterOfNode(sel.anchorNode)) || null;
+    if (!c) return false;
+    selectWholeChapter(c);
+    return true;
+  };
   L.focusedOnStage = () => lastFocus === 'stage';
   L.noteEditorFocus = () => { lastFocus = 'editor'; };
   L.selectionPos = () => stageSelection();

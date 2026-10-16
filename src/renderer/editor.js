@@ -82,6 +82,7 @@
     $('#chapterDelete').disabled = locked;
     $('#chapterLock').textContent = locked ? '🔒 Desbloquear' : '🔓 Bloquear';
     $('#lockBanner').classList.toggle('show', locked);
+    $('#lockBanner').textContent = `🔒 “${c.title}” está bloqueado — só este capítulo; os outros continuam editáveis. Desbloqueie para editar, mover ou excluir.`;
     $('#editorToolbar').classList.toggle('disabled', locked);
   }
 
@@ -1161,6 +1162,8 @@
       App.changed(c.locked ? 'Capítulo bloqueado' : 'Capítulo desbloqueado', { preview: false });
       applyLock(c);
       App.renderChapterList();
+      if (App.preview && App.preview.refreshTools) App.preview.refreshTools();
+      if (App.live) { App.live.invalidate(); App.live.refresh(); }
     });
     $('#chapterLook').addEventListener('click', () => { const p = $('#chapterLookPanel'); renderLookPanel(!p.classList.contains('show')); });
     setupDnD();

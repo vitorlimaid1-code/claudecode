@@ -85,7 +85,42 @@
     App.renderChapterList();
     if (App.view === 'chapter' && App.chapterId === ch.id) App.setView('chapter', ch.id);
     App.preview.refreshTools();
+    // só as páginas deste capítulo deixam (ou voltam) a ser editáveis; os outros capítulos não mudam
+    if (App.live) { App.live.invalidate(); App.live.refresh(); }
     App.toast(ch.locked ? `🔒 “${ch.title}” bloqueado contra alterações acidentais.` : `🔓 “${ch.title}” desbloqueado.`);
+  }
+
+  // Excluir capítulos inteiros: o da página já vem marcado; dá para marcar vários (ou todos) de uma vez
+  function deleteDialog(pg) {
+    const chs = App.project.chapters;
+    if (!chs.length) return App.toast('O livro não tem capítulos.');
+    const here = pg ? chapterOfPage(pg) : App.chapter();
+    if (pg && !here) return App.toast('Esta página (rosto, ficha, sumário ou páginas finais) é gerada pelo livro: não é um capítulo.');
+    const words = c => (window.BookText ? BookText.countWords(c.html) : 0);
+    const boxes = chs.map(c => {
+      const cb = el('input', { type: 'checkbox', value: c.id, checked: c === here && !c.locked, disabled: !!c.locked });
+      cb.addEventListener('change', count);
+      return el('label', { class: 'chk del-ch' + (c.locked ? ' muted' : '') }, [cb, ` ${c.locked ? '🔒 ' : ''}${c.title}`, el('span', { class: 'muted small', text: ` · ${words(c).toLocaleString('pt-BR')} palavras` })]);
+    });
+    const info = el('p', { class: 'small' });
+    const picked = () => boxes.map(b => b.querySelector('input')).filter(i => i.checked).map(i => i.value);
+    function count() { const n = picked().length; info.textContent = n ? `${n} capítulo(s) marcado(s) para excluir.` : 'Nenhum capítulo marcado.'; }
+    const all = v => { boxes.forEach(b => { const i = b.querySelector('input'); if (!i.disabled) i.checked = v; }); count(); };
+    count();
+    App.modal({
+      title: '🗑 Excluir capítulos',
+      body: el('div', {}, [
+        el('p', { class: 'muted small', text: 'Marque os capítulos que saem do livro (o desta página já vem marcado). Capítulos bloqueados (🔒) não podem ser excluídos. Dá para desfazer com Ctrl+Z.' }),
+        el('div', { class: 'inline' }, [el('button', { class: 'mini-btn', text: 'Marcar todos', onclick: () => all(true) }), el('button', { class: 'mini-btn', text: 'Desmarcar todos', onclick: () => all(false) })]),
+        el('div', { class: 'del-list' }, boxes),
+        info
+      ]),
+      buttons: [{ label: 'Cancelar' }, { label: 'Excluir marcados', danger: true, onClick: () => {
+        const ids = picked();
+        if (!ids.length) { App.toast('Marque pelo menos um capítulo.'); return false; }
+        App.chapters.remove(ids, { confirmed: true });
+      } }]
+    });
   }
 
   // Página de imagem sangrada (página única) antes ou depois de um capítulo
@@ -182,6 +217,7 @@
         btn('🎨', 'Cor desta página (fundo)', () => colorDialog(pg, 'bg'), ps.bg || st.pageColor || App.project.settings.pageColor || '#ffffff'),
         btn('A', 'Cor do texto desta página', () => colorDialog(pg, 'color'), ps.color || st.textColor || '#000000'),
         btn(ch && ch.locked ? '🔒' : '🔓', ch ? (ch.locked ? `Desbloquear “${ch.title}”` : `Bloquear “${ch.title}” contra alterações acidentais`) : 'Página gerada pelo livro (sem cadeado)', () => toggleLock(pg), null, ch && ch.locked ? 'on' : ''),
+        btn('🗑', ch ? `Excluir o capítulo “${ch.title}” (ou vários de uma vez)` : 'Excluir capítulos', () => deleteDialog(pg), null, 'danger'),
         btn('🖼', 'Inserir página de imagem (sangrada) antes ou depois deste capítulo', () => insertBleedPage(pg)),
         btn('✎', 'Abrir este capítulo no editor', () => { if (ch) App.setView('chapter', ch.id); else App.toast('Página gerada pelo livro: edite em “Dados e páginas iniciais” ou “Páginas finais”.'); })
       );
@@ -189,5 +225,5 @@
     }
   }
 
-  App.pageTools = { attach, colorDialog, insertBleedPage, chapterOfPage, colorPicker };
+  App.pageTools = { attach, colorDialog, insertBleedPage, chapterOfPage, colorPicker, deleteDialog };
 })();

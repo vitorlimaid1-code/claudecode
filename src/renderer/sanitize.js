@@ -498,7 +498,8 @@
   function htmlToChapters(html, fallbackTitle, opts) {
     opts = opts || {};
     const doc = new DOMParser().parseFromString('<body>' + String(html || '') + '</body>', 'text/html');
-    const notes = convertNotes([doc.body], id => doc.getElementById(id));
+    // notas do Word/EPUB (ligadas) e notas digitadas (número sobrescrito, [1], ¹ com a lista de notas depois)
+    const notes = convertNotes([doc.body], id => doc.getElementById(id)) + linkPlainNotes(doc.body);
     // mammoth coloca âncoras vazias antes dos títulos
     doc.body.querySelectorAll('a[id]:empty').forEach(a => a.remove());
     let headTag = doc.body.querySelector('h1') ? 'H1' : null;
@@ -956,5 +957,198 @@
     return tpl.innerHTML;
   }
 
-  window.BookText = { chapterMark, isTitleLike, chapterMarkers, SPECIAL_RE, sanitizeHtml, normalizeStyles, htmlToChapters, textToChapters, markdownToChapters, convertImport, pdfToHtml, pdfLineText, pdfBodySize, countWords, escapeHtml, splitChapterTitle };
+
+  // ---------------------------------------------------------------- notas escritas à mão
+  // Livros escritos fora do Word (ou com notas digitadas): chamadas como número sobrescrito (<sup>1</sup>,
+  // ¹ ² ³), [1] ou [^1] no texto e as notas listadas depois (bloco “Notas” no fim do capítulo ou do livro,
+  // ou parágrafos que começam pelo mesmo número). Cada chamada vira nota de rodapé de verdade com o texto
+  // da nota de mesmo número; a numeração pode recomeçar a cada capítulo. Sem nota correspondente, o texto
+  // fica como está (um “m²” continua “m²”).
+  const SUP_DIGITS = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+  const supValue = s => Number(Array.from(s).map(c => SUP_DIGITS.indexOf(c)).join(''));
+  const NOTES_HEAD = /^(notas?(\s+(de\s+rodap[ée]|do\s+autor|do\s+tradutor|do\s+editor|finais|explicativas))?|notes|footnotes|endnotes)\s*[:.]?$/i;
+  function linkPlainNotes(root) {
+    const doc = root.ownerDocument;
+    const blocks = Array.from(root.querySelectorAll('p, li, h1, h2, h3, h4, h5, h6')).filter(b => !b.closest('.footnote, figure, table') && !(b.tagName === 'P' && b.parentElement && b.parentElement.closest('li')));
+    const defs = [];
+    const defBlocks = new Set();
+    const heads = [];
+    let zone = null;
+    const markOf = (b, inZone) => {
+      const t = b.textContent.replace(/ /g, ' ');
+      let m;
+      const first = b.firstElementChild;
+      const lead = t.replace(/^\s+/, '');
+      if (first && first.tagName === 'SUP' && lead.startsWith(first.textContent.trim()) && (m = /^\s*\[?(\d{1,3})\]?\s*$/.exec(first.textContent))) return { n: Number(m[1]), kind: 'sup', strip: el => { el.firstElementChild.remove(); } };
+      if ((m = /^\s*\[\^?(\d{1,3})\]:?\s+/.exec(t))) return { n: Number(m[1]), kind: 'br', re: /\s*\[\^?(\d{1,3})\]:?\s+/g };
+      if ((m = new RegExp(`^\\s*([${SUP_DIGITS}]{1,3})\\s*`).exec(t)) && t.length > m[0].length) return { n: supValue(m[1]), kind: 'u', re: new RegExp(`(?:^|\\s)([${SUP_DIGITS}]{1,3})\\s+`, 'g') };
+      if (inZone && (m = /^\s*(\d{1,3})\s*[.)\-–—:]?\s+/.exec(t))) return { n: Number(m[1]), kind: 'num', re: /(?:^|\s)(\d{1,3})\s*[.)\-–—:]\s+/g };
+      if (inZone && b.tagName === 'LI' && b.parentElement && b.parentElement.tagName === 'OL') {
+        const ol = b.parentElement;
+        return { n: (Number(ol.getAttribute('start')) || 1) + Array.prototype.indexOf.call(ol.children, b), kind: 'li' };
+      }
+      return null;
+    };
+    blocks.forEach(b => {
+      const t = b.textContent.replace(/\s+/g, ' ').trim();
+      if (/^H[12]$/.test(b.tagName) || CHAPTER_LINE.test(t)) zone = null;
+      if (t.length <= 40 && NOTES_HEAD.test(t)) { zone = { head: b, defs: [] }; heads.push(zone); return; }
+      const mk = markOf(b, !!zone);
+      if (!mk) { if (zone && t) zone = null; return; }
+      defBlocks.add(b);
+      // várias notas no mesmo parágrafo (texto simples): uma por marcador
+      if (mk.re) {
+        const plain = b.textContent.replace(/ /g, ' ');
+        const marks = [];
+        let m;
+        mk.re.lastIndex = 0;
+        while ((m = mk.re.exec(plain))) marks.push({ at: m.index, end: m.index + m[0].length, n: mk.kind === 'u' ? supValue(m[1]) : Number(m[1]) });
+        if (marks.length > 1 && marks.every((x, i) => !i || x.n === marks[i - 1].n + 1)) {
+          marks.forEach((x, i) => {
+            const d = { n: x.n, html: escapeHtml(plain.slice(x.end, i + 1 < marks.length ? marks[i + 1].at : plain.length).trim()), block: b, zone };
+            defs.push(d); if (zone) zone.defs.push(d);
+          });
+          return;
+        }
+      }
+      const clone = b.cloneNode(true);
+      if (mk.strip) mk.strip(clone);
+      let html = clone.innerHTML.trim();
+      if (mk.kind !== 'sup' && mk.kind !== 'li') html = html.replace(/^(\s|&nbsp;)*(\[\^?\d{1,3}\]:?|[⁰¹²³⁴⁵⁶⁷⁸⁹]{1,3}|\d{1,3}\s*[.)\-–—:]?)(\s|&nbsp;)+/, '');
+      const d = { n: mk.n, html: html.trim(), block: b, zone };
+      defs.push(d);
+      if (zone) zone.defs.push(d);
+    });
+    if (!defs.length) return 0;
+    // chamadas no texto, na ordem do livro
+    const refs = [];
+    const inDef = n => { for (let e = n.nodeType === 1 ? n : n.parentElement; e && e !== root; e = e.parentElement) if (defBlocks.has(e) || heads.some(z => z.head === e)) return true; return false; };
+    const tw = doc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+    const reText = new RegExp(`([^\\s\\d${SUP_DIGITS}])([${SUP_DIGITS}]{1,3})|(\\S)\\[\\^?(\\d{1,3})\\]`, 'g');
+    let node = tw.nextNode();
+    while (node) {
+      if (node.nodeType === 1) {
+        if (node.matches('.footnote, .comment, figure, table, script, style') || inDef(node)) { node = skipTree(tw, node); continue; }
+        if (node.tagName === 'SUP') {
+          const m = /^\s*\[?(\d{1,3})\]?\s*$/.exec(node.textContent);
+          if (m && node.previousSibling && /\S$/.test(node.previousSibling.textContent || '')) refs.push({ n: Number(m[1]), el: node });
+          node = skipTree(tw, node);
+          continue;
+        }
+      } else if (node.nodeType === 3) {
+        let m;
+        reText.lastIndex = 0;
+        while ((m = reText.exec(node.data))) {
+          const at = m.index + (m[1] || m[3]).length;
+          refs.push({ n: m[2] ? supValue(m[2]) : Number(m[4]), text: node, at, len: m[0].length - (m[1] || m[3]).length });
+        }
+      }
+      node = tw.nextNode();
+    }
+    // cada chamada pega a primeira nota ainda livre com o mesmo número
+    const used = new Set();
+    const pairs = [];
+    refs.forEach(r => { const d = defs.find(x => x.n === r.n && !used.has(x)); if (d && d.html.replace(/<[^>]+>/g, '').trim()) { used.add(d); pairs.push({ r, d }); } });
+    if (!pairs.length) return 0;
+    const mkSpan = d => { const sp = doc.createElement('span'); sp.className = 'footnote'; sp.innerHTML = d.html; return sp; };
+    // de trás para frente: as posições dentro de um mesmo texto continuam válidas
+    pairs.slice().reverse().forEach(({ r, d }) => {
+      if (r.el) { r.el.replaceWith(mkSpan(d)); return; }
+      const after = r.text.splitText(r.at);
+      after.data = after.data.slice(r.len);
+      after.parentNode.insertBefore(mkSpan(d), after);
+    });
+    // notas usadas saem do texto; o título “Notas” sai junto quando não sobra nenhuma nota
+    const usedBlocks = new Set(Array.from(used).map(d => d.block));
+    usedBlocks.forEach(b => { if (defs.filter(d => d.block === b).every(d => used.has(d))) { const list = b.parentElement; b.remove(); if (list && /^(OL|UL)$/.test(list.tagName) && !list.children.length) list.remove(); } });
+    heads.forEach(z => {
+      if (!z.defs.length || !z.defs.every(d => used.has(d))) return;
+      const prev = z.head.previousElementSibling;
+      z.head.remove();
+      if (prev && prev.tagName === 'HR') prev.remove();
+    });
+    return pairs.length;
+  }
+  function skipTree(tw, node) {
+    let n = node;
+    while (n && !n.nextSibling && n !== tw.root) n = n.parentNode;
+    if (!n || n === tw.root) return null;
+    tw.currentNode = n.nextSibling;
+    return n.nextSibling;
+  }
+
+  // ---------------------------------------------------------------- diálogos
+  // Hífen (ou meia-risca) abrindo a fala → travessão. glue: true = colado (—Olá), false = com espaço
+  // (— Olá), undefined = mantém o espaço que já havia. Dentro da fala, “ - disse ele” também vira “ — ”.
+  const EMDASH = '—';
+  function fixDialogueDashes(root, opts) {
+    opts = opts || {};
+    let n = 0;
+    root.querySelectorAll('p, li, blockquote > p').forEach(p => {
+      if (p.closest('figure, table, .footnote, pre')) return;
+      const tw = p.ownerDocument.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+      let first = tw.nextNode();
+      while (first && !first.data.trim()) first = tw.nextNode();
+      if (!first) return;
+      const m = /^(\s*)[-–‒−‐‑]+(\s*)(?=[\p{L}\p{N}“"'«¿¡(…])/u.exec(first.data);
+      const already = /^\s*—/.test(first.data);
+      if (!m && !already) return;
+      if (m) {
+        const space = opts.glue === true ? '' : opts.glue === false ? ' ' : m[2];
+        first.data = m[1] + EMDASH + space + first.data.slice(m[0].length);
+        n++;
+      } else if (opts.glue !== undefined) {
+        const v = first.data.replace(/^(\s*)—\s*/, '$1' + EMDASH + (opts.glue ? '' : ' '));
+        if (v !== first.data) { first.data = v; n++; }
+      }
+      // incisos do narrador na mesma fala: “ - disse ele - ” → “ — disse ele — ”
+      const tw2 = p.ownerDocument.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+      let t;
+      while ((t = tw2.nextNode())) {
+        if (t.parentElement.closest('.footnote')) continue;
+        const v = t.data.replace(/(\S)\s+[-–‒−]\s+(?=\p{L})/gu, '$1 ' + EMDASH + ' ').replace(/(\p{L}[.!?…,]?)\s+[-–‒−]\s*$/u, '$1 ' + EMDASH);
+        if (v !== t.data) t.data = v;
+      }
+    });
+    return n;
+  }
+  // listas com marcadores (bolinhas) → parágrafos de fala com travessão
+  function listsToDialogue(root, opts) {
+    opts = opts || {};
+    let n = 0;
+    Array.from(root.querySelectorAll('ul')).reverse().forEach(ul => {
+      if (ul.closest('figure, table, .footnote')) return;
+      const frag = ul.ownerDocument.createDocumentFragment();
+      Array.from(ul.children).forEach(li => {
+        if (li.tagName !== 'LI') return;
+        const inner = li.querySelector('ul, ol');
+        if (inner) inner.remove();
+        const paras = li.querySelectorAll('p').length ? Array.from(li.querySelectorAll('p')) : [li];
+        paras.forEach(src => {
+          const p = ul.ownerDocument.createElement('p');
+          p.innerHTML = src.innerHTML;
+          const tw = p.ownerDocument.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+          let first = tw.nextNode();
+          while (first && !first.data.trim()) first = tw.nextNode();
+          if (first) first.data = first.data.replace(/^\s*[-–—•·▪◦‒−]?\s*/, EMDASH + (opts.glue === false ? ' ' : opts.glue === true ? '' : ' '));
+          else p.insertBefore(p.ownerDocument.createTextNode(EMDASH + ' '), p.firstChild);
+          frag.appendChild(p);
+          n++;
+        });
+      });
+      ul.replaceWith(frag);
+    });
+    return n;
+  }
+  // as mesmas correções num HTML (capítulo): devolve { html, count }
+  function onHtml(fn) {
+    return (html, opts) => {
+      const div = document.createElement('div');
+      div.innerHTML = String(html || '');
+      const count = fn(div, opts);
+      return { html: count ? div.innerHTML : String(html || ''), count };
+    };
+  }
+
+  window.BookText = { linkPlainNotes, fixDialogueDashes, listsToDialogue, dialogueHtml: onHtml(fixDialogueDashes), listsHtml: onHtml(listsToDialogue), notesHtml: onHtml(r => linkPlainNotes(r)), chapterMark, isTitleLike, chapterMarkers, SPECIAL_RE, sanitizeHtml, normalizeStyles, htmlToChapters, textToChapters, markdownToChapters, convertImport, pdfToHtml, pdfLineText, pdfBodySize, countWords, escapeHtml, splitChapterTitle };
 })();

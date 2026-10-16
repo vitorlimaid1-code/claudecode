@@ -81,6 +81,13 @@
     // sumário que vinha no manuscrito: sai (o livro gera o seu, com as páginas certas)
     const tocChapters = chapters.filter(c => TOC_RE.test(String(c.title || '').replace(/<[^>]+>/g, '').trim()));
     if (tocChapters.length) { chapters = chapters.filter(c => !tocChapters.includes(c)); P.log('Sumário do manuscrito removido (o sumário automático o substitui)'); }
+    // falas: marcadores de travessão do Word e hífen abrindo a fala viram travessão (—), como num livro
+    if (res.dialogs) P.log(`${res.dialogs} fala(s) com marcador de travessão do Word viraram parágrafos com travessão`);
+    let dashes = 0;
+    chapters.forEach(c => { const r = BookText.dialogueHtml(c.html); if (r.count) { c.html = r.html; dashes += r.count; } });
+    if (dashes) P.log(`${dashes} fala(s) com hífen passaram para travessão (—)`);
+    const lists = chapters.reduce((n, c) => n + (c.html.match(/<ul\b/g) || []).length, 0);
+    if (lists) P.log(`${lists} lista(s) com marcadores mantida(s) — se forem falas, use Buscar e substituir (Ctrl+H) → “Listas com marcadores → falas com travessão”`);
     const images = await convertImages(chapters);
     if (images) P.log(`${images} imagem(ns) incorporada(s)`);
     const charts = await convertCharts(chapters, res.charts);
@@ -231,7 +238,7 @@
           ['Camadas da página', 'para elementos em posição fixa (mm): fundos, molduras, composições de imagens, textos decorativos. Arraste na prévia; há encaixe em margens e centro.'],
           ['Páginas iniciais e finais', 'página de rosto com logotipo, créditos e ficha catalográfica completa (com imagens e QR codes), biografia e conteúdo extra.'],
           ['Sumário', 'automático a partir dos títulos (capítulos, T1, T2) ou manual e editável, em “Dados e páginas iniciais”. Ordem padrão: rosto › ficha › sumário › capítulos › páginas finais.'],
-          ['Prévia', 'role o livro página por página ou veja 2 a 5 páginas lado a lado. No modo “1 página por vez”, os botões ao lado de cada página mudam a cor da página e do texto, bloqueiam o capítulo (cadeado) e inserem uma página de imagem sangrada. Arraste imagens direto para o texto de qualquer página.'],
+          ['Prévia', 'role o livro página por página ou veja 2 a 5 páginas lado a lado. No modo “1 página por vez”, os botões ao lado de cada página mudam a cor da página e do texto, bloqueiam só o capítulo daquela página (cadeado), excluem um ou vários capítulos de uma vez (🗑) e inserem uma página de imagem sangrada. Arraste imagens direto para o texto de qualquer página.'],
           ['Biblioteca de estilos', 'um estilo pronto para cada gênero, aplicado ao livro inteiro com um clique.'],
           ['Tipografia e paginação', 'acabamento automático: grade de linha de base (linhas alinhadas nas páginas opostas), justificação fina, exceções de hifenização, índice remissivo (📇 Índice no editor), referências cruzadas (↪ Referência: “ver Figura 3, p. 41”), notas de fim ou laterais, romanos nas pré-textuais, normas ABNT (ABNT ▾) e modelos de sumário.'],
           ['Capa e lombada', 'no padrão CEDET, gera o código de barras do ISBN (EAN-13 preto, vetorial) na contracapa, marcas de corte e de dobra e orelhas de 6, 7 ou 8 cm; monte a capa com imagens prontas (sempre sem bordas brancas, com correção de cor e nitidez) e veja o livro em 3D, girando para todos os lados, com opção de salvar em PNG transparente; as medidas vêm do livro (ou de um manuscrito, ou digitadas). Saída em PDF CMYK para gráfica (PDF/X-1a, perfil ICC), com sangria automática ou manual.'],
@@ -260,6 +267,13 @@
     new: newBook, open: () => open(), save: () => save(false), saveAs: () => save(true),
     import: () => App.importer.fromDialog(), export: () => App.setView('export'), enhance: () => App.enhance.open(), translate: () => App.translate.open(), toolbox: () => App.toolbox.open(), cover: () => App.setView('cover'),
     refresh: () => App.preview.schedule(true), help,
+    find: () => App.find && App.find.open(false), replace: () => App.find && App.find.open(true),
+    selectAll: () => {
+      if (App.live && App.live.selectAll && App.live.selectAll()) return;
+      const a = document.activeElement;
+      if (a && a.tagName === 'IFRAME') { try { a.contentDocument.execCommand('selectAll'); } catch (e) { /* ok */ } return; }
+      document.execCommand('selectAll');
+    },
     projectUndo: () => App.undo(), projectRedo: () => App.redo(), history: () => App.showHistory(), settings: () => App.settingsUi && App.settingsUi.open(),
     library: () => App.library.toggle(), find: () => App.tools.find(),
     invisibles: () => { $('#editor').classList.toggle('show-invisibles'); }

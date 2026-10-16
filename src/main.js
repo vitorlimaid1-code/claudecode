@@ -143,6 +143,16 @@ function setupScreenshot() {
   mainWindow.webContents.once('did-finish-load', () => setTimeout(async () => {
     const steps = process.env.SCREENSHOT_STEPS ? JSON.parse(fs.readFileSync(process.env.SCREENSHOT_STEPS, 'utf8')) : [process.env.SCREENSHOT_JS || 'void 0'];
     for (let i = 0; i < steps.length; i++) {
+      // passo { inputJs }: o script devolve eventos de mouse/teclado, enviados como entrada real (testes de seleção)
+      if (steps[i] && typeof steps[i] === 'object') {
+        const evs = await mainWindow.webContents.executeJavaScript(steps[i].inputJs, true).catch(e => { console.log('JS_RESULT ' + i + ' ' + JSON.stringify('ERR ' + e.message)); return []; });
+        for (const ev of evs || []) {
+          if (ev.wait) { await new Promise(res => setTimeout(res, ev.wait)); continue; }
+          mainWindow.webContents.sendInputEvent(ev);
+          await new Promise(res => setTimeout(res, steps[i].delay || 25));
+        }
+        continue;
+      }
       const r = await mainWindow.webContents.executeJavaScript(steps[i], true).catch(e => 'ERR ' + e.message);
       if (r !== undefined) console.log('JS_RESULT ' + i + ' ' + JSON.stringify(r));
       await new Promise(res => setTimeout(res, Number(process.env.SCREENSHOT_WAIT || 2500)));
@@ -181,7 +191,12 @@ function buildMenu() {
         { label: 'Refazer ação do projeto', accelerator: 'CmdOrCtrl+Alt+Y', click: () => send('projectRedo') },
         { type: 'separator' },
         { label: 'Recortar', role: 'cut' }, { label: 'Copiar', role: 'copy' }, { label: 'Colar', role: 'paste' },
-        { label: 'Colar sem formatação', role: 'pasteAndMatchStyle' }, { label: 'Selecionar tudo', role: 'selectAll' },
+        { label: 'Colar sem formatação', role: 'pasteAndMatchStyle' },
+        // nas páginas, “Selecionar tudo” seleciona o capítulo inteiro (todas as páginas dele)
+        { label: 'Selecionar tudo', accelerator: 'CmdOrCtrl+A', click: () => send('selectAll') },
+        { type: 'separator' },
+        { label: 'Buscar e substituir…', accelerator: 'CmdOrCtrl+F', click: () => send('find') },
+        { label: 'Substituir…', accelerator: 'CmdOrCtrl+H', click: () => send('replace') },
         { type: 'separator' },
         { label: 'Localizar e substituir…', accelerator: 'CmdOrCtrl+F', click: () => send('find') }
       ]

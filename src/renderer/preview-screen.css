@@ -56,6 +56,7 @@
   .page-tools button { width: 38px; height: 38px; border-radius: 8px; border: 1px solid #c9c4ba; background: #fff; cursor: pointer; font: 16px system-ui, sans-serif; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,.12); padding: 0; position: relative; }
   .page-tools button:hover { border-color: #c56a3f; background: #fbf3ee; }
   .page-tools button.on { background: #fbe9df; border-color: #c56a3f; }
+  .page-tools button.danger:hover { border-color: #c62828; background: #fdecea; }
   .page-tools button .sw { position: absolute; right: 3px; bottom: 3px; width: 10px; height: 10px; border-radius: 2px; border: 1px solid rgba(0,0,0,.3); }
   .page-tools button[disabled] { opacity: .4; cursor: default; }
   .pagedjs_page.locked-page .pagedjs_pagebox::after { content: "🔒"; position: absolute; top: 4px; right: 6px; font-size: 14px; opacity: .55; z-index: 80; }

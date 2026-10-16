@@ -51,7 +51,36 @@ async function prepareDocx(filePath) {
   if (cm) (await cm.async('string')).replace(/<w:comment\b[^>]*w:id="(\d+)"[^>]*>/g, (m, id) => { authors[id] = (/w:author="([^"]*)"/.exec(m) || [])[1] || ''; return m; });
   if (!docFile || !relsFile) return { buffer: buf, charts, authors };
   let doc = await docFile.async('string');
-  if (!/<c:chart\b/.test(doc)) return { buffer: buf, charts, authors };
+  // marcadores de travessão/hífen do Word (falas formatadas como lista): viram parágrafos que começam com
+  // travessão, como num livro; sem isso o conversor troca o traço por bolinhas de lista
+  const nf = zip.file('word/numbering.xml');
+  let dialogs = 0;
+  if (nf && /<w:numPr>/.test(doc)) {
+    const num = await nf.async('string');
+    const dashAbs = new Set();
+    num.replace(/<w:abstractNum\b[^>]*w:abstractNumId="(\d+)"[^>]*>([\s\S]*?)<\/w:abstractNum>/g, (m, id, body) => {
+      const l0 = /<w:lvl\b[^>]*w:ilvl="0"[^>]*>([\s\S]*?)<\/w:lvl>/.exec(body);
+      const lvl = l0 ? l0[1] : body;
+      const txt = (/<w:lvlText\b[^>]*w:val="([^"]*)"/.exec(lvl) || [])[1];
+      if (/<w:numFmt\b[^>]*w:val="bullet"/.test(lvl) && txt !== undefined && /^\s*[-–—‒―−\uF02D\uF0BE]\s*$/.test(txt)) dashAbs.add(id);
+      return m;
+    });
+    const dashNum = new Set();
+    num.replace(/<w:num\b[^>]*w:numId="(\d+)"[^>]*>([\s\S]*?)<\/w:num>/g, (m, id, body) => { const a = (/<w:abstractNumId\b[^>]*w:val="(\d+)"/.exec(body) || [])[1]; if (a && dashAbs.has(a)) dashNum.add(id); return m; });
+    if (dashNum.size) {
+      doc = doc.replace(/<w:p(?=[\s>])[^>]*>(?:(?!<w:p[\s>])[\s\S])*?<\/w:p>/g, para => {
+        const id = (/<w:numPr>[\s\S]*?<w:numId\b[^>]*w:val="(\d+)"[\s\S]*?<\/w:numPr>/.exec(para) || [])[1];
+        if (!id || !dashNum.has(id)) return para;
+        dialogs++;
+        return para.replace(/<w:numPr>[\s\S]*?<\/w:numPr>/, '').replace(/<\/w:pPr>/, '</w:pPr><w:r><w:t xml:space="preserve">\u2014 </w:t></w:r>');
+      });
+    }
+  }
+  if (!/<c:chart\b/.test(doc)) {
+    if (!dialogs) return { buffer: buf, charts, authors };
+    zip.file('word/document.xml', doc);
+    return { buffer: await zip.generateAsync({ type: 'nodebuffer' }), charts, authors, dialogs };
+  }
   const rels = await relsFile.async('string');
   const target = rid => (new RegExp(`<Relationship\\b[^>]*Id="${rid}"[^>]*Target="([^"]+)"`).exec(rels) || new RegExp(`<Relationship\\b[^>]*Target="([^"]+)"[^>]*Id="${rid}"`).exec(rels) || [])[1];
   const drawings = [];
@@ -70,7 +99,7 @@ async function prepareDocx(filePath) {
   let k = 0;
   doc = doc.replace(/\u27E6GRAFICO:\d+\u27E7/g, () => `\u27E6GRAFICO:${k++}\u27E7`);
   zip.file('word/document.xml', doc);
-  return { buffer: await zip.generateAsync({ type: 'nodebuffer' }), charts, authors };
+  return { buffer: await zip.generateAsync({ type: 'nodebuffer' }), charts, authors, dialogs };
 }
 
 async function importDocx(filePath) {
@@ -113,7 +142,7 @@ async function importDocx(filePath) {
   });
   const escA = t => String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
   html = html.replace(/<sup><a href="#comment-(\d+)" id="comment-ref-\d+">[^<]*<\/a><\/sup>/g, (m, id) => (comments[id] ? `<span class="comment" data-author="${escA(prep.authors[id] || '')}" data-text="${escA(comments[id])}">\u200b</span>` : ''));
-  return { kind: 'html', html, notesFormat: 'mammoth', charts: prep.charts };
+  return { kind: 'html', html, notesFormat: 'mammoth', charts: prep.charts, dialogs: prep.dialogs || 0 };
 }
 
 // O word-extractor descarta o caractere de referência de nota (0x02). Antes de carregá-lo,
