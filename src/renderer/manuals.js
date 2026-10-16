@@ -210,7 +210,7 @@
         M('Biblioteca de estilos e conjuntos tipográficos',
           'Design → Biblioteca de estilos; Estilos de texto → conjuntos.',
           'Aplicar um visual completo pronto (romance, terror, acadêmico…) ou o seu próprio.',
-          ['Clique num estilo para aplicar ao livro todo.', '“Terror — páginas pretas”: todas as folhas pretas e todo o texto branco (miolo, rosto, ficha, sumário, cabeçalho, números de página e notas), separador e logotipo claros — pronto para livros de terror.', '“Salvar como meu padrão”: livros novos começam com a sua configuração.'],
+          ['Clique num estilo para aplicar ao livro todo.', '“Terror — páginas pretas”: todas as folhas pretas e todo o texto branco (miolo, rosto, ficha, sumário, cabeçalho, números de página e notas), separador e logotipo claros e o círculo do número da página branco (número em preto), em destaque sobre o preto — pronto para livros de terror.', '“Salvar como meu padrão”: livros novos começam com a sua configuração.'],
           'Um conjunto é a coleção de todos os estilos de texto do livro.',
           ['Aplicar um estilo pronto pode ser desfeito pelo ↶ Desfazer.', 'Ao trocar o “Terror — páginas pretas” por outro estilo, as folhas voltam a ser brancas e o texto preto.'],
           ['“Meu padrão” só muda quando você salva de novo.', 'Páginas pretas gastam muita tinta: confirme com a gráfica (no padrão Cedet o miolo é preto e branco, então é aceito, mas o custo e a secagem mudam).', 'Imagens no texto não são invertidas; ornamentos e molduras próprios em preto podem sumir no fundo preto.']),

@@ -917,7 +917,10 @@ function buildCss(project, ctx) {
   // número dentro de uma forma (bloco, naipes, estrela…): vai no ::after da caixa do número
   // [classe do lado da página (ou vazio), caixa de margem]
   const folioBoxes = pn === 'left' ? [['', 'bottom-left']] : pn === 'center' ? [['', 'bottom-center']] : pn === 'top-outer' ? [['.pagedjs_left_page', 'top-left'], ['.pagedjs_right_page', 'top-right']] : pn === 'outer' ? [['', 'bottom-left']] : [];
-  const fd = FolioShapes.decl({ shape: s.pageNumberShape || 'plain', bg: s.pageNumberBg, fg: s.pageNumberFg, size: s.pageNumberShapeSize });
+  // páginas pretas: a forma do número (círculo etc.) escura sumiria no fundo — sai branca, com o número preto
+  const lum = c => { const m = /^#?([0-9a-f]{6})$/i.exec(String(c || '')); if (!m) return 0; const n = parseInt(m[1], 16); return ((n >> 16) * 0.299 + ((n >> 8) & 255) * 0.587 + (n & 255) * 0.114) / 255; };
+  const darkFolio = s.darkPages && lum(s.pageNumberBg || '#000000') < 0.5;
+  const fd = FolioShapes.decl({ shape: s.pageNumberShape || 'plain', bg: darkFolio ? '#ffffff' : s.pageNumberBg, fg: darkFolio ? '#000000' : s.pageNumberFg, size: s.pageNumberShapeSize });
   let folioCss = fd && folioBoxes.length ? `${folioBoxes.map(([side, box]) => `.pagedjs_page${side}:not(.pagedjs_blank_page) .pagedjs_margin-${box} > .pagedjs_margin-content::after`).join(', ')} { ${fd} }` : '';
   // alinhamento do número dentro da caixa (à direita na caixa da direita, ao centro na do meio)
   if (folioBoxes.length) folioCss += `\n${folioBoxes.map(([side, box]) => `.pagedjs_page${side} .pagedjs_margin-${box} > .pagedjs_margin-content`).join(', ')} { width: 100%; text-align: ${pn === 'center' ? 'center' : 'left'}; }` + (pn === 'top-outer' ? `\n.pagedjs_page.pagedjs_right_page .pagedjs_margin-top-right > .pagedjs_margin-content { text-align: right; }` : '');

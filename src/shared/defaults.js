@@ -475,7 +475,7 @@
     terrornoturno: {
       label: 'Terror — páginas pretas', separatorLibrary: 'espinhos',
       // todas as folhas pretas e todo o texto branco (miolo, rosto, ficha, sumário, cabeçalho, números e notas)
-      settings: { darkPages: true, pageColor: '#000000', dropCap: true, dropCapColor: '#ffffff', separatorColor: '#ffffff', header: 'title-chapter', pageNumbers: 'center', chapterNumbering: 'roman', sceneBreak: '✝', headerRule: { style: 'fina', color: '#bdbdbd', weight: 0.5, gap: 2.2, spine: true } },
+      settings: { darkPages: true, pageColor: '#000000', pageNumberBg: '#ffffff', pageNumberFg: '#000000', dropCap: true, dropCapColor: '#ffffff', separatorColor: '#ffffff', header: 'title-chapter', pageNumbers: 'center', chapterNumbering: 'roman', sceneBreak: '✝', headerRule: { style: 'fina', color: '#bdbdbd', weight: 0.5, gap: 2.2, spine: true } },
       styles: {
         body: { font: 'Crimson Pro', size: 11.5, lineHeight: 1.4, align: 'justify', color: '#ffffff' },
         chapterTitle: { font: 'Cormorant Garamond', size: 26, uppercase: true, letterSpacing: 0.12, color: '#ffffff', spaceBefore: 45 },
@@ -802,7 +802,7 @@
     settings.styles = base;
     // saindo do modelo de páginas pretas: folhas brancas e filetes/ornamentos escuros de novo
     if (settings.darkPages && !(preset.settings || {}).darkPages) {
-      Object.assign(settings, { darkPages: false, pageColor: '#ffffff', dropCapColor: '', separatorColor: '#000000' });
+      Object.assign(settings, { darkPages: false, pageColor: '#ffffff', dropCapColor: '', separatorColor: '#000000', pageNumberBg: '#000000', pageNumberFg: '#ffffff' });
       if (settings.headerRule) settings.headerRule = Object.assign({}, settings.headerRule, { color: '#6b6b6b' });
     }
     mergeSettings(settings, Object.assign({}, preset.settings, { styles: preset.styles }));
