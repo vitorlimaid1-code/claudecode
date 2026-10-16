@@ -476,6 +476,8 @@ ipcMain.handle('tr:config', () => tr().config());
 ipcMain.handle('tr:setConfig', (e, patch) => tr().setConfig(patch || {}));
 ipcMain.handle('tr:test', () => tr().test());
 ipcMain.handle('tr:ollamaModels', () => tr().ollamaModels());
+// VBO Refinamento → Metadados: rosto e ficha acrescentados no começo do arquivo, que substitui o original
+require('./main/metapages').registerMetaPages({ ipcMain, app, shell });
 // o Ollama aberto pelo sistema fecha junto com o app
 app.on('will-quit', () => { try { require('./main/ollama').stop(); } catch (e) { /* ok */ } });
 ipcMain.handle('tr:chunk', async (e, req) => {

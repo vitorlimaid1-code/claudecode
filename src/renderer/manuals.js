@@ -477,9 +477,16 @@
           'Botão VBO Refinamento no topo (ou na tela de boas-vindas).',
           'Aplicar toda a edição automática do sistema em livros de qualquer formato, de uma vez, sem abrir um por um.',
           ['Envie arquivos ou pastas inteiras (clique ou arraste; sem limite de quantidade).', 'Confira o formato de saída (padrão: PDF diagramado; a escolha fica guardada) e clique em Refinar.', 'Acompanhe cada etapa no Registro ao vivo.'],
-          'Cada livro é lido inteiro (capítulos, títulos, notas de rodapé ligadas às chamadas, ilustrações); falas com hífen ou aspas viram travessão; Novo Acordo, grafias antigas, pontuação e sujeira de PDF são corrigidos; estilo, fonte e tamanho padrão do sistema e sumário automático — sem ficha catalográfica.',
+          'Cada livro é lido inteiro (capítulos, títulos, notas de rodapé ligadas às chamadas, ilustrações); falas com hífen ou aspas viram travessão; Novo Acordo, grafias antigas, pontuação e sujeira de PDF são corrigidos; estilo, fonte e tamanho padrão do sistema e sumário automático — pronto para publicação, sem folha de rosto e sem ficha catalográfica.',
           ['Salva um arquivo novo em Downloads com “(refinado)” no nome; o original nunca é alterado.', 'Tudo no computador, sem internet.', 'Um erro num livro não para a fila; “Parar depois do livro atual” interrompe com segurança.'],
-          ['PDF de saída é diagramado página a página: livros grandes levam alguns minutos.', 'Palavras com hífen, números e listas não viram travessão.'])
+          ['PDF de saída é diagramado página a página: livros grandes levam alguns minutos.', 'Palavras com hífen, números e listas não viram travessão.']),
+        M('Metadados: rosto e ficha no começo do livro',
+          'VBO Refinamento → aba Metadados.',
+          'Acrescentar a página de rosto e a ficha catalográfica completa às duas primeiras páginas de um livro pronto.',
+          ['Preencha título, autor, editora e selo (os cadastrados no sistema).', 'Cole a ficha catalográfica pronta.', 'Envie o livro (qualquer formato) e confirme.'],
+          'O rosto e a ficha saem do mesmo motor que diagrama os livros, com as informações padrão do sistema (créditos, editora, direitos, quadro CIP com a ficha colada, distribuição). PDF: formato de corte, sangria e marcas iguais às do livro; DOCX e EPUB: o conteúdo original não é tocado.',
+          ['O arquivo atualizado substitui o original, que vai para a Lixeira.', 'DOC, ODT, RTF e FB2 são refeitos em DOCX no padrão do sistema.'],
+          ['PDF protegido por senha: tire a senha em FERRAMENTAS → Remover senha antes.'])
       ]
     },
     {

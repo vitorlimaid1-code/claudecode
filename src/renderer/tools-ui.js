@@ -18,16 +18,17 @@
     ['png', 'PNG — sem perdas, com transparência'], ['jpeg', 'JPEG (JPG) — fotos, arquivo pequeno'], ['webp', 'WebP — web, com transparência'], ['avif', 'AVIF — web, compressão máxima'],
     ['gif', 'GIF — 256 cores, com transparência'], ['bmp', 'BMP — bitmap do Windows'], ['tiff', 'TIFF — gráfica e impressão'], ['psd', 'PSD — Photoshop'], ['pdf', 'PDF — documento'],
     ['svg', 'SVG — vetor com a imagem embutida'], ['ico', 'ICO — ícone do Windows (16 a 256 px)'], ['tga', 'TGA — Targa'], ['qoi', 'QOI — sem perdas, rápido'],
+    ['eps', 'EPS — PostScript para gráfica'], ['icns', 'ICNS — ícone do macOS (16 a 1024 px)'],
     ['ppm', 'PPM — Netpbm colorido'], ['pgm', 'PGM — Netpbm em tons de cinza'], ['pbm', 'PBM — Netpbm preto e branco (pontilhado)'], ['pam', 'PAM — Netpbm com transparência']
   ];
   const LOSSY = new Set(['jpeg', 'webp', 'avif', 'pdf']);
-  const NO_ALPHA = new Set(['jpeg', 'bmp', 'ppm', 'pgm', 'pbm']);
+  const NO_ALPHA = new Set(['jpeg', 'bmp', 'ppm', 'pgm', 'pbm', 'eps']);
   const TXT_IN = ['docx', 'doc', 'odt', 'rtf', 'epub', 'pdf', 'txt', 'text', 'md', 'markdown', 'html', 'htm', 'xhtml', 'fb2'];
   const TXT_IN_LIST = ['DOCX (Word)', 'DOC (Word 97–2003)', 'ODT (LibreOffice/OpenOffice)', 'RTF', 'EPUB', 'PDF', 'TXT', 'Markdown (MD)', 'HTML / XHTML', 'FB2 (FictionBook)'];
   const TXT_OUT = [
     ['docx', 'DOCX — Word'], ['odt', 'ODT — LibreOffice/OpenOffice'], ['rtf', 'RTF — texto formatado universal'], ['pdf', 'PDF — diagramado no padrão do sistema'],
     ['epub', 'EPUB — livro digital'], ['mobi', 'MOBI — Kindle'], ['html', 'HTML — página única, com as imagens dentro'], ['md', 'Markdown (MD)'],
-    ['txt', 'TXT — texto simples'], ['fb2', 'FB2 — FictionBook']
+    ['txt', 'TXT — texto simples'], ['fb2', 'FB2 — FictionBook'], ['xhtml', 'XHTML — HTML em XML (página única)'], ['tex', 'LaTeX (TEX) — para edição acadêmica']
   ];
   const ext = p => (String(p).match(/\.([^.\\/]+)$/) || [, ''])[1].toLowerCase();
   const base = p => String(p).split(/[\\/]/).pop().replace(/\.[^.]+$/, '');
@@ -278,6 +279,59 @@
     const body = proj.chapters.map(c => { const d = chapterDom(proj, c); let n = 0; const notes = []; d.querySelectorAll('.footnote').forEach(f => { n++; notes.push(`<li id="n${proj.chapters.indexOf(c)}-${n}">${f.innerHTML}</li>`); f.outerHTML = `<sup><a href="#n${proj.chapters.indexOf(c)}-${n}">${n}</a></sup>`; }); return `<section class="chapter">\n<h1>${escapeXml(c.title || '')}</h1>\n${d.innerHTML}${notes.length ? `\n<ol class="notes">${notes.join('')}</ol>` : ''}\n</section>`; }).join('\n');
     return `<!DOCTYPE html>\n<html lang="${escapeXml(m.language || 'pt-BR')}">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${escapeXml(m.title || '')}</title>\n<meta name="author" content="${escapeXml(m.author || '')}">\n<style>body{max-width:40em;margin:3em auto;padding:0 1em;font:1.1em/1.6 Georgia,'Times New Roman',serif;color:#1a1a1a}h1{text-align:center;margin:2.5em 0 1em;font-weight:normal}p{margin:0;text-indent:1.5em;text-align:justify}h1+p,h2+p,h3+p{text-indent:0}figure{margin:1.5em auto;text-align:center}img{max-width:100%;height:auto}figcaption{font-size:.85em;color:#555}blockquote{margin:1em 2em;font-size:.95em}ol.notes{font-size:.85em;border-top:1px solid #ccc;padding-top:.5em;margin-top:2em}.hl-yellow{background:#fff200}.hl-green{background:#39ff14}.hl-pink{background:#ff2ec4;color:#fff}.hl-gray{background:#d0d0d0}.hl-black{background:#111;color:#fff}.hl-outline{border:1px solid #222}.smallcaps{font-variant:small-caps}</style>\n</head>\n<body>\n<header><h1 class="book-title">${escapeXml(m.title || '')}</h1>${m.author ? `<p style="text-align:center;text-indent:0">${escapeXml(m.author)}</p>` : ''}</header>\n${body}\n</body>\n</html>\n`;
   }
+  // XHTML (o mesmo HTML único, em XML bem formado: abre em leitores e ferramentas que exigem XHTML)
+  function toXhtml(proj) {
+    const h = toHtml(proj).replace(/^<!DOCTYPE html>\n<html lang="([^"]*)">/, '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE html>\n<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="$1" lang="$1">');
+    const doc = new DOMParser().parseFromString(h, 'text/html');
+    const body = new XMLSerializer().serializeToString(doc.body).replace(/^<body[^>]*>|<\/body>$/g, '');
+    const head = h.slice(0, h.indexOf('<body'));
+    return head.replace(/<meta ([^>]*[^/])>/g, '<meta $1/>') + '<body>' + body + '</body>\n</html>\n';
+  }
+  // LaTeX (classe book): capítulos, ênfases, notas de rodapé, citações e listas; imagens numa pasta ao lado
+  function toLatex(proj, imgDir) {
+    const files = [];
+    const esc = t => String(t).replace(/\\/g, '\\textbackslash{}').replace(/([#$%&_{}])/g, '\\$1').replace(/~/g, '\\textasciitilde{}').replace(/\^/g, '\\textasciicircum{}').replace(/\u00a0/g, '~').replace(/\s+/g, ' ');
+    const inline = node => Array.from(node.childNodes).map(n => {
+      if (n.nodeType === 3) return esc(n.nodeValue);
+      if (n.nodeType !== 1) return '';
+      const t = n.tagName, inner = inline(n);
+      if (n.classList.contains('footnote')) return `\\footnote{${inner.trim()}}`;
+      if (t === 'B' || t === 'STRONG') return `\\textbf{${inner}}`;
+      if (t === 'I' || t === 'EM') return `\\emph{${inner}}`;
+      if (t === 'U') return `\\underline{${inner}}`;
+      if (t === 'SUP') return `\\textsuperscript{${inner}}`;
+      if (t === 'SUB') return `\\textsubscript{${inner}}`;
+      if (t === 'BR') return '\\\\\n';
+      if (t === 'A') return `\\href{${esc(n.getAttribute('href') || '')}}{${inner}}`;
+      if (t === 'IMG') return img(n);
+      return inner;
+    }).join('');
+    const img = n => {
+      const m = /^data:image\/(png|jpe?g);base64,(.*)$/.exec(n.getAttribute('src') || '');
+      if (!m) return '';
+      const name = `imagem-${files.length + 1}.${m[1] === 'png' ? 'png' : 'jpg'}`;
+      files.push({ name, b64: m[2] });
+      return `\n\\begin{center}\\includegraphics[width=0.8\\textwidth]{${imgDir}/${name}}\\end{center}\n`;
+    };
+    const block = n => {
+      if (n.nodeType === 3) return n.nodeValue.trim() ? esc(n.nodeValue) + '\n\n' : '';
+      if (n.nodeType !== 1) return '';
+      const t = n.tagName;
+      if (/^H[1-6]$/.test(t)) return `\n\\${t === 'H2' || t === 'H1' ? 'section' : 'subsection'}*{${inline(n).trim()}}\n\n`;
+      if (t === 'BLOCKQUOTE') return `\\begin{quote}\n${Array.from(n.childNodes).map(block).join('') || inline(n)}\n\\end{quote}\n\n`;
+      if (t === 'UL' || t === 'OL') return `\\begin{${t === 'UL' ? 'itemize' : 'enumerate'}}\n${Array.from(n.children).map(li => `  \\item ${inline(li).trim()}`).join('\n')}\n\\end{${t === 'UL' ? 'itemize' : 'enumerate'}}\n\n`;
+      if (t === 'HR') return '\\begin{center}* * *\\end{center}\n\n';
+      if (t === 'FIGURE') { const i = n.querySelector('img'); const cap = n.querySelector('figcaption'); return (i ? img(i) : '') + (cap ? `\\begin{center}\\small\\emph{${inline(cap).trim()}}\\end{center}\n\n` : ''); }
+      if (t === 'TABLE') return Array.from(n.querySelectorAll('tr')).map(tr => Array.from(tr.children).map(td => inline(td).trim()).join(' \\quad ')).join(' \\\\\n') + '\n\n';
+      if (t === 'DIV' || t === 'SECTION' || t === 'ASIDE') return Array.from(n.childNodes).map(block).join('');
+      const inner = inline(n).trim();
+      return inner ? (n.classList.contains('no-indent') ? '\\noindent ' : '') + inner + '\n\n' : '';
+    };
+    const m = proj.meta;
+    const body = proj.chapters.map(c => `\\chapter{${esc(c.title || '')}}\n\n${Array.from(chapterDom(proj, c).childNodes).map(block).join('')}`).join('\n');
+    const text = `% Gerado pelo Casa Vertigem Hub\n\\documentclass[11pt]{book}\n\\usepackage[utf8]{inputenc}\n\\usepackage[T1]{fontenc}\n\\usepackage[brazil]{babel}\n\\usepackage{graphicx}\n\\usepackage[hidelinks]{hyperref}\n\\title{${esc(m.title || '')}}\n\\author{${esc(m.author || '')}}\n\\date{}\n\\begin{document}\n\\maketitle\n\\tableofcontents\n\n${body}\n\\end{document}\n`;
+    return { text, files };
+  }
   // Markdown (imagens numa pasta ao lado)
   async function toMarkdown(proj, imgDir) {
     const out = [`# ${proj.meta.title || ''}`, proj.meta.author ? `*${proj.meta.author}*` : ''];
@@ -435,6 +489,14 @@
     } else if (fmt === 'html') await api.toolsWrite(target, toHtml(proj));
     else if (fmt === 'rtf') await api.toolsWrite(target, toRtf(proj));
     else if (fmt === 'fb2') await api.toolsWrite(target, toFb2(proj));
+    else if (fmt === 'xhtml') await api.toolsWrite(target, toXhtml(proj));
+    else if (fmt === 'tex') {
+      const folder = base(target) + '-imagens';
+      const tx = toLatex(proj, folder);
+      await api.toolsWrite(target, tx.text);
+      const dir = target.replace(/[^\\/]+$/, '') + folder;
+      for (const f of tx.files) await api.toolsWrite(dir + (target.includes('\\') ? '\\' : '/') + f.name, Uint8Array.from(atob(f.b64), c => c.charCodeAt(0)));
+    }
     else if (fmt === 'md') {
       const folder = base(target) + '-imagens';
       const md = await toMarkdown(proj, folder.replace(/ /g, '%20'));
@@ -898,5 +960,5 @@
     screen._title.textContent = TOOL_NAME[t] || '';
   }
 
-  App.toolbox = { open, setTab, IMG_OUT, TXT_OUT, IMG_IN_LIST, TXT_IN_LIST, toHtml, toRtf, toFb2, toMarkdown, removeBg, loadImages, saveImage, work, state, _convertText: convertText, writeBook, sameFormat };
+  App.toolbox = { open, setTab, IMG_OUT, TXT_OUT, IMG_IN_LIST, TXT_IN_LIST, toHtml, toRtf, toFb2, toMarkdown, removeBg, loadImages, saveImage, work, state, _convertText: convertText, writeBook, sameFormat, toXhtml, toLatex };
 })();

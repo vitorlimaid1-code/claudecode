@@ -63,11 +63,12 @@
     proj.chapters.forEach(c => { c.title = opt.archaic.checked ? App.enhance.polishTitle(c.title) : c.title; });
     await tick();
     // 5. padrão do sistema: estilos, fontes e tamanhos de fábrica; sumário automático; sem ficha catalográfica
+    // pronto para publicação, mas sem página de rosto e sem ficha catalográfica (essas entram pela aba Metadados)
     proj.front.toc = opt.toc.checked;
-    proj.front.copyright = false;
+    Object.assign(proj.front, { titlePage: false, copyright: false, halfTitle: false });
     const notes = proj.chapters.reduce((s, c) => s + (c.html.match(/class="footnote"/g) || []).length, 0);
     const words = proj.chapters.reduce((s, c) => s + BookText.countWords(c.html), 0);
-    log(`${proj.chapters.length} capítulo(s) · ${fmtN(words)} palavras${notes ? ' · ' + fmtN(notes) + ' nota(s) de rodapé' : ''} · estilo, fonte e tamanho padrão do sistema${proj.front.toc ? ' · sumário automático' : ''} · sem ficha catalográfica`);
+    log(`${proj.chapters.length} capítulo(s) · ${fmtN(words)} palavras${notes ? ' · ' + fmtN(notes) + ' nota(s) de rodapé' : ''} · estilo, fonte e tamanho padrão do sistema${proj.front.toc ? ' · sumário automático' : ''} · sem folha de rosto e sem ficha catalográfica`);
     // 6. gravação em Downloads, num arquivo novo
     const fmt = opt.format.value === 'same' ? App.toolbox.sameFormat(item.path) : opt.format.value;
     const target = await api.toolsTarget({ base: baseName(item.path) + ' (refinado)', ext: fmt, src: item.path, mode: 'downloads' });
@@ -162,10 +163,13 @@
       el('b', { text: 'Enviar livros para refinar' }),
       el('span', { class: 'muted', text: 'Qualquer formato (DOCX, DOC, ODT, RTF, EPUB, PDF, TXT, Markdown, HTML, FB2) — clique ou arraste aqui arquivos ou pastas inteiras, quantos quiser' })
     ]);
-    const onDrop = e => { e.preventDefault(); e.stopPropagation(); drop.classList.remove('over'); addFiles(Array.from(e.dataTransfer.files || []).map(f => api.pathForFile(f))); };
+    const onDrop = e => { e.preventDefault(); e.stopPropagation(); drop.classList.remove('over'); if (screen && screen._tab && screen._tab() === 'meta') return; addFiles(Array.from(e.dataTransfer.files || []).map(f => api.pathForFile(f))); };
     drop.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); drop.classList.add('over'); });
     drop.addEventListener('dragleave', () => drop.classList.remove('over'));
     drop.addEventListener('drop', onDrop);
+    let tab = 'refine';
+    const refinePane = el('div', { class: 'rf-pane' });
+    const metaPane = el('div', { class: 'rf-pane rf-meta', style: { display: 'none' } }, [el('h2', { class: 'rf-meta-title', text: 'Metadados' }), App.vboMeta ? App.vboMeta.card(addLog) : el('p', { text: 'indisponível' })]);
     screen = el('div', { class: 'enh-screen rf-screen show' }, [
       el('header', { class: 'enh-head' }, [
         el('div', { class: 'enh-brand' }, [el('span', { class: 'enh-logo', html: App.icons ? App.icons.svg('feather') : '' }), el('div', {}, [el('h1', { text: 'VBO Refinamento' }), el('p', { class: 'muted', text: 'Toda a edição automática do sistema em um ou em centenas de livros — no computador, sem internet' })])]),
@@ -173,6 +177,22 @@
       ]),
       el('main', { class: 'enh-main' }, [
         el('section', { class: 'enh-col' }, [
+          el('div', { class: 'tr-tabs rf-tabs' }, [['refine', '🪶 Refinamento'], ['meta', '🏷 Metadados']].map(([k, t]) => el('button', { class: 'tr-tab' + (k === 'refine' ? ' on' : ''), 'data-tab': k, text: t, onclick: () => setTab(k) }))),
+          metaPane,
+          refinePane
+        ]),
+        el('section', { class: 'enh-col' }, [el('h3', { class: 'rf-log-title', text: 'Registro (ao vivo)' }), logBox])
+      ])
+    ]);
+    function setTab(k) {
+      tab = k;
+      screen.querySelectorAll('.rf-tabs .tr-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === k));
+      refinePane.style.display = k === 'refine' ? '' : 'none';
+      metaPane.style.display = k === 'meta' ? '' : 'none';
+    }
+    screen._setTab = setTab;
+    screen._tab = () => tab;
+    refinePane.append(...[
           drop,
           el('div', { class: 'inline wrap' }, [
             el('button', { class: 'small-btn', text: '📁 Adicionar uma pasta inteira', onclick: async () => { const d = await api.toolsPickDir('Pasta com os livros para refinar'); if (d) addFiles([d]); } }),
@@ -195,7 +215,7 @@
               'falas: hífen ou aspas abrindo a fala viram travessão (—), inclusive nos incisos do narrador; palavras com hífen, números e listas ficam como estão',
               'texto: Novo Acordo Ortográfico, grafias antigas, pontuação editorial (reticências, espaços duplos, aspas curvas) e sujeira de PDF/digitalização',
               'padrão do sistema: estilo, fonte e tamanho de fábrica, títulos, parágrafos e alinhamentos; sumário do arquivo trocado pelo automático',
-              'sem ficha catalográfica. Cada livro é salvo como um arquivo novo na pasta Downloads, com “(refinado)” no nome — o original nunca é alterado'
+              'pronto para publicação, sem folha de rosto e sem ficha catalográfica (para acrescentá-las depois, use a aba Metadados). Cada livro é salvo como um arquivo novo na pasta Downloads, com “(refinado)” no nome — o original nunca é alterado'
             ].map(t => el('li', { text: t })))
           ]),
           el('div', { class: 'enh-run' }, [
@@ -203,9 +223,6 @@
             el('button', { id: 'rfStop', class: 'danger', text: 'Parar depois do livro atual', style: { display: 'none' }, onclick: () => { stopAsked = true; addLog('Parada pedida: termina o livro atual e para.', 'bad'); } }),
             el('span', { class: 'muted small', text: 'Salvo em: ' + dlDir })
           ])
-        ]),
-        el('section', { class: 'enh-col' }, [el('h3', { class: 'rf-log-title', text: 'Registro (ao vivo)' }), logBox])
-      ])
     ]);
     screen.addEventListener('dragover', e => { if (Array.from(e.dataTransfer.types).includes('Files')) { e.preventDefault(); e.stopPropagation(); } });
     screen.addEventListener('drop', onDrop);
@@ -214,5 +231,5 @@
     addLog(`Pronto. Envie os livros (ou pastas) e clique em Refinar. Formato de saída: ${opt.format.selectedOptions[0].text.replace(' (padrão)', '')}.`);
   }
 
-  App.refine = { open, addFiles, start, queue, opt, _live: live };
+  App.refine = { open, addFiles, start, queue, opt, _live: live, setTab: k => screen && screen._setTab(k) };
 })();

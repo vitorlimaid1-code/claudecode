@@ -1,7 +1,7 @@
 {
   "name": "diagramador-de-livros",
   "productName": "Casa Vertigem Hub",
-  "version": "4.39.0",
+  "version": "4.40.0",
   "description": "Aplicativo desktop para diagramação de livros, 100% local e offline.",
   "main": "src/main.js",
   "author": "Diagramador de Livros",

@@ -721,3 +721,18 @@ html[data-theme="dark"] .rc-icon { color: #e6b98f; }
 .tl-card b { font-size: 13px; }
 .tl-card small { font-size: 11px; line-height: 1.25; }
 .tl-cur { margin: 4px 0 0; font-size: 16px; }
+
+/* VBO → Metadados */
+.rf-tabs { margin-bottom: 12px; }
+.rf-pane { display: grid; gap: 12px; }
+.rf-meta-title { margin: 0; font-size: 18px; letter-spacing: .02em; }
+.vm-card { display: grid; gap: 12px; }
+.vm-card textarea { width: 100%; box-sizing: border-box; font-family: inherit; font-size: 13px; line-height: 1.45; resize: vertical; }
+.vm-logos { display: flex; flex-wrap: wrap; gap: 8px; }
+.vm-logo { display: grid; justify-items: center; gap: 4px; width: 112px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); cursor: pointer; }
+.vm-logo img { max-width: 92px; max-height: 54px; object-fit: contain; }
+.vm-logo span { display: flex; align-items: center; justify-content: center; height: 54px; font-size: 12px; color: var(--muted); }
+.vm-logo small { font-size: 11px; text-align: center; line-height: 1.2; }
+.vm-logo.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--side); }
+.vm-file { word-break: break-all; }
+.vm-add span { font-size: 26px; color: var(--accent); }

@@ -61,6 +61,51 @@ function square(img, s) {
   x.drawImage(canvasOf(resize(img, Math.max(w, 1), Math.max(h, 1))), Math.round((s - w) / 2), Math.round((s - h) / 2));
   return c;
 }
+// EPS (PostScript encapsulado, o formato que muitas gráficas pedem): imagem RGB sem transparência (fundo de cor),
+// comprimida (Flate) e em ASCII85, com a caixa no tamanho real pela resolução escolhida
+async function deflate(bytes) {
+  const cs = new CompressionStream('deflate');
+  const out = new Response(new Blob([bytes]).stream().pipeThrough(cs));
+  return new Uint8Array(await out.arrayBuffer());
+}
+function ascii85(b) {
+  let out = '', line = 0;
+  const put = s => { for (const ch of s) { out += ch; if (++line >= 75) { out += '\n'; line = 0; } } };
+  for (let i = 0; i < b.length; i += 4) {
+    const n = Math.min(4, b.length - i);
+    let v = 0;
+    for (let k = 0; k < 4; k++) v = v * 256 + (k < n ? b[i + k] : 0);
+    if (v === 0 && n === 4) { put('z'); continue; }
+    const c = [];
+    for (let k = 0; k < 5; k++) { c.unshift(String.fromCharCode(33 + (v % 85))); v = Math.floor(v / 85); }
+    put(c.slice(0, n + 1).join(''));
+  }
+  return out + '~>';
+}
+async function encodeEPS(img, bg, dpi) {
+  const c = flatCanvas(img, bg);
+  const px = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+  const rgb = new Uint8Array(c.width * c.height * 3);
+  for (let i = 0, j = 0; i < px.length; i += 4) { rgb[j++] = px[i]; rgb[j++] = px[i + 1]; rgb[j++] = px[i + 2]; }
+  const data = ascii85(await deflate(rgb));
+  const k = 72 / (dpi || 300), W = c.width * k, H = c.height * k;
+  const head = `%!PS-Adobe-3.0 EPSF-3.0\n%%BoundingBox: 0 0 ${Math.ceil(W)} ${Math.ceil(H)}\n%%HiResBoundingBox: 0 0 ${W.toFixed(3)} ${H.toFixed(3)}\n%%LanguageLevel: 3\n%%Creator: Casa Vertigem Hub\n%%Pages: 1\n%%EndComments\n%%Page: 1 1\ngsave\n${W.toFixed(3)} ${H.toFixed(3)} scale\n/DeviceRGB setcolorspace\n<< /ImageType 1 /Width ${c.width} /Height ${c.height} /BitsPerComponent 8 /Decode [0 1 0 1 0 1] /ImageMatrix [${c.width} 0 0 -${c.height} 0 ${c.height}] /DataSource currentfile /ASCII85Decode filter /FlateDecode filter >> image\n`;
+  return new TextEncoder().encode(head + data + '\ngrestore\nshowpage\n%%EOF\n');
+}
+// ICNS (ícone do macOS): PNGs de 16 a 1024 px no contêiner da Apple
+async function encodeICNS(img) {
+  const max = Math.max(img.width, img.height);
+  const types = [['icp4', 16], ['icp5', 32], ['icp6', 64], ['ic07', 128], ['ic08', 256], ['ic09', 512], ['ic10', 1024]].filter(([, s]) => s <= Math.max(16, max));
+  const parts = [];
+  for (const [t, s] of types) parts.push([t, await blobBytes(square(img, s), 'image/png')]);
+  const total = 8 + parts.reduce((n, [, b]) => n + 8 + b.length, 0);
+  const out = new Uint8Array(total), dv = new DataView(out.buffer);
+  const tag = (at, t) => { for (let i = 0; i < 4; i++) out[at + i] = t.charCodeAt(i); };
+  tag(0, 'icns'); dv.setUint32(4, total);
+  let at = 8;
+  for (const [t, b] of parts) { tag(at, t); dv.setUint32(at + 4, 8 + b.length); out.set(b, at + 8); at += 8 + b.length; }
+  return out;
+}
 async function encode(img, fmt, o) {
   o = o || {};
   const [w, h] = targetSize(img, o);
@@ -96,6 +141,8 @@ async function encode(img, fmt, o) {
       return { bytes: await blobBytes(jpg ? flatCanvas(img, bg) : canvasOf(img), jpg ? 'image/jpeg' : 'image/png', q), ext: 'pdf', mime: jpg ? 'image/jpeg' : 'image/png', forPdf: true };
     }
     case 'psd': return { rgba: img, ext: 'psd', forPsd: true };
+    case 'eps': return { bytes: await encodeEPS(img, bg, o.dpi || 300), ext: 'eps', mime: 'application/postscript' };
+    case 'icns': return { bytes: await encodeICNS(img), ext: 'icns', mime: 'image/icns' };
     default: throw new Error('formato de saída desconhecido: ' + fmt);
   }
 }
