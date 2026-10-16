@@ -361,7 +361,8 @@
     pageWidth: 155,
     pageHeight: 230,
     pageColor: '#ffffff',
-    darkPages: false, // modelo de páginas escuras (Terror — páginas pretas): textos, filetes e ornamentos claros
+    darkPages: false,
+    recipes: { enabled: false, icons: true, columns: 2, color: '#7a4a2a', photo: true }, // modelo de receitas // modelo de páginas escuras (Terror — páginas pretas): textos, filetes e ornamentos claros
     marginTop: 28,
     marginBottom: 28,
     marginInner: 23,
@@ -555,6 +556,13 @@
       label: 'Jornalismo / reportagem', separatorLibrary: 'linha-dupla',
       settings: { dropCap: true, header: 'title-chapter', pageNumbers: 'center', sceneBreak: '■' },
       styles: { body: { font: 'Merriweather', size: 9.5, lineHeight: 1.5, align: 'justify', indent: 1.2 }, chapterTitle: { font: 'Playfair Display', size: 26, bold: true, align: 'left', spaceBefore: 22 }, h2: { font: 'Playfair Display', size: 14, bold: true, align: 'left' } }
+    },
+    receitas: {
+      label: 'Receitas (ícones nos ingredientes e no preparo)', separatorLibrary: 'pontos',
+      // reconhece “Ingredientes” e “Modo de preparo”: ícone para cada ingrediente e cada passo, passos
+      // numerados em círculo e um quadro com + para a foto da receita antes do modo de preparo
+      settings: { recipes: { enabled: true, icons: true, columns: 2, color: '#7a4a2a', photo: true }, dropCap: false, header: 'chapter-chapter', pageNumbers: 'center', chapterNumbering: 'none', sceneBreak: '•', indentFirstParagraph: false },
+      styles: { body: { font: 'Lora', size: 10.5, lineHeight: 1.5, align: 'justify', indent: 0, spaceAfter: 1.5 }, chapterTitle: { font: 'Playfair Display', size: 30, italic: true, align: 'center', color: '#3b2416', spaceBefore: 18 }, chapterLabel: { color: '#7a4a2a' }, h2: { font: 'Playfair Display', size: 15, italic: true, bold: false, align: 'left', uppercase: false, letterSpacing: 0, color: '#3b2416' }, h3: { font: 'Lora', size: 11, bold: true, align: 'left', uppercase: true, letterSpacing: 0.12, color: '#7a4a2a' }, box: { background: '#f6efe2' } }
     },
     culinaria: {
       label: 'Culinária / guias práticos', separatorLibrary: 'pontos',
@@ -800,6 +808,8 @@
     if (!preset) return settings;
     const base = JSON.parse(JSON.stringify(DEFAULT_STYLES));
     settings.styles = base;
+    // outro modelo sem receitas: o reconhecimento de ingredientes e preparo desliga (o texto não muda)
+    if (settings.recipes && settings.recipes.enabled && !(preset.settings || {}).recipes) settings.recipes = Object.assign({}, settings.recipes, { enabled: false });
     // saindo do modelo de páginas pretas: folhas brancas e filetes/ornamentos escuros de novo
     if (settings.darkPages && !(preset.settings || {}).darkPages) {
       Object.assign(settings, { darkPages: false, pageColor: '#ffffff', dropCapColor: '', separatorColor: '#000000', pageNumberBg: '#000000', pageNumberFg: '#ffffff' });

@@ -140,6 +140,8 @@
     }
     App.project.genre = key;
     App.changed('Gênero do livro: ' + p.label);
+    // receitas: o quadro com + para a foto entra antes de cada modo de preparo
+    if (key === 'receitas' && App.recipes) App.recipes.insertPhotos(true);
     syncGenre();
     const r = App.hooks.viewRender[App.view];
     if (r && App.view !== 'chapter') r();

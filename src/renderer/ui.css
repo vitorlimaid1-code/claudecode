@@ -676,3 +676,13 @@ body.ws-book .nav-item[data-ws="periodical"] { display: none !important; }
 /* ISBN e código de barras */
 .isbn-where { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); grid-column: 1 / -1; }
 .isbn-where:last-child { border-bottom: 0; }
+
+/* modelo de receitas: galeria de ícones e teste */
+.rc-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; margin-top: 8px; }
+.rc-icon { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px; border: 1px solid var(--line); border-radius: 8px; color: #7a4a2a; }
+html[data-theme="dark"] .rc-icon { color: #e6b98f; }
+.rc-icon svg { width: 28px; height: 28px; }
+.rc-icon small { font-size: 10px; color: var(--muted); text-align: center; line-height: 1.2; }
+.rc-test { display: inline-flex; gap: 14px; align-items: center; margin-top: 6px; color: #7a4a2a; }
+.rc-test span { display: inline-flex; align-items: center; gap: 4px; }
+.rc-test svg { width: 22px; height: 22px; }

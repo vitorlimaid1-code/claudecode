@@ -8,6 +8,7 @@ const PageFrames = require('./shared/frames');
 const TocThemes = require('./shared/tocthemes');
 const HeaderRules = require('./shared/headerrules');
 const Overlays = require('./shared/overlays');
+const Recipes = require('./shared/recipes');
 
 function effectiveBleed(s) {
   if (s.bleedAuto) return autoBleed(s);
@@ -384,6 +385,13 @@ function blocksHtml(html, ctx) {
     const a = parseAttrs(attrs);
     const v = a['data-ph'] === 'v';
     const hero = a['data-ph'] === 'hero'; // foto principal (largura total, bem alta)
+    if (a['data-ph'] === 'recipe') {
+      // quadro da foto da receita (antes do modo de preparo): faixa horizontal elegante com o +
+      const src0 = a['data-src'] !== undefined ? ` data-src="${esc(a['data-src'])}"` : '';
+      if (!ctx.markBlocks) return ''; // sem foto escolhida, o quadro não sai no PDF final
+      const tools0 = ctx.markBlocks ? `<button class="ph-plus" title="Carregar a foto da receita do computador">+</button><span class="ph-tools" contenteditable="false"><button class="ph-del" title="Remover o quadro">✕</button></span>` : '';
+      return `<figure class="ph ph-h ph-recipe"${src0} contenteditable="false"><div class="ph-box"><span class="ph-label">Foto da receita</span>${tools0}</div></figure>`;
+    }
     const cap = a['data-cap'] !== '0';
     const capText = inner.replace(/<[^>]+>/g, '').trim() || 'Legenda de teste: descreva a imagem aqui.';
     const src = a['data-src'] !== undefined ? ` data-src="${esc(a['data-src'])}"` : '';
@@ -405,6 +413,9 @@ function blocksHtml(html, ctx) {
 
 function processBody(html, ctx) {
   html = html || '';
+  // modelo de receitas: ingredientes e passos com ícones (só apresentação; o texto não muda)
+  const rc = ctx.settings.recipes;
+  if (rc && rc.enabled) html = Recipes.mark(html, { color: ctx.settings.darkPages ? '#f2f2f2' : (rc.color || '#7a4a2a'), icons: rc.icons !== false }).html;
   html = html.replace(/\ssrc="blob:[^"]*"/g, '');
   // comentários de revisão nunca saem no livro
   html = html.replace(/<span class="comment"[^>]*>[\s\S]*?<\/span>/g, '');
@@ -756,6 +767,8 @@ function buildHtml(project, ctx) {
     const chHtml = String(c.html || '').replace(/^(\s*<div class="cols)"/, '$1 cols-open"');
     let body = markLongBoxes(markShortTables(origTables(numberTables(processBody(anchorHeadings(ctx.markBlocks ? markBlocks(chHtml) : chHtml, c.id, heads), ctx), ctx), ctx)));
     // “Título” no texto abre página nova como um capítulo: entra no sumário no mesmo nível dos capítulos
+    // receitas: “Ingredientes”, “Modo de preparo” e “Dica” não entram no sumário
+    if (settings.recipes && settings.recipes.enabled) { const keep = heads.filter(h => !Recipes.headKind('h2', h.title)); heads.length = 0; heads.push(...keep); }
     heads.forEach(h => tocItems.push({ id: h.id, label: '', title: h.title, level: settings.headingsLikeChapter !== false && project.kind !== 'magazine' && project.kind !== 'newspaper' ? Math.max(1, h.level - 1) : h.level }));
     // notas no fim do capítulo, no fim do livro ou na margem externa (em vez do rodapé)
     if (notesMode !== 'footnote' && settings.footnotesVisible !== false) {
@@ -1105,6 +1118,35 @@ ${s.darkPages ? `/* ---------- páginas pretas (modelo Terror — páginas preta
 .fb-pos-tl { top: ${mm(num(s.marginTop, 20))}; left: ${mm(num(s.marginOuter, 16))}; } .fb-pos-tr { top: ${mm(num(s.marginTop, 20))}; right: ${mm(num(s.marginOuter, 16))}; }
 .fb-pos-bl { bottom: ${mm(num(s.marginBottom, 22))}; left: ${mm(num(s.marginOuter, 16))}; } .fb-pos-br { bottom: ${mm(num(s.marginBottom, 22))}; right: ${mm(num(s.marginOuter, 16))}; }
 .fb-pos-band { left: 0; right: 0; bottom: ${mm(num(s.marginBottom, 22) * 0.6)}; max-width: none; padding: 5mm ${mm(num(s.marginOuter, 16))}; }
+${s.recipes && s.recipes.enabled ? (() => {
+  const A = s.darkPages ? '#f2f2f2' : color(s.recipes.color, '#7a4a2a');
+  const TF = fontStack(S.chapterTitle.font || body.font);
+  const cols = Math.max(1, Math.min(3, num(s.recipes.columns, 2)));
+  const ic = s.recipes.icons !== false;
+  return `/* ---------- receitas: ingredientes e modo de preparo com ícones ---------- */
+.chapter-body .rc-head { break-before: auto !important; page-break-before: auto !important; display: flex; align-items: center; gap: 2.4mm; font-family: ${TF}; font-size: 1.08em; font-weight: 400; font-style: normal; text-transform: uppercase; letter-spacing: 0.16em; color: ${A}; text-align: left; text-indent: 0; margin: 6mm 0 3mm; break-after: avoid; }
+.chapter-body .rc-head::before { content: ''; flex: 0 0 6.2mm; height: 6.2mm; ${ic ? 'background: var(--ri) center / 72% no-repeat;' : 'display: none;'} border: 0.5pt solid ${A}; border-radius: 50%; }
+.chapter-body .rc-head::after { content: ''; flex: 1 1 auto; border-top: 0.5pt solid ${A}; opacity: 0.55; }
+.chapter-body .rc-meta { display: inline-flex; align-items: center; gap: 1.6mm; margin: 0 5mm 1.5mm 0; text-indent: 0; font-size: 0.9em; font-style: italic; }
+.chapter-body .rc-meta::before { content: ''; width: 4.6mm; height: 4.6mm; ${ic ? 'background: var(--ri) center / contain no-repeat;' : 'display: none;'} }
+.chapter-body ul.rc-ing-list, .chapter-body ol.rc-ing-list { list-style: none; padding: 0; margin: 0 0 2mm; columns: ${cols}; column-gap: 7mm; }
+.chapter-body .rc-ing { position: relative; list-style: none; text-indent: 0; padding-left: 7.4mm; margin: 0 0 1.6mm; min-height: 5.4mm; break-inside: avoid; text-align: left; display: flow-root; }
+.chapter-body .rc-ing::before { content: ''; float: left; box-sizing: border-box; margin: -0.3mm 0 0 -7.4mm; width: 5.4mm; height: 5.4mm; ${ic ? 'background: var(--ri) center / 74% no-repeat;' : 'background: none;'} border: 0.45pt solid ${A}; border-radius: 50%; ${ic ? '' : 'width: 1.6mm; height: 1.6mm; margin: 1.6mm 0 0 -5.6mm; background: ' + A + ';'} }
+.chapter-body .rc-ing-lines { text-indent: 0; }
+.chapter-body .rc-ing-line { display: block; padding-left: 7.4mm; margin-bottom: 1.2mm; }
+.chapter-body .rc-sub { font-family: ${TF}; font-style: italic; text-indent: 0; margin: 3mm 0 1.5mm; color: ${A}; break-after: avoid; }
+.chapter-body ul.rc-step-list, .chapter-body ol.rc-step-list { list-style: none; padding: 0; margin: 0; }
+.chapter-body .rc-step { position: relative; list-style: none; text-indent: 0; padding-left: 12.5mm; margin: 0 0 3mm; min-height: 9mm; text-align: left; display: flow-root; }
+.chapter-body .rc-step::before { content: attr(data-n); float: left; box-sizing: border-box; margin: -1mm 0 0 -12.5mm; width: 9.4mm; height: 9.4mm; border: 0.55pt solid ${A}; border-radius: 50%; ${ic ? 'background: var(--ri) center 26% / 46% no-repeat; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 0.6mm; font: 600 7pt/1 ' + TF + ';' : 'display: flex; align-items: center; justify-content: center; font: 400 11pt/1 ' + TF + ';'} color: ${A}; text-indent: 0; letter-spacing: 0; }
+.chapter-body .rc-step.rc-own::before { ${ic ? 'content: \'\'; background-position: center; background-size: 58%;' : 'content: \'\';'} }
+
+.chapter-body .rc-tip { position: relative; text-indent: 0; font-style: italic; padding: 2.5mm 3.5mm; border-left: 1.2pt solid ${A}; background: ${s.darkPages ? '#151515' : 'rgba(122, 74, 42, 0.06)'}; margin: 0 0 2mm; }
+.chapter-body figure.ph-recipe { margin: 5mm 0 4mm; }
+.chapter-body figure.ph.ph-recipe .ph-box { aspect-ratio: 16 / 7; background: ${s.darkPages ? '#121212' : '#faf6f0'}; border: 0.6pt solid ${A}; outline: 0.4pt solid ${A}; outline-offset: -1.6mm; }
+.chapter-body figure.ph-recipe .ph-label { color: ${A}; font-family: ${TF}; font-style: italic; text-transform: none; letter-spacing: 0.04em; font-size: 10pt; font-weight: 400; transform: translateY(-5mm); }
+.chapter-body figure.ph-recipe .ph-plus { width: 12mm; height: 12mm; border-radius: 50%; background: ${A}; color: ${s.darkPages ? '#000' : '#fff'}; font: 300 20pt/1 ${TF}; box-shadow: 0 0 0 1.2mm ${s.darkPages ? '#121212' : '#faf6f0'}, 0 0 0 1.6mm ${A}; transform: translate(-50%, 0); }
+`;
+})() : ''}
 /* blocos de imagem (à espera da imagem) */
 .chapter-body figure.ph { margin: 3mm 0; break-inside: avoid; }
 .chapter-body figure.ph .ph-box { position: relative; background: #d9d9de; display: flex; align-items: center; justify-content: center; }
