@@ -704,3 +704,8 @@ html[data-theme="dark"] .rc-icon { color: #e6b98f; }
 .pdf-thumb .pdf-cap { display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 12px; font-weight: 600; flex-wrap: wrap; }
 .pdf-thumb .pdf-btns { margin-left: auto; display: inline-flex; gap: 2px; }
 .pdf-thumb .pdf-btns .icon-btn { padding: 0 4px; font-size: 11px; }
+
+/* VBO Refinamento */
+.rf-log-title { margin: 0 0 8px; font-size: 14px; color: var(--muted); font-weight: 600; }
+.rf-screen .rf-log { flex: 1; min-height: 0; }
+.rf-count { margin: 0 0 0 auto; }

@@ -751,6 +751,7 @@ function buildHtml(project, ctx) {
   const hyph = settings.hyphenate ? getHyphenator() : null;
   const notesMode = periodical ? 'footnote' : (['chapter', 'book', 'side'].includes(settings.notesMode) ? settings.notesMode : 'footnote');
   ctx.noteN = 0;
+  ctx.fnN = 0;
   ctx.endnotes = [];
   chapters.forEach((c, i) => {
     segKey = 'ch:' + c.id;
@@ -776,6 +777,13 @@ function buildHtml(project, ctx) {
       body = r.html;
       if (notesMode === 'chapter') body += X.chapterEndnotes(r.notes, settings.endnotesTitle);
       if (notesMode === 'book') ctx.endnotes.push({ heading: [label, c.title].filter(Boolean).join(' — '), notes: r.notes });
+    }
+    // notas de rodapé: o número de cada uma vai gravado nela (data-fnum) e aparece igual na chamada e no pé da
+    // página — contínuo no livro ou recomeçando a cada capítulo. Não depende dos contadores do CSS, que se
+    // perdiam entre parágrafos e entre capítulos paginados separadamente (chamadas “1, 1” para as notas 1, 2, 3).
+    if (notesMode === 'footnote') {
+      if (settings.footnoteNumbering === 'chapter') ctx.fnN = 0;
+      body = body.replace(/<span\b(?=[^>]*\bclass="(?:[^"]*\s)?footnote(?:\s[^"]*)?")([^>]*)>/g, (m, attrs) => `<span${attrs.replace(/\sdata-fnum="[^"]*"/, '')} data-fnum="${(ctx.fnN = (ctx.fnN || 0) + 1)}">`);
     }
     if (hyph) { try { body = hyphCached(hyph, body); } catch (e) { /* sem hifenização */ } }
     // tabelas coladas com a formatação original: sem hifenização automática (como no original)
@@ -1356,6 +1364,9 @@ ${captionStyleCss()}
   text-transform: none;
 }
 .footnote::footnote-call { vertical-align: super; font-size: 0.65em; line-height: 0; }
+.footnote[data-fnum]::footnote-call { content: attr(data-fnum); }
+.footnote[data-fnum]::footnote-marker { content: attr(data-fnum) ". "; }
+.footnote[data-fnum][data-split-from]::footnote-marker { content: none; }
 @page { @footnote { border-top: 0.5pt solid currentColor; margin-top: 3mm; padding-top: 1.5mm; } }
 ${s.footnoteNumbering === 'chapter' ? '.chapter:not(.chapter-cont) { counter-reset: footnote; }' : ''}
 

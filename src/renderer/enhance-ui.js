@@ -20,7 +20,10 @@
   const decode = s => { const t = document.createElement('textarea'); t.innerHTML = String(s || ''); return clean(t.value); };
 
   // ---------------------------------------------------------------- limpeza
-  function cleanGutenberg(res, log) {
+  // o.keep (Tradução, VBO Refinamento): só tira avisos/licença do Gutenberg e converte as notas — nenhuma página,
+  // capítulo, sumário ou separador do livro é removido
+  function cleanGutenberg(res, log, o) {
+    const keep = !!(o && o.keep);
     const root = document.createElement('div');
     (res.docs || []).forEach(d => {
       // capa (página de imagem do ebookmaker)
@@ -73,6 +76,7 @@
       flat.push(node);
     };
     Array.from(root.childNodes).forEach(push);
+    if (keep) return flat.map(x => x.outerHTML).join('');
 
     // começo do texto: o primeiro capítulo (ou prólogo/introdução logo antes dele)
     const text = x => clean(x.textContent);
@@ -343,7 +347,8 @@
   // ---------------------------------------------------------------- revisão do português (PDF)
   // Diálogos com travessão (sem aspas), grafias antigas atualizadas, Novo Acordo Ortográfico e pontuação
   // editorial (reticências, espaços, travessões, aspas curvas nas citações) — sem mudar o estilo do autor.
-  function polishPtBr(html, log, glue) {
+  function polishPtBr(html, log, glue, o) {
+    const archaic = !(o && o.archaic === false);
     if (typeof PtBr === 'undefined') return html;
     const tpl = document.createElement('template');
     tpl.innerHTML = html;
@@ -372,7 +377,7 @@
       const v0 = v;
       v = v.replace(/ﬁ/g, 'fi').replace(/ﬂ/g, 'fl').replace(/ﬀ/g, 'ff').replace(/ﬃ/g, 'ffi').replace(/ﬄ/g, 'ffl').replace(/[\u00ad\u200b]/g, '').replace(/\s*\|\s*/g, ' ').replace(/(\p{L})\s+-\s+(\p{Ll})/gu, '$1-$2');
       if (v !== v0) st.ocr++;
-      const a = PtBr.archaic(v); v = a.text; add(st.archaic, a.hits);
+      if (archaic) { const a = PtBr.archaic(v); v = a.text; add(st.archaic, a.hits); }
       const o = PtBr.orthography(v); v = o.text; add(st.ortho, o.hits);
       const p = PtBr.punctuation(v); v = p.text; add(st.punct, p.hits);
       if (v !== t.nodeValue) t.nodeValue = v;
@@ -427,6 +432,11 @@
     log('lendo o arquivo…');
     const res = await api.enhRead(filePath);
     if (!res || res.error) throw new Error(res ? res.error : 'arquivo ilegível');
+    // dados vazios que os geradores de PDF/DOCX gravam (“(anonymous)”, “Untitled”, “Microsoft Word - arquivo.docx”)
+    if (res.meta) ['title', 'author'].forEach(k => {
+      const v = String(res.meta[k] || '').replace(/^Microsoft Word\s*-\s*/i, '').replace(/\.(docx?|odt|rtf|pdf)$/i, '').trim();
+      res.meta[k] = /^\(?\s*(anonymous|anônimo|untitled|unknown|sem título|desconhecido|user|usuário|admin|author|autor|title|título)\s*\)?$/i.test(v) ? '' : v;
+    });
     if (res.kind === 'pdf' && opts.clean !== false) {
       log(`${res.pages.length} página(s) no PDF`);
       // PDF digitalizado (páginas só com imagem): reconhecimento de texto (OCR) no computador
@@ -460,13 +470,13 @@
     if (!res.meta.title) res.meta.title = name;
     log(`${res.kind === 'pdf' ? 'texto do PDF reconstruído' : (res.docs || []).length + ' arquivo(s) internos'} · “${decode(res.meta.title) || name}”${res.meta.author ? ' · ' + decode(res.meta.author) : ''}`);
     // conversão de formato (Ferramentas): sem a limpeza do Gutenberg, o arquivo fica inteiro
-    let html = opts.clean === false ? (res.docs || []).map(d => d.html).join('\n') : cleanGutenberg(res, m => log(m));
+    let html = opts.clean === false ? (res.docs || []).map(d => d.html).join('\n') : cleanGutenberg(res, m => log(m), { keep: opts.keep });
     // PDF: revisão do português (travessão nos diálogos, ortografia atual, pontuação)
     if (res.kind === 'pdf' && opts.clean !== false && opts.polish !== false) html = polishPtBr(html, m => log(m), opts.glue !== false);
     let chapters = BookText.htmlToChapters(html, decode(res.meta.title) || name);
     const det = chapters.detected;
     chapters = chapters.filter(c => c.html.replace(/<[^>]+>/g, '').trim() || /<img/.test(c.html));
-    if (opts.clean !== false) {
+    if (opts.clean !== false && !opts.keep) {
       // restos de página de rosto no começo (título, autor, editora, local/ano), sem texto corrido: fora
       const bookT = clean(decode(res.meta.title)).toLowerCase(), bookA = clean(decode(res.meta.author)).toLowerCase();
       const txt = c => clean(c.html.replace(/<[^>]+>/g, ' '));
@@ -717,5 +727,5 @@
     screen.querySelectorAll('.enh-tabs .tr-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   }
 
-  App.enhance = { open, setTab, cleanGutenberg, cleanPdf, addFiles, start, queue, pdfQueue: SECT.pdf.queue, sections: SECT, loadBook, saveDocx };
+  App.enhance = { open, setTab, cleanGutenberg, cleanPdf, addFiles, start, queue, pdfQueue: SECT.pdf.queue, sections: SECT, loadBook, saveDocx, polishPtBr, polishTitle };
 })();

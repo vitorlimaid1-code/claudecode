@@ -12,7 +12,7 @@
       items: [
         M('Tela de boas-vindas',
           'Aparece ao abrir o aplicativo (e no botão de início).',
-          'Atalho para as tarefas mais comuns: enviar um livro, abrir um projeto salvo, começar do zero, Melhoramento, Tradução, Ferramentas e Capa.',
+          'Atalho para as tarefas mais comuns: enviar um livro, abrir um projeto salvo, começar do zero, Melhoramento, VBO Refinamento, Tradução, Ferramentas e Capa.',
           ['Clique num cartão para ir direto à tarefa.', '“Entrar no aplicativo →” fecha a tela e mostra o editor com o último livro.'],
           'É só uma camada por cima do editor; cada cartão chama o mesmo comando do botão correspondente no topo.',
           ['Fecha sozinha quando você escolhe uma tarefa.', 'O livro aberto não muda até você enviar ou abrir outro.'],
@@ -471,15 +471,27 @@
       ]
     },
     {
+      id: 'refinamento', name: 'VBO Refinamento', icon: '🪶',
+      items: [
+        M('Refinar livros em lote',
+          'Botão VBO Refinamento no topo (ou na tela de boas-vindas).',
+          'Aplicar toda a edição automática do sistema em livros de qualquer formato, de uma vez, sem abrir um por um.',
+          ['Envie arquivos ou pastas inteiras (clique ou arraste; sem limite de quantidade).', 'Escolha o formato de saída (padrão: o mesmo do original) e clique em Refinar.', 'Acompanhe cada etapa no Registro ao vivo.'],
+          'Cada livro é lido inteiro (capítulos, títulos, notas de rodapé ligadas às chamadas, ilustrações); falas com hífen ou aspas viram travessão; Novo Acordo, grafias antigas, pontuação e sujeira de PDF são corrigidos; estilo, fonte e tamanho padrão do sistema e sumário automático — sem ficha catalográfica.',
+          ['Salva um arquivo novo em Downloads com “(refinado)” no nome; o original nunca é alterado.', 'Tudo no computador, sem internet.', 'Um erro num livro não para a fila; “Parar depois do livro atual” interrompe com segurança.'],
+          ['PDF de saída é diagramado página a página: livros grandes levam alguns minutos.', 'Palavras com hífen, números e listas não viram travessão.'])
+      ]
+    },
+    {
       id: 'traducao', name: 'Tradução', icon: '🌐',
       items: [
         M('Tradução de livros',
           'Botão Tradução no topo.',
-          'Traduzir livros de qualquer idioma para português do Brasil, em DOCX no padrão.',
-          ['Envie EPUB/DOCX/DOC/ODT, escolha o motor e clique em Iniciar.'],
+          'Traduzir livros de qualquer idioma para português do Brasil: um livro entra, um livro sai — o arquivo inteiro, traduzido, no mesmo formato do original.',
+          ['Envie EPUB/DOCX/DOC/ODT, escolha o motor e clique em Iniciar.', 'Ollama: não precisa abrir antes — o sistema abre o Ollama sozinho e lista os modelos instalados para escolher.'],
           'Tradução literária por trechos com glossário e contexto; Google Tradutor sem chave, revisão por IA (OpenRouter/Gemini) com chave, ou offline (M2M100/NLLB).',
           ['Pós-edição local: travessão, Novo Acordo, português europeu → brasileiro, estilo e pontuação.', 'Relatório completo ao fim de cada livro.'],
-          ['Com OpenRouter/Google o texto vai ao serviço escolhido.', 'NLLB-200 só para uso não comercial.']),
+          ['Com OpenRouter/Google o texto vai ao serviço escolhido.', 'NLLB-200 só para uso não comercial.', 'Ollama precisa estar instalado (ollama.com) e ter um modelo baixado (ex.: ollama pull qwen2.5:7b).']),
         M('Livros de referência e dicionários',
           'Configurações da tradução.',
           'Ensinar o tradutor com pares original + tradução publicada e com o glossário da editora.',

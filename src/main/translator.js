@@ -12,6 +12,7 @@
 const fs = require('fs');
 const path = require('path');
 const K = require('../shared/mtkit');
+const Ollama = require('./ollama');
 
 // diretrizes editoriais (texto do editor) + regras técnicas de entrada e saída
 const SYSTEM = `Você é um tradutor literário sênior, copidesque e preparador de textos com décadas de experiência no mercado editorial premium. Seu objetivo é traduzir o texto fornecido para o português do Brasil, garantindo que o resultado final pareça ter sido escrito originalmente em português, mantendo o rigor técnico, a elegância estilística e a adequação ao layout de um livro físico. O texto de origem pode estar em qualquer idioma: identifique-o e traduza.
@@ -61,6 +62,20 @@ function createTranslator({ userFile, safeStorage, offline, tm }) {
   const write = c => { fs.mkdirSync(path.dirname(cfgFile), { recursive: true }); fs.writeFileSync(cfgFile, JSON.stringify(c, null, 1)); };
   const enc = k => (safeStorage && safeStorage.isEncryptionAvailable() ? { enc: safeStorage.encryptString(k).toString('base64') } : { plain: k });
   const dec = o => { if (!o) return ''; try { return o.enc ? safeStorage.decryptString(Buffer.from(o.enc, 'base64')) : o.plain || ''; } catch (e) { return ''; } };
+
+  // Ollama: abre sozinho se estiver fechado e usa um modelo instalado
+  async function ollamaModel(cfg) {
+    const st = await Ollama.ensure(cfg.ollamaUrl);
+    if (!st.ok) { const e = new Error(st.msg); e.fatal = true; throw e; }
+    const pk = Ollama.pickModel(st.models, cfg.ollamaModel);
+    if (!pk.model) { const e = new Error('nenhum modelo de texto instalado no Ollama (ex.: ollama pull qwen2.5:7b)'); e.fatal = true; throw e; }
+    return pk.model;
+  }
+  async function ollamaModels() {
+    const cfg = config();
+    const st = await Ollama.ensure(cfg.ollamaUrl);
+    return st.ok ? { ok: true, models: st.models, started: st.started } : { ok: false, msg: st.msg };
+  }
 
   function config() {
     const c = read();
@@ -431,14 +446,10 @@ function createTranslator({ userFile, safeStorage, offline, tm }) {
     const msg = userMessage(Object.assign({}, req, { refs: refsFor(req.html) }));
     if (cfg.provider === 'mock') return mock(req, onProgress);
     if (cfg.provider === 'ollama') {
-      const r = await fetch(cfg.ollamaUrl.replace(/\/$/, '') + '/api/chat', {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ model: cfg.ollamaModel, stream: false, options: { temperature: 0.3, num_ctx: 16384 }, messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: msg }] })
-      });
-      if (!r.ok) throw new Error(`Ollama respondeu ${r.status}: ${(await r.text()).slice(0, 200)}`);
-      const j = await r.json();
-      const out = applyExact(req, parse(j.message && j.message.content));
-      return Object.assign(out, { usage: { input_tokens: j.prompt_eval_count || 0, output_tokens: j.eval_count || 0 }, model: cfg.ollamaModel, stop: 'end_turn' });
+      const model = await ollamaModel(cfg);
+      const j = await Ollama.chat(cfg.ollamaUrl, { model, options: { temperature: 0.3, num_ctx: 16384 }, messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: msg }] }, onProgress);
+      const out = applyExact(req, parse(j.content));
+      return Object.assign(out, { usage: { input_tokens: j.prompt_eval_count, output_tokens: j.eval_count }, model, stop: 'end_turn' });
     }
     if (cfg.provider === 'openrouter' || cfg.provider === 'google') {
       // limite do plano gratuito ou queda de conexão: uma nova tentativa e, se continuar, o trecho segue pelo
@@ -521,9 +532,7 @@ ${(req.notes || []).slice(0, 120).map(n => '- ' + n).join('\n') || '(sem notas)'
     else if (cfg.provider === 'openrouter') text = (await openrouter([{ role: 'user', content: prompt }], 8000)).text;
     else if (cfg.provider === 'google') text = (await gemini('', prompt, 8000)).text;
     else if (cfg.provider === 'ollama') {
-      const r = await fetch(cfg.ollamaUrl.replace(/\/$/, '') + '/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model: cfg.ollamaModel, stream: false, messages: [{ role: 'user', content: prompt }] }) });
-      if (!r.ok) throw new Error('Ollama: ' + r.status);
-      text = ((await r.json()).message || {}).content || '';
+      text = (await Ollama.chat(cfg.ollamaUrl, { model: await ollamaModel(cfg), messages: [{ role: 'user', content: prompt }] })).content;
     } else {
       const { client: c } = anthropic();
       const m = MODELS.find(x => x.id === cfg.model) || MODELS[0];
@@ -587,10 +596,12 @@ ${(req.notes || []).slice(0, 120).map(n => '- ' + n).join('\n') || '(sem notas)'
       } catch (e) { return { ok: false, msg: 'sem conexão com o Google (verifique a internet).' }; }
     }
     if (cfg.provider === 'ollama') {
-      const r = await fetch(cfg.ollamaUrl.replace(/\/$/, '') + '/api/tags').catch(e => ({ ok: false, statusText: e.message }));
-      if (!r.ok) return { ok: false, msg: 'Ollama não respondeu em ' + cfg.ollamaUrl + ' (' + (r.statusText || r.status) + '). Ele está aberto?' };
-      const tags = ((await r.json()).models || []).map(x => x.name);
-      return tags.includes(cfg.ollamaModel) ? { ok: true, msg: `Ollama ok · modelo ${cfg.ollamaModel}` } : { ok: false, msg: `Modelo “${cfg.ollamaModel}” não está instalado no Ollama. Instalados: ${tags.join(', ') || 'nenhum'}` };
+      const st = await Ollama.ensure(cfg.ollamaUrl);
+      if (!st.ok) return { ok: false, fatal: true, msg: st.msg };
+      const pk = Ollama.pickModel(st.models, cfg.ollamaModel);
+      if (!pk.model) return { ok: false, msg: 'o Ollama está aberto, mas nenhum modelo de texto está instalado. No Prompt de Comando, rode por exemplo: ollama pull qwen2.5:7b' };
+      if (pk.replaced) setConfig({ ollamaModel: pk.model });
+      return { ok: true, msg: `Ollama ${st.started ? 'aberto pelo sistema' : 'ok'} · modelo ${pk.model}${pk.replaced ? ` (o “${cfg.ollamaModel}” não está instalado; usando o que está no computador)` : ''}` };
     }
     try {
       const { client: c } = anthropic();
@@ -613,7 +624,7 @@ ${(req.notes || []).slice(0, 120).map(n => '- ' + n).join('\n') || '(sem notas)'
     return { body: req.html, notes: ['Nota de simulação: trecho mantido para teste do fluxo.'], glossary: [['Toto', 'Totó']], lang: req.first ? 'inglês (simulação)' : '', usage: { input_tokens: Math.round(req.html.length / 4), output_tokens: Math.round(req.html.length / 4) }, model: 'simulação', stop: 'end_turn', price: { in: 0, out: 0 } };
   }
 
-  return { config, setConfig, translate, report, test, SYSTEM, effectiveProvider, offline, tm };
+  return { config, setConfig, translate, report, test, ollamaModels, SYSTEM, effectiveProvider, offline, tm };
 }
 
 module.exports = { createTranslator };

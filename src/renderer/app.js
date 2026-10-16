@@ -265,7 +265,7 @@
 
   const commands = {
     new: newBook, open: () => open(), save: () => save(false), saveAs: () => save(true),
-    import: () => App.importer.fromDialog(), export: () => App.setView('export'), enhance: () => App.enhance.open(), translate: () => App.translate.open(), toolbox: () => App.toolbox.open(), cover: () => App.setView('cover'),
+    import: () => App.importer.fromDialog(), export: () => App.setView('export'), enhance: () => App.enhance.open(), translate: () => App.translate.open(), refine: () => App.refine.open(), toolbox: () => App.toolbox.open(), cover: () => App.setView('cover'),
     refresh: () => App.preview.schedule(true), help,
     find: () => App.find && App.find.open(false), replace: () => App.find && App.find.open(true),
     selectAll: () => {
@@ -355,7 +355,8 @@
         card('folder', 'Abrir um projeto', 'Continuar um livro salvo (.livro)', () => runCommand('open')),
         card('plus', 'Começar do zero', 'Livro, revista ou jornal em branco', () => runCommand('new')),
         card('sparkles', 'Melhoramento', 'EPUB (Gutenberg) ou PDF (Domínio Público) → DOCX no padrão', () => App.enhance.open()),
-        card('globe', 'Tradução', 'Qualquer idioma → português do Brasil, em DOCX no padrão', () => App.translate.open()),
+        card('feather', 'VBO Refinamento', 'Edição automática completa em lote, qualquer formato, salva em Downloads', () => App.refine.open()),
+        card('globe', 'Tradução', 'Qualquer idioma → português do Brasil, no mesmo formato do original', () => App.translate.open()),
         card('images', 'Ferramentas', 'Converter imagens e textos de qualquer formato e remover fundo', () => App.toolbox.open()),
         card('book', 'Capa', 'Capa, lombada e contracapa para gráfica — do livro aberto ou de outro manuscrito', () => App.setView('cover'))
       ]),

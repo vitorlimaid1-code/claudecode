@@ -475,6 +475,9 @@ ipcMain.handle('tr:pick', async () => {
 ipcMain.handle('tr:config', () => tr().config());
 ipcMain.handle('tr:setConfig', (e, patch) => tr().setConfig(patch || {}));
 ipcMain.handle('tr:test', () => tr().test());
+ipcMain.handle('tr:ollamaModels', () => tr().ollamaModels());
+// o Ollama aberto pelo sistema fecha junto com o app
+app.on('will-quit', () => { try { require('./main/ollama').stop(); } catch (e) { /* ok */ } });
 ipcMain.handle('tr:chunk', async (e, req) => {
   try { return await tr().translate(req, chars => { try { e.sender.send('tr:progress', { id: req.id, chars }); } catch (err) { /* janela fechada */ } }); } catch (err) {
     return { error: String(err && err.message || err), fatal: !!(err && err.fatal), retry: !!(err && err.retry), refusal: !!(err && err.refusal), tooLong: !!(err && err.tooLong) };

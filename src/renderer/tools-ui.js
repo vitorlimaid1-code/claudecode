@@ -413,16 +413,18 @@
     const [first, ...rest] = String(proj.meta.author || '').split(' ');
     return `<?xml version="1.0" encoding="UTF-8"?>\n<FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0" xmlns:l="http://www.w3.org/1999/xlink">\n<description><title-info><author><first-name>${escapeXml(first || '')}</first-name><last-name>${escapeXml(rest.join(' '))}</last-name></author><book-title>${escapeXml(proj.meta.title || '')}</book-title><lang>${escapeXml((proj.meta.language || 'pt').slice(0, 2))}</lang></title-info><document-info><program-used>Casa Vertigem Hub</program-used><date>${new Date().toISOString().slice(0, 10)}</date></document-info></description>\n<body><title><p>${escapeXml(proj.meta.title || '')}</p></title>\n${sections}\n</body>\n${notes.length ? `<body name="notes"><title><p>Notas</p></title>${notes.map((n, i) => `<section id="n${i + 1}"><title><p>${i + 1}</p></title><p>${n}</p></section>`).join('')}</body>\n` : ''}${bins.map(b => `<binary id="${b.id}" content-type="${b.type}">${b.data}</binary>`).join('\n')}\n</FictionBook>\n`;
   }
-  async function convertText(q, fmt, o) {
-    const name = q.path.split(/[\\/]/).pop();
-    const log = m => live(`${name} — ${m}`);
-    const { proj } = await App.enhance.loadBook(q.path, base(q.path), log, { images: o.images, allowAny: true, clean: o.clean });
-    // conversão neutra: sem sumário, ficha e direitos acrescentados (o conteúdo é o do arquivo)
-    Object.assign(proj.front, { toc: false, copyright: false, halfTitle: false, dedication: false, epigraph: false });
-    const target = await api.toolsTarget({ base: base(q.path), ext: fmt === 'md' ? 'md' : fmt, src: q.path, mode: o.outMode, dir: o.outDir });
-    log(`gravando ${fmt.toUpperCase()}…`);
+  // grava o livro (projeto temporário) no formato pedido. o.house: DOCX no padrão do sistema (Garamond, sem página
+  // de título — o documento começa no primeiro capítulo), como no Melhoramento. Usado também pela Tradução e pelo
+  // VBO Refinamento, que devolvem o livro no mesmo formato do original.
+  function docOf(proj, fmt, o) {
+    const doc = App.exportPrep.buildDoc(proj);
+    if (o && o.house) { if (fmt === 'docx') doc.fontOverride = 'Garamond'; doc.noTitlePage = true; }
+    return doc;
+  }
+  async function writeBook(proj, fmt, target, o) {
+    o = o || {};
     if (['docx', 'odt', 'txt'].includes(fmt)) {
-      const r = await api.exportRun({ kind: fmt, project: proj, doc: App.exportPrep.buildDoc(proj), opts: { target } });
+      const r = await api.exportRun({ kind: fmt, project: proj, doc: docOf(proj, fmt, o), opts: { target } });
       if (!r || !r.files) throw new Error('falha ao gravar');
     } else if (fmt === 'epub' || fmt === 'mobi') {
       const r = await api.exportRun({ kind: fmt, project: proj, epub: await App.exportPrep.buildEpub(proj, { includeCover: false, noCopyright: true }), opts: { target } });
@@ -440,6 +442,23 @@
       const dir = target.replace(/[^\\/]+$/, '') + folder;
       for (const f of md.files) await api.toolsWrite(dir + (target.includes('\\') ? '\\' : '/') + f.name, Uint8Array.from(atob(f.b64), c => c.charCodeAt(0)));
     }
+    return target;
+  }
+  // formato de saída que mantém o do original (DOC antigo vira DOCX; PDF de entrada sai como PDF diagramado)
+  function sameFormat(file) {
+    const e = (/\.([a-z0-9]+)$/i.exec(file || '') || [])[1] || '';
+    const x = e.toLowerCase();
+    return { doc: 'docx', htm: 'html', markdown: 'md' }[x] || (['docx', 'odt', 'epub', 'mobi', 'pdf', 'txt', 'rtf', 'html', 'fb2', 'md'].includes(x) ? x : 'docx');
+  }
+  async function convertText(q, fmt, o) {
+    const name = q.path.split(/[\\/]/).pop();
+    const log = m => live(`${name} — ${m}`);
+    const { proj } = await App.enhance.loadBook(q.path, base(q.path), log, { images: o.images, allowAny: true, clean: o.clean });
+    // conversão neutra: sem sumário, ficha e direitos acrescentados (o conteúdo é o do arquivo)
+    Object.assign(proj.front, { toc: false, copyright: false, halfTitle: false, dedication: false, epigraph: false });
+    const target = await api.toolsTarget({ base: base(q.path), ext: fmt === 'md' ? 'md' : fmt, src: q.path, mode: o.outMode, dir: o.outDir });
+    log(`gravando ${fmt.toUpperCase()}…`);
+    await writeBook(proj, fmt, target);
     q.out = target;
     const words = proj.chapters.reduce((s, c) => s + window.BookText.countWords(c.html), 0);
     addLog(`${name} → ${target.split(/[\\/]/).pop()} · ${proj.chapters.length} capítulo(s) · ${words.toLocaleString('pt-BR')} palavras`, 'ok');
@@ -868,5 +887,5 @@
     screen.querySelectorAll('.tr-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   }
 
-  App.toolbox = { open, setTab, IMG_OUT, TXT_OUT, IMG_IN_LIST, TXT_IN_LIST, toHtml, toRtf, toFb2, toMarkdown, removeBg, loadImages, saveImage, work, state, _convertText: convertText };
+  App.toolbox = { open, setTab, IMG_OUT, TXT_OUT, IMG_IN_LIST, TXT_IN_LIST, toHtml, toRtf, toFb2, toMarkdown, removeBg, loadImages, saveImage, work, state, _convertText: convertText, writeBook, sameFormat };
 })();

@@ -47,6 +47,12 @@ paged = paged.replace(BUG3, `				do {
 					siblingBounds = sibling ? getBoundingClientRect(sibling) : undefined;
 				} while (sibling && (!siblingBounds?.height || (sibling.nodeType === 1 && sibling.dataset && (sibling.dataset.footnoteCall !== undefined || sibling.dataset.note === 'footnote'))));`);
 
+// Correção das chamadas de nota: a chamada criada pelo Paged.js copia só as classes da nota; o número gravado na
+// nota (data-fnum, contado pelo livro) também passa para a chamada, para que os dois mostrem o mesmo número.
+const BUGFN = 'footnoteCall.dataset.ref = node.dataset.ref;';
+if (!paged.includes(BUGFN)) throw new Error('paged.js: trecho da chamada de nota não encontrado (versão diferente?)');
+paged = paged.replace(BUGFN, 'footnoteCall.dataset.ref = node.dataset.ref;\n\t\t\tif (node.dataset.fnum) footnoteCall.dataset.fnum = node.dataset.fnum;');
+
 // Quarta correção (velocidade): o Paged.js agenda cada página com requestIdleCallback/requestAnimationFrame,
 // que o Chromium desacelera muito em janelas ocultas (onde a paginação roda). Um agendador imediato
 // deixa a paginação várias vezes mais rápida, sem mudar o resultado.

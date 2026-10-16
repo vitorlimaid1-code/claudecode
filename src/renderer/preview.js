@@ -476,7 +476,7 @@
     const roman = !!typo.frontRoman && !!firstPage;
     const label = n => (roman && n < firstN ? romanLower(n) : String(n - offset));
     const style = document.createElement('style');
-    let css = `.pagedjs_pages { counter-reset: page ${-offset} pages var(--pagedjs-page-count) !important; }`;
+    let css = `.pagedjs_pages { counter-reset: page ${-offset} pages var(--pagedjs-page-count) footnote var(--pagedjs-footnotes-count) footnote-marker var(--pagedjs-footnotes-count) !important; }`;
     if (roman) {
       const folio = typo.folio || 'outer';
       document.querySelectorAll('.pagedjs_page').forEach(pg => {

@@ -1,11 +1,11 @@
 /* global App, BookText, PtBr */
 // Tradução: livros (EPUB, DOCX, DOC, ODT…) de qualquer idioma para o português do Brasil, com padrão
 // editorial. Etapas de cada livro (um após o outro, com registro ao vivo):
-//  1. leitura e limpeza (avisos do Gutenberg, páginas pré/pós-textuais, sumário do arquivo) — igual ao Melhoramento;
+//  1. leitura do livro inteiro (só os avisos/licença do Gutenberg saem; nenhum capítulo ou página é descartado);
 //  2. tradução literária por trechos, com as diretrizes editoriais do sistema (OpenRouter, Google Gemini ou modelo local via Ollama),
 //     glossário de nomes e o fim do trecho anterior para manter tom e coerência;
 //  3. pós-edição local: diálogos com travessão, Novo Acordo Ortográfico, dicionário de estilo e pontuação;
-//  4. DOCX no padrão do app na pasta Downloads; 5. relatório com parecer, mudanças e correções (salvável em PDF).
+//  4. um único arquivo, no mesmo formato do original, na pasta Downloads; 5. relatório com parecer, mudanças e correções (salvável em PDF).
 (function () {
   const { el, $, api } = App;
   const queue = []; // { path, name, status, out, msg, report }
@@ -141,7 +141,7 @@
     const t0 = Date.now();
     const st = { dialogues: 0, ortho: {}, dict: {}, punct: {}, refusals: 0, mismatches: 0, chunks: 0, tokensIn: 0, tokensOut: 0, cost: 0 };
     const cleaning = [];
-    const { proj } = await App.enhance.loadBook(item.path, item.name, (m, k) => { cleaning.push(m.replace(/^·\s*/, '')); log(m, k); }, { images: $('#trImages').checked, allowAny: true, toc: true });
+    const { proj } = await App.enhance.loadBook(item.path, item.name, (m, k) => { cleaning.push(m.replace(/^·\s*/, '')); log(m, k); }, { images: $('#trImages').checked, allowAny: true, keep: true });
     const srcWords = proj.chapters.reduce((s, c) => s + BookText.countWords(c.html), 0);
     const ctx = { title: proj.meta.title, author: proj.meta.author, glossary: new Map(), context: '', first: true, log, stats: st };
     const notes = [];
@@ -191,7 +191,12 @@
     const read = PtBr.readability(allText);
     const reps = PtBr.repetitions(allText).slice(0, 12);
     log(`pós-edição: ${st.dialogues} diálogo(s) com travessão · ${Object.values(st.ortho).reduce((a, b) => a + b, 0)} ajuste(s) ortográfico(s) · ${Object.values(st.dict).reduce((a, b) => a + b, 0)} de estilo · ${Object.values(st.punct).reduce((a, b) => a + b, 0)} de pontuação`);
-    item.out = await App.enhance.saveDocx(proj, log, ' (pt-BR)');
+    // um livro entra, um livro sai: o mesmo arquivo, inteiro, só que traduzido, no mesmo formato do original
+    const fmtOut = App.toolbox.sameFormat(item.path);
+    const target = await api.toolsTarget({ base: item.path.split(/[\\/]/).pop().replace(/\.[^.]+$/, '') + ' (pt-BR)', ext: fmtOut, src: item.path, mode: 'downloads' });
+    log(`gravando o livro traduzido em um único arquivo ${fmtOut.toUpperCase()} (${proj.chapters.length} capítulo(s), sem páginas acrescentadas)…`);
+    item.out = await App.toolbox.writeBook(proj, fmtOut, target, { house: true });
+    log(`pronto → ${item.out}`, 'ok');
     const stats = {
       capitulos: proj.chapters.length, palavrasOriginal: srcWords, palavrasTraducao: outWords, variacao: srcWords ? Math.round((outWords / srcWords - 1) * 100) : 0,
       trechos: st.chunks, dialogos: st.dialogues, ortografia: st.ortho, estilo: st.dict, pontuacao: st.punct, legibilidade: read,
@@ -352,6 +357,24 @@ ${r.notes.length ? `<h2>Notas editoriais</h2><ul class="notes">${li(r.notes.slic
   }
 
   // ---------------------------------------------------------------- configurações
+  // Ollama: abre o programa (se estiver fechado) e lista os modelos instalados para escolher
+  function ollamaRow(omodel) {
+    const sel = el('select', {}, [el('option', { value: '', text: 'Procurando os modelos instalados…' })]);
+    const msg = el('span', { class: 'small muted' });
+    sel.addEventListener('change', async () => { if (!sel.value) return; omodel.value = sel.value; cfg = await api.trSetConfig({ ollamaModel: sel.value }); msg.textContent = '✓ Modelo escolhido: ' + sel.value; msg.className = 'small good'; });
+    (async () => {
+      const r = api.trOllamaModels ? await api.trOllamaModels() : { ok: false, msg: '' };
+      sel.innerHTML = '';
+      if (!r.ok) { sel.appendChild(el('option', { value: '', text: 'Ollama indisponível' })); msg.textContent = '✕ ' + r.msg; msg.className = 'small bad'; return; }
+      if (!r.models.length) { sel.appendChild(el('option', { value: '', text: 'Nenhum modelo instalado' })); msg.textContent = 'Instale um modelo: ollama pull qwen2.5:7b'; msg.className = 'small warn'; return; }
+      sel.appendChild(el('option', { value: '', text: `${r.models.length} modelo(s) no computador — escolha um` }));
+      r.models.forEach(m => sel.appendChild(el('option', { value: m, text: m, selected: m === cfg.ollamaModel })));
+      msg.textContent = r.started ? '✓ O Ollama estava fechado e foi aberto pelo sistema.' : '✓ Ollama aberto.';
+      msg.className = 'small good';
+    })();
+    return el('div', { class: 'tr-cfg-row' }, [el('label', { class: 'flabel', text: 'Modelos instalados no computador' }), sel, msg]);
+  }
+
   async function renderConfig() {
     cfg = await api.trConfig();
     cfgBox.innerHTML = '';
@@ -389,7 +412,8 @@ ${r.notes.length ? `<h2>Notas editoriais</h2><ul class="notes">${li(r.notes.slic
       cfg.provider === 'google' ? el('div', { class: 'tr-cfg-row' }, [el('label', { class: 'flabel', text: 'Chave da API do Google Gemini' }), ggKey, el('span', { class: 'small muted', text: 'Entre em aistudio.google.com/apikey com a sua conta Google e crie uma chave (há cota gratuita). Ela fica guardada criptografada neste computador.' })]) : null,
       cfg.provider === 'google' ? el('div', { class: 'tr-cfg-row' }, [el('label', { class: 'flabel', text: 'Modelo' }), ggModel, el('span', { class: 'small muted', text: 'Padrão: Gemini 2.5 Flash. O “Testar conexão” lista os modelos disponíveis para a sua chave, se este não estiver. Na cota gratuita há limite de pedidos por minuto e por dia (o tradutor espera e continua sozinho) e o Google pode usar o texto enviado para melhorar os seus produtos.' })]) : null,
       cfg.provider === 'ollama' ? el('div', { class: 'tr-cfg-2' }, [el('div', { class: 'tr-cfg-row' }, [el('label', { class: 'flabel', text: 'Endereço do Ollama' }), ourl]), el('div', { class: 'tr-cfg-row' }, [el('label', { class: 'flabel', text: 'Modelo instalado' }), omodel])]) : null,
-      cfg.provider === 'ollama' ? el('p', { class: 'small muted', text: 'Instale o Ollama (ollama.com) e um modelo multilíngue (ex.: “ollama pull qwen2.5:14b”). Tudo roda no seu computador; a qualidade depende do modelo escolhido.' }) : null,
+      cfg.provider === 'ollama' ? ollamaRow(omodel) : null,
+      cfg.provider === 'ollama' ? el('p', { class: 'small muted', text: 'Não é preciso abrir o Ollama antes: se ele estiver fechado, o sistema o abre sozinho em segundo plano (e fecha junto com o app). Se o modelo digitado não estiver instalado, o tradutor usa um que esteja. Para instalar um modelo multilíngue, uma vez só: “ollama pull qwen2.5:7b” (ou qwen2.5:14b, em computadores mais fortes). Tudo roda no seu computador, sem internet.' }) : null,
       cfg.effective === 'gtrans' ? el('p', { class: 'small ' + (cfg.provider === 'gtrans' ? 'muted' : 'warn'), text: (cfg.provider === 'gtrans' ? '' : 'Sem a chave do motor escolhido, a tradução usa o Google Tradutor (gratuito). ') + 'O Google faz a tradução bruta, bloco a bloco (títulos, ênfases e notas preservados); depois ' + (cfg.hasOrKey || cfg.hasGgKey ? 'a IA (' + (cfg.hasOrKey ? 'OpenRouter' : 'Gemini') + ') revisa sentido, coesão, coerência e estilo, e ' : '') + 'o sistema aplica travessões, Novo Acordo Ortográfico, dicionário de estilo e pontuação.' }) : null,
       cfg.effective === 'offline' ? el('p', { class: 'small muted', text: 'O motor offline traduz frase a frase no próprio computador, sem enviar nada para a internet. Antes, as expressões idiomáticas são reescritas em linguagem literal e os trechos que existem nos livros de referência usam a tradução aprovada; depois, os nomes seguem o glossário' + (cfg.hasOrKey || cfg.hasGgKey ? ', a IA revisa sentido, coesão e estilo (quando houver internet)' : '') + ' e o sistema aplica travessões, Novo Acordo Ortográfico, dicionário de estilo e pontuação.' }) : null,
       cfg.effective === 'gtrans' || cfg.effective === 'offline' ? el('label', { class: 'chk' }, [aiRev, ' Revisar a tradução automática com IA (usa a chave do OpenRouter ou do Gemini, se houver)']) : null,
@@ -575,10 +599,10 @@ ${r.notes.length ? `<h2>Notas editoriais</h2><ul class="notes">${li(r.notes.slic
           el('div', { class: 'enh-what' }, [
             el('b', { text: 'O que é feito em cada livro' }),
             el('ul', {}, [
-              'remove avisos e licença do Project Gutenberg, capa, rosto, dedicatória, sumário original e páginas pós-textuais; ficam os capítulos e o sumário do sistema',
+              'lê o livro inteiro, do jeito que ele é: todos os capítulos, páginas, notas e ilustrações (só os avisos e a licença do Project Gutenberg saem)',
               'tradução literária por trechos, como um tradutor sênior: tom, subtexto, ritmo, adaptação de expressões e concisão para a diagramação; glossário de nomes para manter a coerência',
               'pós-edição local: diálogos com travessão, Novo Acordo Ortográfico, dicionário de estilo (pleonasmos, falsos cognatos, possessivos), pontuação e legibilidade',
-              'DOCX traduzido e formatado no padrão do app (Garamond, títulos, parágrafos, sumário) na pasta Downloads; no fim, o relatório com parecer, mudanças e correções'
+              'um livro entra, um livro sai: um único arquivo traduzido, no mesmo formato do original (DOCX → DOCX, EPUB → EPUB, ODT → ODT…), na pasta Downloads, com “(pt-BR)” no nome; o original não é alterado. No fim, o relatório com parecer, mudanças e correções'
             ].map(t => el('li', { text: t })))
           ]),
           el('div', { class: 'enh-run' }, [el('button', { id: 'trStart', class: 'primary big', onclick: start }), el('button', { id: 'trStop', class: 'danger', text: 'Parar depois do trecho atual', style: { display: 'none' }, onclick: () => { stopAsked = true; addLog('Parada pedida: termina o trecho atual e para.', 'bad'); } }), el('span', { class: 'muted small', text: 'Salvo em: ' + dlDir })])

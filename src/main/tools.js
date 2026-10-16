@@ -32,8 +32,25 @@ function registerTools({ ipcMain, dialog, app, utilityProcess, getWindow, raster
     const res = await dialog.showOpenDialog(getWindow(), { title: kind === 'text' ? 'Textos para converter' : kind === 'pdf' ? 'Arquivos PDF' : 'Imagens', filters: [{ name: kind === 'text' ? 'Textos e livros' : kind === 'pdf' ? 'PDF' : 'Imagens', extensions: exts }, { name: 'Todos os arquivos', extensions: ['*'] }], properties: ['openFile', 'multiSelections'] });
     return res.canceled ? [] : res.filePaths;
   });
-  ipcMain.handle('tools:pickDir', async () => {
-    const res = await dialog.showOpenDialog(getWindow(), { title: 'Pasta de saída', properties: ['openDirectory', 'createDirectory'] });
+  // pastas soltas na lista viram os livros que estão dentro delas (e nas subpastas), sem limite de quantidade
+  ipcMain.handle('tools:expand', (e, paths) => {
+    const ok = new RegExp('\\.(' + TXT_IN.join('|') + ')$', 'i');
+    const out = [];
+    const walk = (p, depth) => {
+      let st;
+      try { st = fs.statSync(p); } catch (err) { return; }
+      if (st.isDirectory()) {
+        if (depth > 8) return;
+        let list = [];
+        try { list = fs.readdirSync(p).sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })); } catch (err) { return; }
+        list.filter(n => !n.startsWith('.') && !n.startsWith('~$')).forEach(n => walk(path.join(p, n), depth + 1));
+      } else if (ok.test(p)) out.push(p);
+    };
+    (paths || []).forEach(p => walk(p, 0));
+    return out;
+  });
+  ipcMain.handle('tools:pickDir', async (e, title) => {
+    const res = await dialog.showOpenDialog(getWindow(), { title: title || 'Pasta de saída', properties: ['openDirectory', 'createDirectory'] });
     return res.canceled ? null : res.filePaths[0];
   });
   ipcMain.handle('tools:read', async (e, file) => {
