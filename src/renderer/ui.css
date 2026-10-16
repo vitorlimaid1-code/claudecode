@@ -686,3 +686,21 @@ html[data-theme="dark"] .rc-icon { color: #e6b98f; }
 .rc-test { display: inline-flex; gap: 14px; align-items: center; margin-top: 6px; color: #7a4a2a; }
 .rc-test span { display: inline-flex; align-items: center; gap: 4px; }
 .rc-test svg { width: 22px; height: 22px; }
+
+/* ferramentas de PDF */
+.pdf-subs { flex-wrap: wrap; margin-bottom: 10px; }
+.pdf-row { grid-template-columns: 30px 1fr auto auto auto; cursor: grab; }
+.pdf-row .pdf-n { font-weight: 700; text-align: center; color: var(--muted); }
+.pdf-row.dragging, .pdf-thumb.dragging { opacity: .4; }
+.pdf-row.drop-here, .pdf-thumb.drop-here { outline: 2px dashed #8b5cf6; outline-offset: 2px; }
+.pdf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; margin: 10px 0; max-height: 58vh; overflow: auto; padding: 4px; }
+.pdf-thumb { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 6px; cursor: pointer; user-select: none; }
+.pdf-grid.order .pdf-thumb { cursor: grab; }
+.pdf-thumb .pdf-img { position: relative; display: flex; align-items: center; justify-content: center; height: 140px; background: #eee; border-radius: 6px; overflow: hidden; }
+.pdf-thumb img { max-width: 100%; max-height: 100%; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .15s; }
+.pdf-thumb.del { border-color: #c62828; }
+.pdf-thumb.del img { opacity: .3; }
+.pdf-thumb .pdf-x { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 42px; color: #c62828; font-weight: 700; }
+.pdf-thumb .pdf-cap { display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 12px; font-weight: 600; flex-wrap: wrap; }
+.pdf-thumb .pdf-btns { margin-left: auto; display: inline-flex; gap: 2px; }
+.pdf-thumb .pdf-btns .icon-btn { padding: 0 4px; font-size: 11px; }

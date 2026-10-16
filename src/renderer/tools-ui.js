@@ -105,7 +105,7 @@
 
   // ---------------------------------------------------------------- tela
   let screen = null, logBox = null, liveLine = null, running = false, stopAsked = false;
-  const state = { img: [], txt: [], bg: [], outMode: 'downloads', outDir: '' };
+  const state = { img: [], txt: [], bg: [], pdfjpg: [], pdflock: [], pdfunlock: [], outMode: 'downloads', outDir: '' };
   function addLog(m, kind) {
     if (!logBox) return;
     if (liveLine) { liveLine.remove(); liveLine = null; }
@@ -567,15 +567,290 @@
     return node;
   }
 
+  // ---------------------------------------------------------------- aba PDF
+  // mesclar, remover páginas, reorganizar, PDF → JPG, proteger com senha e remover a senha
+  const pdfPw = new Map(); // senha já informada para cada arquivo
+  function askPassword(name, wrong) {
+    return new Promise(resolve => {
+      const inp = el('input', { type: 'password', placeholder: 'Senha do PDF', autocomplete: 'off' });
+      let done = false;
+      const finish = v => { if (done) return; done = true; resolve(v); };
+      App.modal({
+        title: '🔒 PDF protegido por senha',
+        body: el('div', {}, [el('p', { text: `${wrong ? 'Senha incorreta. ' : ''}“${name}” é protegido. Digite a senha para abrir:` }), inp]),
+        buttons: [{ label: 'Cancelar', onClick: () => finish(null) }, { label: 'Abrir', primary: true, onClick: () => finish(inp.value) }],
+        onClose: () => finish(null)
+      });
+      setTimeout(() => inp.focus(), 50);
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const b = [...document.querySelectorAll('.modal button')].find(x => x.textContent === 'Abrir'); if (b) b.click(); } });
+    });
+  }
+  // chama a operação; se o PDF pedir senha, pergunta e tenta de novo
+  async function withPw(file, fn) {
+    let pw = pdfPw.get(file);
+    for (let k = 0; k < 4; k++) {
+      const r = await fn(pw);
+      if (!r || !r.needPassword) { if (pw != null) pdfPw.set(file, pw); return r; }
+      pw = await askPassword(file.split(/[\\/]/).pop(), pw != null);
+      if (pw == null) return { error: 'cancelado (o PDF é protegido por senha)' };
+    }
+    return { error: 'senha incorreta' };
+  }
+  const nameOf = p => p.split(/[\\/]/).pop();
+  function parsePages(spec, n) {
+    const out = new Set();
+    String(spec || '').split(/[,;\s]+/).forEach(part => {
+      const m = /^(\d+)(?:\s*[-–]\s*(\d+))?$/.exec(part.trim());
+      if (!m) return;
+      const a = Number(m[1]), b = m[2] ? Number(m[2]) : a;
+      for (let i = Math.min(a, b); i <= Math.max(a, b); i++) if (i >= 1 && i <= n) out.add(i);
+    });
+    return out;
+  }
+  const specOf = set => {
+    const l = [...set].sort((a, b) => a - b), out = [];
+    for (let i = 0; i < l.length; i++) { let j = i; while (j + 1 < l.length && l[j + 1] === l[j] + 1) j++; out.push(j > i ? `${l[i]}-${l[j]}` : `${l[i]}`); i = j; }
+    return out.join(', ');
+  };
+
+  function pdfTab() {
+    let sub = 'merge';
+    const box = el('div', {});
+    const subs = [['merge', '🧩 Mesclar'], ['cut', '✂ Remover páginas'], ['order', '↕ Reorganizar'], ['jpg', '🖼 PDF → JPG'], ['lock', '🔒 Proteger com senha'], ['unlock', '🔓 Remover senha']];
+    const bar = el('div', { class: 'tr-tabs pdf-subs' }, subs.map(([k, t]) => el('button', { class: 'tr-tab', 'data-sub': k, text: t, onclick: () => { sub = k; show(); } })));
+    const panels = { merge: mergePanel(), cut: pagesPanel('cut'), order: pagesPanel('order'), jpg: jpgPanel(), lock: lockPanel(), unlock: unlockPanel() };
+    function show() {
+      box.innerHTML = '';
+      box.appendChild(panels[sub]);
+      bar.querySelectorAll('.tr-tab').forEach(b => b.classList.toggle('on', b.dataset.sub === sub));
+    }
+    if (api.onPdfProgress) api.onPdfProgress(p => {
+      if (!p) return;
+      const what = { thumbs: 'Preparando as miniaturas', merge: 'Mesclando', jpg: 'Gravando as páginas em JPG' }[p.stage] || 'Processando';
+      live(`${what}: ${p.done} de ${p.total}`);
+    });
+    show();
+    return el('div', { class: 'tl-tab' }, [bar, box]);
+  }
+
+  // ---- mesclar: lista ordenável (arraste ou ↑ ↓), um PDF depois do outro
+  function mergePanel() {
+    state.merge = state.merge || [];
+    const list = el('div', { class: 'enh-list' });
+    let dragFrom = -1;
+    const render = () => {
+      list.innerHTML = '';
+      if (!state.merge.length) { list.appendChild(el('p', { class: 'muted enh-empty', text: 'Nenhum PDF na lista. A ordem da lista é a ordem no PDF final.' })); return; }
+      state.merge.forEach((q, i) => {
+        const row = el('div', { class: 'enh-item pdf-row', draggable: 'true' }, [
+          el('span', { class: 'pdf-n', text: String(i + 1) }),
+          el('span', { class: 'enh-name' }, [el('b', { text: nameOf(q.path) }), el('small', { class: 'muted', text: q.info ? `${q.info.pages} página(s)${q.info.encrypted ? ' · 🔒 protegido' : ''}` : q.msg || q.path })]),
+          el('button', { class: 'icon-btn', title: 'Subir', text: '↑', disabled: i === 0, onclick: () => { state.merge.splice(i - 1, 0, state.merge.splice(i, 1)[0]); render(); } }),
+          el('button', { class: 'icon-btn', title: 'Descer', text: '↓', disabled: i === state.merge.length - 1, onclick: () => { state.merge.splice(i + 1, 0, state.merge.splice(i, 1)[0]); render(); } }),
+          el('button', { class: 'icon-btn', title: 'Tirar da lista', text: '✕', onclick: () => { state.merge.splice(i, 1); render(); } })
+        ]);
+        row.addEventListener('dragstart', () => { dragFrom = i; row.classList.add('dragging'); });
+        row.addEventListener('dragend', () => row.classList.remove('dragging'));
+        row.addEventListener('dragover', e => { if (dragFrom >= 0) { e.preventDefault(); row.classList.add('drop-here'); } });
+        row.addEventListener('dragleave', () => row.classList.remove('drop-here'));
+        row.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); if (dragFrom < 0 || dragFrom === i) return; state.merge.splice(i, 0, state.merge.splice(dragFrom, 1)[0]); dragFrom = -1; render(); });
+        list.appendChild(row);
+      });
+    };
+    const add = async paths => {
+      for (const p of (paths || []).filter(x => /\.pdf$/i.test(x))) {
+        const q = { path: p };
+        state.merge.push(q);
+        render();
+        q.info = await withPw(p, pw => api.pdfInfo(p, pw));
+        if (q.info && q.info.error) { q.msg = '✕ ' + q.info.error; q.info = null; }
+        render();
+      }
+    };
+    const drop = pdfDrop('Envie os PDFs na ordem desejada (vários de uma vez) — depois arraste para mudar a ordem', add, true);
+    const run = async () => {
+      if (running) return;
+      const ok = state.merge.filter(q => q.info);
+      if (ok.length < 2) return App.toast('Envie pelo menos dois PDFs.');
+      running = true;
+      try {
+        const target = await api.pdfTarget(ok[0].path, `+ ${ok.length - 1} (mesclado)`, state.outMode, state.outDir);
+        addLog(`Mesclar ${ok.length} PDFs (${ok.reduce((n, q) => n + q.info.pages, 0)} páginas)…`);
+        const r = await api.pdfMerge(ok.map(q => ({ path: q.path, password: pdfPw.get(q.path) })), target);
+        if (r && r.ok) addLog(`PDF único criado: ${nameOf(r.file)} · ${r.pages} página(s)`, 'ok'), api.showItem(r.file);
+        else addLog('Erro ao mesclar: ' + ((r && r.error) || 'falha'), 'bad');
+      } finally { running = false; }
+    };
+    render();
+    return el('div', {}, [drop, list, el('div', { class: 'tr-cfg' }, [outControls(), el('div', { class: 'enh-run' }, [el('button', { class: 'primary big', text: '🧩 Mesclar em um único PDF', onclick: run }), el('button', { text: 'Limpar a lista', onclick: () => { state.merge = []; render(); } })])])]);
+  }
+
+  // área de envio só de PDF
+  function pdfDrop(hint, add, multi) {
+    const drop = el('button', { class: 'enh-drop', onclick: async () => { const l = await api.toolsPick('pdf'); add(multi ? l : (l || []).slice(0, 1)); } }, [
+      el('span', { class: 'enh-drop-ic', html: App.icons ? App.icons.svg('upload') : '' }), el('b', { text: multi ? 'Enviar PDFs' : 'Enviar um PDF' }), el('span', { class: 'muted', text: hint })
+    ]);
+    drop.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); drop.classList.add('over'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+    drop.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); drop.classList.remove('over'); const l = Array.from(e.dataTransfer.files || []).map(f => api.pathForFile(f)).filter(p => /\.pdf$/i.test(p)); if (!l.length) return App.toast('Solte arquivos PDF.'); add(multi ? l : l.slice(0, 1)); });
+    return drop;
+  }
+
+  // ---- remover páginas (cut) e reorganizar (order): miniaturas de todas as páginas
+  function pagesPanel(mode) {
+    const st = { file: '', pages: [], total: 0 };
+    const grid = el('div', { class: 'pdf-grid' + (mode === 'order' ? ' order' : '') });
+    const info = el('p', { class: 'small muted' });
+    const spec = el('input', { type: 'text', placeholder: 'Ex.: 2, 5-7, 12', style: { flex: '1' } });
+    let dragFrom = -1;
+    const render = () => {
+      grid.innerHTML = '';
+      st.pages.forEach((pg, k) => {
+        const card = el('div', { class: 'pdf-thumb' + (pg.del ? ' del' : ''), draggable: mode === 'order' ? 'true' : 'false', title: mode === 'cut' ? (pg.del ? 'Esta página sai — clique para manter' : 'Clique para remover esta página') : 'Arraste para mudar a posição' }, [
+          el('div', { class: 'pdf-img' }, [el('img', { src: pg.url, style: { transform: pg.rot ? `rotate(${pg.rot}deg)` : '' } }), mode === 'cut' && pg.del ? el('span', { class: 'pdf-x', text: '✕' }) : null]),
+          el('div', { class: 'pdf-cap' }, [
+            el('span', { text: mode === 'order' ? `${k + 1}` : `p. ${pg.i + 1}` }),
+            mode === 'order' && k !== pg.i ? el('small', { class: 'muted', text: `(era ${pg.i + 1})` }) : null,
+            mode === 'order' ? el('span', { class: 'pdf-btns' }, [
+              el('button', { class: 'icon-btn', title: 'Para trás', text: '◀', disabled: k === 0, onclick: e => { e.stopPropagation(); st.pages.splice(k - 1, 0, st.pages.splice(k, 1)[0]); render(); } }),
+              el('button', { class: 'icon-btn', title: 'Para a frente', text: '▶', disabled: k === st.pages.length - 1, onclick: e => { e.stopPropagation(); st.pages.splice(k + 1, 0, st.pages.splice(k, 1)[0]); render(); } }),
+              el('button', { class: 'icon-btn', title: 'Girar 90°', text: '↻', onclick: e => { e.stopPropagation(); pg.rot = ((pg.rot || 0) + 90) % 360; render(); } })
+            ]) : null
+          ])
+        ]);
+        if (mode === 'cut') card.addEventListener('click', () => { pg.del = !pg.del; syncSpec(); render(); });
+        else {
+          card.addEventListener('dragstart', () => { dragFrom = k; card.classList.add('dragging'); });
+          card.addEventListener('dragend', () => { card.classList.remove('dragging'); grid.querySelectorAll('.drop-here').forEach(x => x.classList.remove('drop-here')); });
+          card.addEventListener('dragover', e => { if (dragFrom >= 0) { e.preventDefault(); card.classList.add('drop-here'); } });
+          card.addEventListener('dragleave', () => card.classList.remove('drop-here'));
+          card.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); if (dragFrom < 0 || dragFrom === k) return; st.pages.splice(k, 0, st.pages.splice(dragFrom, 1)[0]); dragFrom = -1; render(); });
+        }
+        grid.appendChild(card);
+      });
+      const del = st.pages.filter(p => p.del).length;
+      info.textContent = !st.file ? 'Envie um PDF para ver as páginas.' : mode === 'cut' ? `${nameOf(st.file)} · ${st.total} página(s) · ${del ? `${del} marcada(s) para remover → ficam ${st.total - del}` : 'clique nas páginas que devem sair (ou digite os números ao lado)'}` : `${nameOf(st.file)} · ${st.total} página(s) · arraste as miniaturas (ou use ◀ ▶) para mudar a ordem; ↻ gira a página`;
+    };
+    const syncSpec = () => { spec.value = specOf(new Set(st.pages.filter(p => p.del).map(p => p.i + 1))); };
+    spec.addEventListener('change', () => { const set = parsePages(spec.value, st.total); st.pages.forEach(p => { p.del = set.has(p.i + 1); }); render(); });
+    const load = async paths => {
+      const f = (paths || [])[0];
+      if (!f) return;
+      st.file = f; st.pages = []; grid.innerHTML = ''; info.textContent = 'Preparando as miniaturas…';
+      const r = await withPw(f, pw => api.pdfThumbs(f, pw, 36, 1000));
+      if (!r || r.error) { info.textContent = '✕ ' + ((r && r.error) || 'PDF ilegível'); st.file = ''; return; }
+      st.total = r.total;
+      st.pages = r.pages.map(p => ({ i: p.n - 1, url: p.url, del: false, rot: 0 }));
+      addLog(`${nameOf(f)}: ${r.total} página(s) carregada(s)`);
+      if (r.total > r.pages.length) addLog(`Mostrando as primeiras ${r.pages.length} páginas.`, 'bad');
+      syncSpec(); render();
+    };
+    const save = async () => {
+      if (running || !st.file) return App.toast('Envie um PDF.');
+      const keep = st.pages.filter(p => !p.del);
+      if (mode === 'cut' && keep.length === st.pages.length) return App.toast('Marque as páginas que devem sair.');
+      if (!keep.length) return App.toast('Não dá para remover todas as páginas.');
+      running = true;
+      try {
+        const removed = st.pages.filter(p => p.del).map(p => p.i + 1);
+        const target = await api.pdfTarget(st.file, mode === 'cut' ? '(sem as páginas ' + specOf(new Set(removed)).replace(/,\s*/g, ' ') + ')' : '(reorganizado)', state.outMode, state.outDir);
+        const r = await api.pdfPages(st.file, pdfPw.get(st.file), keep.map(p => ({ i: p.i, rot: p.rot || 0 })), target);
+        if (r && r.ok) { addLog(mode === 'cut' ? `${removed.length} página(s) removida(s) (${specOf(new Set(removed))}) → ${nameOf(r.file)} · ${r.pages} página(s)` : `Nova ordem salva → ${nameOf(r.file)} · ${r.pages} página(s)`, 'ok'); api.showItem(r.file); }
+        else addLog('Erro: ' + ((r && r.error) || 'falha'), 'bad');
+      } finally { running = false; }
+    };
+    render();
+    const node = el('div', { class: 'pdf-pages-panel' }, [
+      pdfDrop(mode === 'cut' ? 'Um PDF por vez — as páginas aparecem em miniatura' : 'Um PDF por vez — as páginas aparecem em miniatura para arrastar', load, false),
+      info,
+      mode === 'cut' ? el('div', { class: 'tr-cfg-row' }, [el('label', { class: 'flabel', text: 'Páginas a remover' }), el('div', { class: 'inline' }, [spec, el('button', { text: 'Limpar', onclick: () => { st.pages.forEach(p => { p.del = false; }); syncSpec(); render(); } })])]) : el('div', { class: 'inline wrap' }, [
+        el('button', { text: '↺ Voltar à ordem original', onclick: () => { st.pages.sort((a, b) => a.i - b.i); st.pages.forEach(p => { p.rot = 0; }); render(); } }),
+        el('button', { text: '⇅ Inverter a ordem', onclick: () => { st.pages.reverse(); render(); } })
+      ]),
+      grid,
+      el('div', { class: 'tr-cfg' }, [outControls(), el('div', { class: 'enh-run' }, [el('button', { class: 'primary big', text: mode === 'cut' ? '✂ Salvar sem as páginas marcadas' : '💾 Salvar a nova ordem', onclick: save })])])
+    ]);
+    node._load = load; // também usado pelos testes
+    return node;
+  }
+
+  // ---- PDF → JPG: uma pasta por PDF (em Downloads, por padrão), uma imagem por página
+  function jpgPanel() {
+    const files = fileList('pdfjpg', 'pdf', ['pdf'], 'Um ou vários PDFs — clique ou arraste. Cada PDF vira uma pasta com as páginas em JPG');
+    const dpi = el('select', {}, [[100, '100 dpi — tela, arquivo pequeno'], [150, '150 dpi — tela e redes sociais'], [200, '200 dpi — padrão'], [300, '300 dpi — impressão']].map(([v, t]) => el('option', { value: v, text: t, selected: v === 200 })));
+    const quality = el('input', { type: 'range', min: 50, max: 100, value: 90 });
+    const qLab = el('span', { class: 'small', text: '90%' });
+    quality.addEventListener('input', () => { qLab.textContent = quality.value + '%'; });
+    const start = () => runQueue('pdfjpg', files.render, async q => {
+      const r = await withPw(q.path, pw => api.pdfToJpg(q.path, pw, { dpi: Number(dpi.value), quality: Number(quality.value), mode: state.outMode, dir: state.outDir }));
+      if (!r || r.error) throw new Error((r && r.error) || 'falha');
+      q.out = r.dir;
+      addLog(`${nameOf(q.path)} → pasta “${nameOf(r.dir)}” · ${r.pages} imagem(ns) JPG`, 'ok');
+    }, 'PDF → JPG');
+    return el('div', {}, [files.node, el('div', { class: 'tr-cfg' }, [
+      field('Resolução', dpi), field('Qualidade do JPG', el('div', { class: 'inline' }, [quality, qLab])),
+      outControls(),
+      el('div', { class: 'enh-run' }, [el('button', { class: 'primary big', text: '🖼 Converter para JPG', onclick: start }), el('button', { class: 'danger', text: 'Parar', onclick: () => { stopAsked = true; } })])
+    ]), el('p', { class: 'small muted', text: 'Cria, na pasta de saída (Downloads, por padrão), a pasta “nome do PDF - páginas em JPG” com “página 001.jpg”, “página 002.jpg”… Páginas transparentes ficam com fundo branco.' })]);
+  }
+
+  // ---- proteger com senha (AES-256)
+  function lockPanel() {
+    const files = fileList('pdflock', 'pdf', ['pdf'], 'Um ou vários PDFs — todos recebem a mesma senha');
+    const pw1 = el('input', { type: 'password', placeholder: 'Senha para abrir', autocomplete: 'new-password' });
+    const pw2 = el('input', { type: 'password', placeholder: 'Repita a senha', autocomplete: 'new-password' });
+    const owner = el('input', { type: 'password', placeholder: 'Opcional — se vazio, é a mesma senha', autocomplete: 'new-password' });
+    const print = el('input', { type: 'checkbox', checked: true }), copy = el('input', { type: 'checkbox', checked: true }), modify = el('input', { type: 'checkbox' });
+    const show = el('input', { type: 'checkbox', onchange: () => { [pw1, pw2, owner].forEach(i => { i.type = show.checked ? 'text' : 'password'; }); } });
+    const start = () => {
+      if (!pw1.value) return App.toast('Digite a senha.');
+      if (pw1.value !== pw2.value) return App.toast('As duas senhas não são iguais.');
+      runQueue('pdflock', files.render, async q => {
+        const target = await api.pdfTarget(q.path, '(protegido)', state.outMode, state.outDir);
+        const r = await withPw(q.path, pw => api.pdfProtect(q.path, pw, { userPassword: pw1.value, ownerPassword: owner.value, allowPrint: print.checked, allowCopy: copy.checked, allowModify: modify.checked }, target));
+        if (!r || r.error) throw new Error((r && r.error) || 'falha');
+        q.out = r.file;
+        addLog(`${nameOf(q.path)} → ${nameOf(r.file)} (protegido com senha, AES-256)`, 'ok');
+      }, 'Proteger com senha');
+    };
+    return el('div', {}, [files.node, el('div', { class: 'tr-cfg' }, [
+      field('Senha', pw1), field('Confirmar a senha', pw2),
+      field('Senha do proprietário (para mudar permissões)', owner),
+      el('label', { class: 'chk' }, [show, ' Mostrar as senhas']),
+      el('div', { class: 'inline wrap' }, [el('label', { class: 'chk' }, [print, ' Permitir imprimir']), el('label', { class: 'chk' }, [copy, ' Permitir copiar o texto']), el('label', { class: 'chk' }, [modify, ' Permitir alterar e comentar'])]),
+      outControls(),
+      el('div', { class: 'enh-run' }, [el('button', { class: 'primary big', text: '🔒 Proteger', onclick: start })])
+    ]), el('p', { class: 'small muted', text: 'Criptografia AES-256 (o padrão atual do PDF). Sem a senha ninguém abre o arquivo — guarde-a: ela não pode ser recuperada. O original fica como estava; o protegido sai como “nome (protegido).pdf”.' })]);
+  }
+
+  // ---- remover a senha (descriptografar)
+  function unlockPanel() {
+    const files = fileList('pdfunlock', 'pdf', ['pdf'], 'Um ou vários PDFs protegidos');
+    const pw = el('input', { type: 'password', placeholder: 'Senha (se todos tiverem a mesma)', autocomplete: 'off' });
+    const start = () => runQueue('pdfunlock', files.render, async q => {
+      if (pw.value && !pdfPw.has(q.path)) pdfPw.set(q.path, pw.value);
+      const target = await api.pdfTarget(q.path, '(sem senha)', state.outMode, state.outDir);
+      const r = await withPw(q.path, p => api.pdfUnlock(q.path, p, target));
+      if (!r || r.error) throw new Error((r && r.error) || 'falha');
+      q.out = r.file;
+      addLog(`${nameOf(q.path)} → ${nameOf(r.file)} (sem senha)`, 'ok');
+    }, 'Remover senha');
+    return el('div', {}, [files.node, el('div', { class: 'tr-cfg' }, [
+      field('Senha', pw, 'Se ficar vazio ou não servir para algum arquivo, a senha é pedida na hora.'),
+      outControls(),
+      el('div', { class: 'enh-run' }, [el('button', { class: 'primary big', text: '🔓 Remover a senha', onclick: start })])
+    ]), el('p', { class: 'small muted', text: 'É preciso saber a senha: o app abre o PDF com ela e grava uma cópia sem proteção (“nome (sem senha).pdf”). PDFs com senha só do proprietário (abrem sem senha, mas não deixam imprimir/copiar) são liberados sem pedir senha.' })]);
+  }
+
   function open(tab) {
     if (screen) { screen.classList.add('show'); if (tab) setTab(tab); return; }
     logBox = el('ol', { class: 'pg-log enh-log' });
-    const tabs = { img: imageTab(), txt: textTab(), bg: bgTab() };
+    const tabs = { img: imageTab(), txt: textTab(), bg: bgTab(), pdf: pdfTab() };
     const body = el('section', { class: 'enh-col tl-main' }, Object.values(tabs));
-    const head = el('div', { class: 'tr-tabs' }, [['img', '🖼 Imagens'], ['txt', '📄 Textos'], ['bg', '✂ Remover fundo']].map(([k, t]) => el('button', { class: 'tr-tab', 'data-tab': k, text: t, onclick: () => setTab(k) })));
+    const head = el('div', { class: 'tr-tabs' }, [['img', '🖼 Imagens'], ['txt', '📄 Textos'], ['bg', '✂ Remover fundo'], ['pdf', '📑 PDF']].map(([k, t]) => el('button', { class: 'tr-tab', 'data-tab': k, text: t, onclick: () => setTab(k) })));
     screen = el('div', { class: 'enh-screen tl-screen show' }, [
       el('header', { class: 'enh-head' }, [
-        el('div', { class: 'enh-brand' }, [el('span', { class: 'enh-logo', html: App.icons ? App.icons.svg('images') : '' }), el('div', {}, [el('h1', { text: 'Ferramentas' }), el('p', { class: 'muted', text: 'Converter imagens e textos entre formatos e remover o fundo de imagens — tudo no computador' })])]),
+        el('div', { class: 'enh-brand' }, [el('span', { class: 'enh-logo', html: App.icons ? App.icons.svg('images') : '' }), el('div', {}, [el('h1', { text: 'Ferramentas' }), el('p', { class: 'muted', text: 'Converter imagens e textos, remover o fundo de imagens e trabalhar com PDF (mesclar, remover páginas, reorganizar, JPG, senha) — tudo no computador' })])]),
         el('button', { class: 'enh-back', text: '← Voltar ao editor', onclick: () => screen.classList.remove('show') })
       ]),
       el('main', { class: 'enh-main' }, [el('div', { class: 'enh-col' }, [head, body]), el('section', { class: 'enh-col' }, [el('b', { text: 'Registro' }), logBox])])

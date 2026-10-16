@@ -1315,7 +1315,8 @@ if (!process.env.SMOKE_TEST && !app.requestSingleInstanceLock()) {
     library.extraBuiltin = () => remoteAssets.bundledRules(library.builtinDir);
     registerAppProtocol();
     blockNetwork(session.defaultSession);
-    // tela Ferramentas: conversores de imagem e de texto, remoção de fundo
+    // tela Ferramentas: conversores de imagem e de texto, remoção de fundo, ferramentas de PDF
+    require('./main/pdftools').registerPdfTools({ ipcMain, app, rasterizePdf, safeName });
     require('./main/tools').registerTools({
       ipcMain, dialog, app, utilityProcess, getWindow: () => mainWindow, rasterizePdf, safeName,
       bg: require('./main/bgremove').createBgRemover({ modelsDir: userFile('modelos'), bundledDir: path.join(APP_ROOT, 'assets', 'models'), workerUrl: appUrl('src/mt/bg.html'), preload: path.join(__dirname, 'mt', 'bg-preload.js') })

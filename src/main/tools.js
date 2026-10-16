@@ -28,8 +28,8 @@ function registerTools({ ipcMain, dialog, app, utilityProcess, getWindow, raster
   }
 
   ipcMain.handle('tools:pick', async (e, kind) => {
-    const exts = kind === 'text' ? TXT_IN : IMG_IN;
-    const res = await dialog.showOpenDialog(getWindow(), { title: kind === 'text' ? 'Textos para converter' : 'Imagens', filters: [{ name: kind === 'text' ? 'Textos e livros' : 'Imagens', extensions: exts }, { name: 'Todos os arquivos', extensions: ['*'] }], properties: ['openFile', 'multiSelections'] });
+    const exts = kind === 'text' ? TXT_IN : kind === 'pdf' ? ['pdf'] : IMG_IN;
+    const res = await dialog.showOpenDialog(getWindow(), { title: kind === 'text' ? 'Textos para converter' : kind === 'pdf' ? 'Arquivos PDF' : 'Imagens', filters: [{ name: kind === 'text' ? 'Textos e livros' : kind === 'pdf' ? 'PDF' : 'Imagens', extensions: exts }, { name: 'Todos os arquivos', extensions: ['*'] }], properties: ['openFile', 'multiSelections'] });
     return res.canceled ? [] : res.filePaths;
   });
   ipcMain.handle('tools:pickDir', async () => {
