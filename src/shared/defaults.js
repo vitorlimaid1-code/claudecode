@@ -361,6 +361,7 @@
     pageWidth: 155,
     pageHeight: 230,
     pageColor: '#ffffff',
+    darkPages: false, // modelo de páginas escuras (Terror — páginas pretas): textos, filetes e ornamentos claros
     marginTop: 28,
     marginBottom: 28,
     marginInner: 23,
@@ -470,6 +471,20 @@
       label: 'Terror', separatorLibrary: 'espinhos',
       settings: { dropCap: true, header: 'title-chapter', pageNumbers: 'center', chapterNumbering: 'roman', sceneBreak: '✝', pageColor: '#ffffff' },
       styles: { body: { font: 'Crimson Pro', size: 11.5, lineHeight: 1.35, align: 'justify' }, chapterTitle: { font: 'Cormorant Garamond', size: 26, uppercase: true, letterSpacing: 0.12, color: '#5a0d0d', spaceBefore: 45 }, chapterLabel: { color: '#5a0d0d' } }
+    },
+    terrornoturno: {
+      label: 'Terror — páginas pretas', separatorLibrary: 'espinhos',
+      // todas as folhas pretas e todo o texto branco (miolo, rosto, ficha, sumário, cabeçalho, números e notas)
+      settings: { darkPages: true, pageColor: '#000000', dropCap: true, dropCapColor: '#ffffff', separatorColor: '#ffffff', header: 'title-chapter', pageNumbers: 'center', chapterNumbering: 'roman', sceneBreak: '✝', headerRule: { style: 'fina', color: '#bdbdbd', weight: 0.5, gap: 2.2, spine: true } },
+      styles: {
+        body: { font: 'Crimson Pro', size: 11.5, lineHeight: 1.4, align: 'justify', color: '#ffffff' },
+        chapterTitle: { font: 'Cormorant Garamond', size: 26, uppercase: true, letterSpacing: 0.12, color: '#ffffff', spaceBefore: 45 },
+        chapterLabel: { color: '#d6d6d6' }, h2: { color: '#ffffff' }, h3: { color: '#ffffff' }, h4: { color: '#ffffff' },
+        quote: { color: '#ffffff' }, phrase: { color: '#ffffff' }, poem: { color: '#ffffff' }, epigraph: { color: '#ffffff' }, reference: { color: '#ffffff' },
+        caption: { color: '#d0d0d0' }, footnote: { color: '#e8e8e8' },
+        box: { color: '#ffffff', background: '#1c1c1c', borderColor: '#8a8a8a' }, table: { color: '#ffffff', borderColor: '#9a9a9a', background: '#1c1c1c' },
+        header: { color: '#d9d9d9' }, pageNumber: { color: '#ffffff' }, toc: { color: '#ffffff' }
+      }
     },
     suspense: {
       label: 'Suspense / policial', separatorLibrary: 'linha-dupla',
@@ -785,6 +800,11 @@
     if (!preset) return settings;
     const base = JSON.parse(JSON.stringify(DEFAULT_STYLES));
     settings.styles = base;
+    // saindo do modelo de páginas pretas: folhas brancas e filetes/ornamentos escuros de novo
+    if (settings.darkPages && !(preset.settings || {}).darkPages) {
+      Object.assign(settings, { darkPages: false, pageColor: '#ffffff', dropCapColor: '', separatorColor: '#000000' });
+      if (settings.headerRule) settings.headerRule = Object.assign({}, settings.headerRule, { color: '#6b6b6b' });
+    }
     mergeSettings(settings, Object.assign({}, preset.settings, { styles: preset.styles }));
     return settings;
   }

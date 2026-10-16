@@ -139,7 +139,7 @@ Tela própria, aberta pelo botão **Ferramentas** no topo (ou na tela de boas-vi
 - **Marcador de texto** (🖍 na barra do editor e **🖍 Marcador ▾** na barra que aparece ao selecionar): contorno colorido atrás da frase, em **cinza, preto, verde neon, amarelo neon, rosa neon** ou **branco com contorno fino** (texto numa caixa de linha fina). Com as cores fortes escuras (preto, rosa), a letra fica branca automaticamente. Sai igual no PDF, no EPUB e no DOCX (sombreamento/borda do Word); “Sem marcador” tira.
 - **Estilos de caractere** (para trechos dentro do parágrafo): Ênfase, Destaque forte, Versalete, Termo estrangeiro, Título de obra e Sigla, além dos que você criar (fonte, tamanho, cor, itálico, negrito, versalete, maiúsculas, sublinhado, espaço entre letras). Selecione o trecho na página e use **Aa Estilo ▾** na barra que aparece; mudar o estilo em Estilos de texto muda todos os trechos marcados com ele no livro, no EPUB e no DOCX. Excluir um estilo devolve os trechos ao texto normal.
 - **Conjuntos tipográficos** salvos para reutilizar em outros livros; **“Salvar como meu padrão”**: novos livros e o próximo uso do app começam com a sua configuração (só muda quando você salva de novo).
-- **Biblioteca de estilos** com amostra visual e aplicação em todo o livro com um clique: romance, poesia, terror, suspense/policial, fantasia, ficção científica, contos, infantojuvenil, autoajuda, biografia, religioso, acadêmico, não-ficção, ciências humanas, história, filosofia, jornalismo e culinária.
+- **Biblioteca de estilos** com amostra visual e aplicação em todo o livro com um clique: romance, poesia, terror, suspense/policial, fantasia, ficção científica, contos, infantojuvenil, autoajuda, biografia, religioso, acadêmico, não-ficção, ciências humanas, história, filosofia, jornalismo e culinária — e **Terror — páginas pretas**: todas as folhas pretas e todo o texto branco (miolo, rosto, ficha, sumário, cabeçalho, números e notas), com separador e logotipo claros; trocar para outro estilo volta às folhas brancas.
 - Editor com tabelas, **gráficos** (colunas, linhas, pizza — editáveis), listas, caixas de destaque, quebras de cena e de página, versalete, caracteres invisíveis.
 
 ### Capítulos e páginas
@@ -290,6 +290,16 @@ O layout padrão é o de **livro**. Em **Outros módulos** (barra lateral) ficam
 ### Caixas de texto (livro e revista)
 - Caixa invisível que só delimita o espaço: aparece apenas o texto (no preview há um tracejado de guia que não sai na exportação). Clique na caixa para o menu: **lateral esquerda/direita** (o texto ao lado segue reto pela margem), **centro** (o texto contorna dos dois lados), **faixa** (acima/abaixo, com o texto ajustado ao fluxo); largura −/+; estilo destaque grande, citação ou texto normal; **Contorno: Manter** (a caixa sai como no preview, com o contorno tracejado, também no PDF) ou **Remover** (só a frase); remover a caixa. Na tela *Blocos e páginas sangradas*, “Contorno de todas as caixas” aplica Manter/Remover em todas de uma vez.
 
+### ISBN e código de barras (tela própria)
+- **Livro → ISBN e código de barras** reúne tudo o que é do ISBN: o número (dígito verificador conferido; ISBN-10 convertido para 13), o **ISBN do e-book** (opcional; sem ele o EPUB usa o do impresso), a lista **Onde o ISBN aparece** (ficha catalográfica, contracapa, EPUB, nomes dos arquivos do Cedet, cada um com ✓/✗) e o **código de barras da contracapa** (posição, distâncias, tamanho, altura, prévia e download em EPS/PDF/SVG). Em Dados do livro, na ficha e na tela da Capa aparece só o resumo, com um botão que leva para essa tela.
+
+### Configurações por etapa, cada uma numa tela
+- **Editora, selo, logotipo e nome da editora no rosto**: Créditos e ficha → Editora e logotipo (Dados do livro mostra o resumo).
+- **Notas** (onde ficam, título da seção de notas, numeração, mostrar/ocultar): Produção → Notas de rodapé.
+- **Cabeçalho e numeração das páginas** (incluindo romanos nas pré-textuais e “página 1 = primeiro capítulo”): Formato e diagramação.
+- **Sumário** (incluir, título, modelo, galeria, modo, níveis, listas de figuras/tabelas/quadros): Dados e páginas iniciais → Sumário.
+- **Hifenização e justificação**: Tipografia e paginação. **Sinopse**: Dados e páginas iniciais (a tela da capa do EPUB mostra e leva para lá).
+
 ### Capa e lombada
 **Tela própria**: o módulo Capa abre numa tela só dele, por cima do editor (botão **Capa** no topo, na tela de boas-vindas ou no menu lateral); **“← Voltar ao editor”** devolve à vista em que se estava. A capa é calculada automaticamente pelo livro aberto na diagramação.
 
@@ -313,6 +323,7 @@ O layout padrão é o de **livro**. Em **Outros módulos** (barra lateral) ficam
 - Usa as fontes instaladas no Windows ou as copia para a **biblioteca do aplicativo** (“instalação virtual”, sem instalar no sistema) — TTF, OTF, TTC, WOFF e WOFF2.
 - Reconhece os pesos e estilos reais (não simula negrito/itálico ausentes), lê a **licença de incorporação** (fsType) e avisa quando a fonte não pode ir para o PDF.
 - Fontes ausentes ao abrir um livro geram aviso e escolha explícita de substituição, registrada no projeto.
+- **Favoritas**: a ☆ ao lado de cada fonte (ou “☆ Favoritar” na prévia) guarda a fonte nas favoritas, reunidas na aba **★ Favoritas** e mostradas primeiro em todos os seletores de fonte do app (Estilos de texto, estilos de caractere, capitular, camadas). Valem para todos os livros.
 
 ## Desempenho com livros grandes
 - A paginação acontece em processos separados, vários capítulos ao mesmo tempo (um por núcleo livre do computador, até 6): a tela nunca espera a paginação.

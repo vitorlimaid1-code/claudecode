@@ -269,6 +269,8 @@
     const box = $('#coverStage');
     if (box) frame.contentWindow.setCoverZoom(Math.min(1.5, (box.clientWidth - 40) / r.wpx, (box.clientHeight - 40) / r.hpx));
   }
+  const redraw0 = () => redraw();
+  const render0 = () => render();
   const redraw = () => { clearTimeout(redraw._t); redraw._t = setTimeout(() => { updateSummary(); drawPreview(); }, 200); };
 
   async function runProof() {
@@ -338,7 +340,7 @@
     if (c.spineMode === 'manual' && g.cedetCalc && g.cedetCalc.ok && Math.abs(Number(c.spine) - g.cedetCalc.spine) > 0.001) out.push(`A lombada foi digitada à mão (${App.fmtNum(c.spine)} mm) e difere da calculadora do Cedet (${App.fmtNum(g.cedetCalc.spine)} mm): clique em “Recalcular automaticamente” ou em “Confirmar medidas”.`);
     const b = c.isbnBarcode || {};
     const isbnTxt = b.isbn || App.project.meta.isbn;
-    if (!b.enabled || !isbnTxt) out.push('Falta o ISBN: o código de barras é obrigatório na contracapa (manual Cedet 3.3). Digite o ISBN do pré-cadastro no quadro do código de barras ou em Dados do livro.');
+    if (!b.enabled || !isbnTxt) out.push('Falta o ISBN: o código de barras é obrigatório na contracapa (manual Cedet 3.3). Digite o ISBN do pré-cadastro em Livro → ISBN e código de barras.');
     else {
       const lay = window.Isbn.layout(isbnTxt, b);
       if (!lay.ok) out.push('Código de barras: ' + lay.error);
@@ -380,9 +382,14 @@
     ], 'A capa não leva QR code: na contracapa fica só o código de barras do ISBN (padrão Cedet). Em capas escuras, prefira um logotipo claro.', 'span-all');
   }
 
-  function barcodeCard(c, on) {
+  // Quadro completo do código de barras: fica na tela “ISBN e código de barras” (tudo do ISBN num lugar só).
+  // opts.rerender / opts.redraw: o que fazer depois de uma mudança (na tela do ISBN, redesenha a própria tela).
+  function barcodeCard(c, on, opts) {
+    opts = opts || {};
     const b = c.isbnBarcode;
     const meta = App.project.meta;
+    const render = opts.rerender || render0;
+    const redraw = opts.redraw || redraw0;
     const isbnVal = b.isbn || meta.isbn || '';
     const lay = window.Isbn ? window.Isbn.layout(isbnVal, b) : { ok: false, error: 'módulo indisponível' };
     const svgBox = el('div', { class: 'barcode-prev' });
@@ -393,7 +400,7 @@
       hint.className = 'hint ' + (l.ok ? 'good' : v2 ? 'bad' : '');
       svgBox.innerHTML = l.ok ? window.Isbn.toSvg(l) : '';
     };
-    const isbnIn = el('input', { type: 'text', value: isbnVal, placeholder: '978-85-XXXX-XXX-X', oninput: e => {
+    const isbnIn = opts.noIsbnInput ? null : el('input', { type: 'text', value: isbnVal, placeholder: '978-85-XXXX-XXX-X', oninput: e => {
       b.isbn = ''; meta.isbn = e.target.value; proof = null;
       showLay(window.Isbn.layout(meta.isbn, b));
       clearTimeout(isbnIn._t); isbnIn._t = setTimeout(() => { App.changed('ISBN do livro', { preview: false }); redraw(); }, 500);
@@ -407,7 +414,7 @@
         el('b', { text: 'Parâmetros do Cedet aplicados: ' }),
         'contracapa · mínimo 19 × 31 mm (barras + números) · 2,5 mm livres entre a última barra e outros elementos (quadro branco) · preto 100% K, nunca em quatro cores · vetorial, EPS para download · o ISBN codificado é o do pré-cadastro (o mesmo dos dados do livro e da ficha catalográfica).'
       ]) : el('label', { class: 'chk' }, [on(b, 'enabled', 'checkbox', { onChange: reb }), ' Gerar o código de barras do ISBN na contracapa (opcional)']),
-      el('label', { class: 'field' }, [el('span', { class: 'flabel', text: cd ? 'ISBN do pré-cadastro (obrigatório — o mesmo de Dados do livro e da ficha)' : 'Número do ISBN (opcional — o mesmo do pré-cadastro)' }), isbnIn, hint]),
+      isbnIn ? el('label', { class: 'field' }, [el('span', { class: 'flabel', text: cd ? 'ISBN do pré-cadastro (obrigatório — o mesmo de Dados do livro e da ficha)' : 'Número do ISBN (opcional — o mesmo do pré-cadastro)' }), isbnIn, hint]) : el('div', { class: 'field' }, [el('span', { class: 'flabel', text: 'ISBN codificado nas barras (o do quadro acima)' }), hint]),
       App.field('Posição', on(b, 'pos', 'select', { options: posOpts, onChange: reb })),
       App.field('Distância do corte inferior (mm)', on(b, 'dy', 'number', { step: 0.5, min: 0 })),
       b.pos !== 'bc' ? App.field(b.pos === 'bl' ? 'Distância do corte externo (mm)' : 'Distância da lombada (mm)', on(b, 'dx', 'number', { step: 0.5, min: 0 })) : null,
@@ -419,6 +426,19 @@
       el('div', { class: 'inline wrap' }, ['eps', 'pdf', 'svg'].map(fmt => el('button', { class: fmt === 'eps' ? 'primary' : '', text: `⇩ Baixar ${fmt.toUpperCase()}${fmt === 'eps' ? ' (recomendado)' : ''}`, onclick: async () => { const r = await api.barcodeSave(b.isbn || meta.isbn, { scale: b.scale, barHeight: b.barHeight, showIsbnText: b.showIsbnText }, fmt); if (r && r.error) App.toast(r.error, 5000); else if (r) App.toast('Código de barras salvo: ' + r.file, 5000); } }))),
       cd ? null : el('label', { class: 'chk small' }, [on(c, 'barcode', 'checkbox'), ' Apenas reservar uma área branca de 50 × 30 mm (sem gerar o código)'])
     ], 'O código é vetorial e vai por cima da arte, num quadro branco. Confira a leitura com um leitor de código de barras na prova impressa.', 'span-all');
+  }
+
+  // Na tela da capa: só o resumo; o ISBN e o código de barras são configurados na tela própria
+  function barcodeSummaryCard(c) {
+    const b = c.isbnBarcode || {};
+    const r = window.Isbn ? window.Isbn.parse(App.project.meta.isbn) : { ok: false };
+    const posName = { br: 'inferior direito, junto à lombada', bc: 'inferior, centralizado', bl: 'inferior esquerdo' }[b.pos] || '';
+    const status = !App.project.meta.isbn ? (c.cedet ? '✗ Falta o ISBN (obrigatório no Cedet)' : 'Sem ISBN: a capa sai sem código de barras') : r.ok ? `✓ ISBN ${r.display || r.isbn13}` : `✗ ISBN inválido — ${r.error}`;
+    return App.card('ISBN e código de barras', [
+      el('div', { class: 'small ' + (r.ok ? 'good' : App.project.meta.isbn || c.cedet ? 'bad' : 'muted'), text: status }),
+      el('div', { class: 'small muted', text: b.enabled || c.cedet ? `Código de barras na contracapa · ${posName} · ${Math.round((Number(b.scale) || 1) * 100)}%` : c.barcode ? 'Só a área branca reservada (50 × 30 mm), sem o código' : 'Sem código de barras na contracapa' }),
+      el('button', { class: 'primary', text: 'Configurar ISBN e código de barras →', onclick: () => App.setView('isbn') })
+    ], 'O número do ISBN, onde ele aparece (ficha, contracapa, EPUB, nome dos arquivos) e o código de barras ficam juntos numa tela só.', 'span-all');
   }
 
   function cedetCard(c, on) {
@@ -550,7 +570,7 @@
         ], 'Cada imagem preenche toda a sua parte até a borda da sangria, sem faixas brancas (o excesso é recortado pelo centro; ou escolha “Esticar”). Imagens CMYK (JPEG) mantêm seus valores; imagens RGB são convertidas com o perfil ICC escolhido abaixo, respeitando o perfil embutido na imagem.', 'span-all'),
         App.card('Cor de fundo (áreas sem imagem)', [f('Capa', on(c.bg, 'front', 'color')), f('Lombada', on(c.bg, 'spine', 'color')), f('Contracapa', on(c.bg, 'back', 'color'))]),
         brandCard(c, on),
-        barcodeCard(c, on),
+        barcodeSummaryCard(c),
         App.card('Saída para gráfica — PDF CMYK', [
           f('Perfil de cor (ICC)', on(c, 'profile', 'select', { options: [{ value: 'fogra39', label: 'ISO Coated v2 (ECI) — FOGRA39 · couchê, offset Brasil/Europa' }, { value: 'gracol', label: 'GRACoL 2013 (CRPC6) · couchê, padrão EUA/KDP' }].concat(c.customIcc ? [{ value: 'custom', label: 'Carregado: ' + c.customIcc.desc }] : []), onChange: () => { proof = null; render(); } }), c.cedet ? (c.customIcc && /swop/i.test(c.customIcc.desc + c.customIcc.name) ? '✓ U.S. Web Coated (SWOP) v2, como recomenda o Cedet.' : 'O Cedet recomenda U.S. Web Coated (SWOP) v2: o app procura o perfil instalado com os programas da Adobe; se não achar, carregue o arquivo .icc (ele não pode ser distribuído com o programa).') : 'Use o perfil indicado pela sua gráfica.', 'wide'),
           el('div', { class: 'field' }, [el('span', { class: 'flabel', text: ' ' }), el('button', { text: 'Carregar perfil ICC…', title: 'Ex.: USWebCoatedSWOP.icc (Adobe)', onclick: pickIcc })]),
@@ -624,5 +644,5 @@
     return baseSetView.apply(this, arguments);
   };
   App.coverScreen = { open: () => App.setView('cover'), manuscript: f => { App.setView('cover'); manuscriptModal(f); } };
-  App.cover = { ensure: cover, syncFromBook, render };
+  App.cover = { ensure: cover, syncFromBook, render, barcodeCard, invalidate: () => { proof = null; } };
 })();

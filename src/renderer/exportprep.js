@@ -340,7 +340,8 @@ h1.tb-black { background: #000; color: #fff; } h1.tb-white { border: 1px solid #
     const owner = {};
     docs.forEach((d, i) => { const file = `chap${String(i + 1).padStart(3, '0')}.xhtml`; d.xhtml.replace(/\sid="([^"]+)"/g, (mm, id) => { owner[id] = { file, i }; return mm; }); });
     docs.forEach((d, i) => { d.xhtml = d.xhtml.replace(/href="#([^"]+)"/g, (mm, id) => (owner[id] && owner[id].i !== i ? `href="${owner[id].file}#${id}"` : mm)); });
-    const m = project.meta;
+    // o livro digital pode ter ISBN próprio (o do e-book); sem ele, usa o do impresso
+    const m = project.meta.isbnEpub ? Object.assign({}, project.meta, { isbn: project.meta.isbnEpub }) : project.meta;
     const cat = project.catalog;
     const esc = App.escape;
     const copyright = [

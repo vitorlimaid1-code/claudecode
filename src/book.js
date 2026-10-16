@@ -1029,7 +1029,18 @@ ${pageNames}
   font-synthesis: none;
 }
 
-/* ---------- pré-textuais ---------- */
+${s.darkPages ? `/* ---------- páginas pretas (modelo Terror — páginas pretas) ---------- */
+.pagedjs_page, .pagedjs_page .pagedjs_margin-content { color: ${color(body.color, '#fff')}; }
+.chapter-sep img, .tp-logo { filter: invert(1) hue-rotate(180deg); }
+.invite { color: inherit; } .invite-rule { border-top-color: currentColor; }
+.chapter-body figure.ph figcaption { color: #c8c8c8; }
+.chapter-body .hl-outline { background: transparent; color: inherit; border-color: currentColor; }
+.chapter-body .hl-black { background: #fff; color: #111; }
+.chapter.tb-black .chapter-title { background: #fff; color: #000 !important; }
+.chapter.tb-white .chapter-title { background: #000; color: #fff !important; border-color: #fff; box-shadow: 0 0 0 1.2mm #000; }
+.chapter-body .tframe.tf-pull b, .chapter-body .tframe.tf-pull strong { color: inherit; }
+` : ''}
+/* ---------- pré-textuais ---------- *//* ---------- pré-textuais ---------- */
 .front { page: front; break-before: page; }
 .half-title .ht-title { margin-top: ${(contentH * 0.28).toFixed(1)}mm; text-align: center; font-family: ${fontStack(S.chapterTitle.font || body.font)}; font-size: 1.5em; letter-spacing: 0.04em; }
 .title-page { text-align: center; font-family: ${fontStack(S.chapterTitle.font || body.font)}; height: ${(contentH - 2).toFixed(1)}mm; display: flex; flex-direction: column; }

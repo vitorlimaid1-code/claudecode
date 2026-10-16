@@ -370,11 +370,11 @@
         field('Título do livro', bind(m, 'title', 'text', { label: 'Título do livro' })),
         field('Subtítulo', bind(m, 'subtitle', 'text')),
         field('Nome do autor', bind(m, 'author', 'text')),
-        field('Editora / selo', bind(m, 'publisher', 'text', { placeholder: 'Opcional' })),
+        el('div', { class: 'field' }, [el('span', { class: 'flabel', text: 'Editora / selo' }), el('div', { class: 'inline' }, [el('span', { class: m.publisher ? '' : 'muted', text: m.publisher || 'não escolhida' }), el('button', { class: 'small-btn', text: 'Editora, selo e logotipo →', onclick: () => App.setView('catalog') })])]),
         field('Cidade', bind(m, 'city', 'text')),
         field('Ano', bind(m, 'year', 'text')),
         field('Edição', bind(m, 'edition', 'text')),
-        field('ISBN', bind(m, 'isbn', 'text', { placeholder: 'Opcional' })),
+        App.isbnSummary(),
         field('Idioma', bind(m, 'language', 'select', { options: [{ value: 'pt-BR', label: 'Português (Brasil)' }, { value: 'pt-PT', label: 'Português (Portugal)' }, { value: 'es', label: 'Espanhol' }, { value: 'en', label: 'Inglês' }] })),
         field('Sinopse (EPUB e quarta capa)', bind(m, 'description', 'textarea', { rows: 3 }), '', 'wide')
       ]),
@@ -384,19 +384,16 @@
         el('label', { class: 'chk' }, [bind(f, 'copyright', 'checkbox'), ' Créditos e ficha catalográfica']),
         el('label', { class: 'chk' }, [bind(f, 'dedication', 'checkbox'), ' Dedicatória']),
         el('label', { class: 'chk' }, [bind(f, 'epigraph', 'checkbox'), ' Epígrafe']),
-        el('label', { class: 'chk' }, [bind(f, 'toc', 'checkbox', { onChange: () => App.hooks.viewRender.book() }), ' Sumário'])
+        el('span', { class: 'small muted', text: 'Sumário: no quadro “Sumário” abaixo.' })
       ], 'Ordem padrão: página de rosto › ficha catalográfica › sumário › (dedicatória, epígrafe) › capítulos › páginas extras. Cada elemento começa na página seguinte, sem páginas em branco; estas páginas não recebem número.'),
       App.toc.card(() => App.hooks.viewRender.book()),
       card('Página de rosto', [
-        el('div', { class: 'field' }, [el('span', { class: 'flabel', text: 'Logotipo da editora' }), el('div', { class: 'inline' }, [
+        el('div', { class: 'field' }, [el('span', { class: 'flabel', text: 'Logotipo / selo da editora' }), el('div', { class: 'inline' }, [
           logo ? el('img', { class: 'mini-thumb', src: App.assetUrl(tp.logo) }) : el('span', { class: 'muted', text: 'Nenhum' }),
-          el('button', { text: logo ? 'Trocar…' : 'Escolher…', onclick: async () => { const l = await api.pickImages({ title: 'Logotipo da editora' }); if (!l) return; tp.logo = await App.addAsset(l[0]); App.changed('Logotipo da editora'); App.hooks.viewRender.book(); } }),
-          logo ? el('button', { text: 'Remover', onclick: () => { tp.logo = null; App.changed('Logotipo removido'); App.hooks.viewRender.book(); } }) : null
+          el('button', { class: 'small-btn', text: 'Editora, selo e logotipo →', onclick: () => App.setView('catalog') })
         ])]),
-        field('Largura do logotipo (mm)', bind(tp, 'logoWidth', 'number', { min: 5, max: 80, step: 1 })),
-        el('label', { class: 'chk' }, [bind(tp, 'showPublisher', 'checkbox'), ' Mostrar nome da editora (só quando não há logotipo ou selo — o selo já identifica a editora)']),
         el('label', { class: 'chk' }, [bind(tp, 'showYear', 'checkbox'), ' Mostrar cidade e ano'])
-      ], 'Título do livro, nome do autor e logotipo da editora.'),
+      ], 'Título do livro e nome do autor vêm da Identificação; o logotipo, o selo e o nome da editora são escolhidos em Créditos e ficha → Editora e logotipo.'),
       card('Dedicatória e epígrafe', [
         field('Dedicatória', bind(m, 'dedication', 'textarea', { rows: 3 }), '', 'wide'),
         field('Epígrafe', bind(m, 'epigraph', 'textarea', { rows: 3 }), '', 'wide'),
@@ -506,7 +503,7 @@
         c.mode !== 'manual' ? field('Ano', bind(m, 'year', 'text')) : null,
         c.mode !== 'manual' ? field('Quantidade de páginas', bind(c, 'pagesOverride', 'text', { placeholder: App.lastRender ? `automático (${App.lastRender.pages})` : 'automático' })) : null,
         c.mode !== 'manual' ? field('Série / coleção', bind(c, 'series', 'text')) : null,
-        c.mode !== 'manual' ? field('ISBN', bind(m, 'isbn', 'text')) : null,
+        c.mode !== 'manual' ? App.isbnSummary() : null,
         c.mode !== 'manual' ? el('div', { class: 'field' + (String(c.subjects || '').trim() ? '' : ' need') }, [el('span', { class: 'flabel', text: 'Assuntos (indispensáveis)' }), el('div', { class: 'inline' }, [bind(c, 'subjects', 'text', { placeholder: 'Escolha na lista →' }), el('button', { class: 'small-btn primary', text: 'Escolher…', onclick: () => App.catalogUi.pickSubjects(rerender) })])]) : null,
         c.mode !== 'manual' ? el('div', { class: 'field' + (String(c.cdd || '').trim() ? '' : ' need') }, [el('span', { class: 'flabel', text: 'CDD (indispensável)' }), el('div', { class: 'inline' }, [bind(c, 'cdd', 'text', { placeholder: 'Escolha na lista →' }), el('button', { class: 'small-btn primary', text: 'Escolher…', onclick: () => App.catalogUi.pickCdd(rerender) })])]) : null,
         c.mode !== 'manual' ? field('CDU', bind(c, 'cdu', 'text')) : null,
@@ -713,12 +710,11 @@
         ], 'Use quando a gráfica pedir o PDF numa folha maior que o livro (ex.: A4 ou SRA3). O formato final de corte, as margens, a sangria e todo o conteúdo continuam exatamente iguais — a página só é posicionada no centro da folha.');
       })(),
       card('Texto e paginação', [
-        el('label', { class: 'chk' }, [bind(s, 'hyphenate', 'checkbox'), ' Hifenização (português)']),
         el('label', { class: 'chk' }, [bind(s, 'indentFirstParagraph', 'checkbox'), ' Recuo no 1º parágrafo']),
         el('label', { class: 'chk' }, [bind(s, 'keepHeadingsWithNext', 'checkbox'), ' Manter títulos com o texto seguinte']),
         n('widowsOrphans', 'Linhas mínimas por página (viúvas/órfãs)', 1, 1, 5),
         field('Quebra de cena', bind(s, 'sceneBreak', 'text', { placeholder: '*  *  *' }))
-      ], 'O texto que não cabe é empurrado para a página seguinte, sem alterar o tamanho da fonte.'),
+      ], 'O texto que não cabe é empurrado para a página seguinte, sem alterar o tamanho da fonte. Hifenização e justificação: em Tipografia e paginação.'),
       card('Capítulos', [
         field('Rótulo', bind(s, 'chapterLabel', 'text', { placeholder: 'Capítulo' })),
         field('Numeração', bind(s, 'chapterNumbering', 'select', { options: [{ value: 'arabic', label: '1, 2, 3' }, { value: 'roman', label: 'I, II, III' }, { value: 'words', label: 'Um, Dois, Três' }, { value: 'none', label: 'Sem número' }] })),
@@ -738,7 +734,7 @@
         n('separatorWidth', 'Largura (% da mancha)', 1, 5, 100),
         s.separator === 'line' ? field('Cor do filete', bind(s, 'separatorColor', 'color')) : null
       ], 'Cada capítulo pode usar outro separador em “Aparência”.'),
-      card('Cabeçalho, numeração e notas', [
+      card('Cabeçalho e numeração das páginas', [
         field('Cabeçalho', bind(s, 'header', 'select', { options: [{ value: 'title-chapter', label: 'Título do livro / título do capítulo' }, { value: 'author-title', label: 'Autor / título do livro' }, { value: 'chapter-chapter', label: 'Título do capítulo nas duas páginas' }, { value: 'none', label: 'Sem cabeçalho' }], onChange: rerender })),
         App.headerRuleGallery ? App.headerRuleGallery(s, rerender) : null,
         field('Número da página', bind(s, 'pageNumbers', 'select', { options: [{ value: 'center', label: 'Rodapé, centralizado (todas as páginas)' }, { value: 'none', label: 'Sem numeração' }], onChange: rerender }), 'O número fica sempre no centro do rodapé, em todas as páginas (aceito pelo manual do Cedet).'),
@@ -747,10 +743,10 @@
         el('label', { class: 'chk' }, [bind(s, 'frameHidesHeader', 'checkbox', { fallback: true }), ' Nas páginas com moldura, tirar o cabeçalho (obra e autor) e o filete']),
         el('label', { class: 'chk' }, [bind(s, 'headingsLikeChapter', 'checkbox', { fallback: true }), ' “Título” no texto com a letra do título do capítulo e em página nova; “Subtítulo” na mesma letra, em negrito']),
         n('folioGap', 'Distância do número ao texto (mm)', 0.5, 0, 30, '0 = número centrado na margem inferior. CEDET: 3 mm, para ficar dentro dos 20 mm de segurança'),
-        el('label', { class: 'chk' }, [bind(s, 'numberFromFirstChapter', 'checkbox'), ' Página 1 = primeiro capítulo']),
-        field('Numeração das notas', bind(s, 'footnoteNumbering', 'select', { options: [{ value: 'book', label: 'Contínua no livro' }, { value: 'chapter', label: 'Reinicia a cada capítulo' }] })),
-        el('label', { class: 'chk' }, [bind(s, 'footnotesVisible', 'checkbox'), ' Mostrar notas de rodapé'])
-      ])
+        field('Páginas pré-textuais', bind(s, 'frontNumbering', 'select', { options: [{ value: 'none', label: 'Sem número (padrão da maioria dos livros)' }, { value: 'roman', label: 'Algarismos romanos (i, ii, iii…) — livros acadêmicos e técnicos' }], onChange: rerender })),
+        el('label', { class: 'chk' }, [bind(s, 'numberFromFirstChapter', 'checkbox', { disabled: s.frontNumbering === 'roman' }), ' Página 1 = primeiro capítulo']),
+        el('p', { class: 'small muted span-all', text: s.frontNumbering === 'roman' ? 'Com romanos, as páginas antes do 1º capítulo são i, ii, iii…; o sumário e as listas mostram o número em romano, e a contagem em algarismos arábicos recomeça no 1º capítulo. A ficha catalográfica sai como “xii, 230 p.”.' : 'ABNT: as páginas pré-textuais são contadas, mas o número só aparece a partir da primeira página do texto.' })
+      ], 'Tudo do cabeçalho e do número da página fica aqui. As notas (onde aparecem, numeração, mostrar/ocultar) ficam em Produção → Notas de rodapé.')
     ]));
   };
 
@@ -805,6 +801,20 @@
     };
     v.appendChild(el('div', { class: 'form-wrap' }, [
       el('h2', { text: 'Notas de rodapé' }),
+      (() => {
+        const rr = () => App.hooks.viewRender.notes();
+        const periodical = ['magazine', 'newspaper'].includes(App.project.kind);
+        const sideNarrow = s.notesMode === 'side' && Number(s.marginOuter) < 35;
+        return card('Onde e como as notas aparecem', [
+          field('Onde ficam as notas', bind(s, 'notesMode', 'select', { options: [{ value: 'footnote', label: 'Rodapé da página (padrão)' }, { value: 'chapter', label: 'Fim de cada capítulo (notas de fim)' }, { value: 'book', label: 'Fim do livro, agrupadas por capítulo' }, { value: 'side', label: 'Margem externa (notas laterais)' }], onChange: rr }), periodical ? 'Revistas e jornais usam notas de rodapé.' : ''),
+          s.notesMode === 'chapter' || s.notesMode === 'book' ? field('Título da seção de notas', bind(s, 'endnotesTitle', 'text', { placeholder: 'Notas' })) : null,
+          field('Numeração das notas', bind(s, 'footnoteNumbering', 'select', { options: [{ value: 'book', label: 'Contínua no livro' }, { value: 'chapter', label: 'Reinicia a cada capítulo' }] })),
+          sideNarrow ? el('div', { class: 'warn-box span-all' }, [
+            el('span', { text: `A margem externa tem ${App.fmtNum(s.marginOuter)} mm: as notas laterais ficam muito estreitas. Recomendado: 40 a 50 mm.${s.standard === 'cedet' ? ' (No CEDET, a margem de segurança de 20 mm continua respeitada.)' : ''}` }),
+            el('button', { text: 'Ampliar a margem externa para 45 mm', onclick: () => { s.marginOuter = 45; App.changed('Margem externa para notas laterais'); rr(); } })
+          ]) : null
+        ], 'As notas são inseridas no editor (¹ Nota); aqui se escolhe onde aparecem no livro. Notas de fim recebem números com ligação no PDF; notas laterais ficam na margem externa, na altura da chamada. A aparência (fonte, tamanho) fica em Estilos de texto → Nota de rodapé.');
+      })(),
       el('div', { class: 'card' }, [
         el('div', { class: 'inline wrap' }, [
           el('strong', { text: `${all.length} nota(s) no livro` }),

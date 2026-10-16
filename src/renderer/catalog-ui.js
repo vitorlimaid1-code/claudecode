@@ -320,7 +320,7 @@
           el('label', { class: 'field' }, [el('span', { class: 'flabel', text: 'Largura do logotipo (mm)' }), (() => { const n = el('input', { type: 'number', min: 5, max: 80, value: tp.logoWidth || 25 }); n.addEventListener('change', () => { tp.logoWidth = Number(n.value) || 25; App.changed('Largura do logotipo'); }); return n; })()]),
           el('label', { class: 'field' }, [el('span', { class: 'flabel', text: 'Posição' }), (() => { const s2 = el('select', {}, [['below-title', 'Abaixo do título'], ['foot', 'No pé da página']].map(([v, t]) => el('option', { value: v, text: t, selected: (tp.logoPlacement || 'foot') === v }))); s2.addEventListener('change', () => { tp.logoPlacement = s2.value; App.changed('Posição do logotipo'); }); return s2; })()]),
           el('button', { class: 'ghost', text: 'Tirar o logotipo', onclick: () => chooseLogo(null, rerender) })
-        ]) : null
+        ]) : el('label', { class: 'chk' }, [App.bind(tp, 'showPublisher', 'checkbox', { label: 'Nome da editora no rosto' }), ' Sem logotipo: mostrar o nome da editora no pé da página de rosto (com selo ou logotipo, o nome não se repete)'])
       );
     });
     return holder;

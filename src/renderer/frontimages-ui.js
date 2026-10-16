@@ -38,9 +38,11 @@
     const a = e.coverAsset && App.project.assets[e.coverAsset];
     const inBook = el('input', { type: 'checkbox', checked: e.coverInBook !== false });
     inBook.addEventListener('change', () => { e.coverInBook = inBook.checked; App.changed(inBook.checked ? 'Capa no livro' : 'Capa só no EPUB'); });
-    const syn = el('textarea', { rows: 5, placeholder: 'Escreva a sinopse do livro…' });
-    syn.value = App.project.meta.description || '';
-    syn.addEventListener('input', () => { App.project.meta.description = syn.value; App.changed(null, { preview: false }); });
+    // a sinopse é editada só em Dados e páginas iniciais (um lugar só); aqui aparece para conferência
+    const syn = el('div', {}, [
+      el('p', { class: 'small' + (App.project.meta.description ? '' : ' muted'), text: App.project.meta.description || 'Sem sinopse.' }),
+      el('button', { class: 'small-btn', text: 'Editar a sinopse em Dados e páginas iniciais →', onclick: () => App.setView('book') })
+    ]);
     v.innerHTML = '';
     v.appendChild(el('div', { class: 'form-wrap' }, [
       el('h2', { text: 'Capa e imagens iniciais' }),

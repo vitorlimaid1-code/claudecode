@@ -372,10 +372,24 @@ window.App = (function () {
   };
   App.unitLabel = () => ({ mm: 'mm', cm: 'cm', in: 'pol.', pt: 'pt' }[App.unit]);
 
+  // Fontes favoritas (★): valem para todos os livros; aparecem primeiro em todos os seletores de fonte
+  App.fontFavs = {
+    list() { try { const v = JSON.parse(localStorage.getItem('fonts.favorites') || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } },
+    has(f) { return App.fontFavs.list().includes(f); },
+    toggle(f) {
+      const l = App.fontFavs.list();
+      const on = !l.includes(f);
+      const out = on ? l.concat([f]).sort((a, b) => a.localeCompare(b, 'pt-BR')) : l.filter(x => x !== f);
+      try { localStorage.setItem('fonts.favorites', JSON.stringify(out)); } catch (e) { /* ok */ }
+      return on;
+    }
+  };
   // Lista de famílias para seletores de fonte
   App.fontOptions = function (includeInherit) {
     const opts = [];
     if (includeInherit) opts.push({ value: '', label: '(mesma do texto principal)' });
+    const favs = App.fontFavs.list();
+    if (favs.length) opts.push({ group: '★ Favoritas', items: favs.map(f => ({ value: f, label: '★ ' + f })) });
     opts.push({ group: 'Embutidas no aplicativo', items: App.fontFamilies.bundled.map(f => ({ value: f, label: f })) });
     if (App.fontFamilies.library.length) opts.push({ group: 'Minha biblioteca de fontes', items: App.fontFamilies.library.map(f => ({ value: f.family, label: f.family + (f.embeddable ? '' : ' ⚠ não incorporável') })) });
     if (App.fontFamilies.system.length) opts.push({ group: 'Fontes do computador', items: App.fontFamilies.system.map(f => ({ value: f.family, label: f.family + (f.embeddable ? '' : ' ⚠ não incorporável') })) });

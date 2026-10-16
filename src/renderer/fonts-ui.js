@@ -3,7 +3,7 @@
 // fontes do computador, licença de incorporação e substituição de fontes ausentes.
 (function () {
   const { el, $, api, D } = App;
-  let tab = 'library';
+  let tab = (() => { try { return JSON.parse(localStorage.getItem('fonts.favorites') || '[]').length ? 'favorites' : 'library'; } catch (e) { return 'library'; } })();
   let query = '';
   let category = '';
   let onlyEmbeddable = false;
@@ -18,6 +18,11 @@
   ];
 
   function famList() {
+    if (tab === 'favorites') {
+      const all = [].concat(App.fontFamilies.library, App.fontFamilies.bundled.map(f => ({ family: f, source: 'embutida', embeddable: true, styles: ['Regular', 'Regular itálico', 'Bold', 'Bold itálico'], faces: [], category: 'serifa' })), App.fontFamilies.system);
+      const favs = App.fontFavs.list();
+      return favs.map(f => all.find(x => x.family === f) || { family: f, source: 'não encontrada neste computador', styles: [] });
+    }
     if (tab === 'library') return App.fontFamilies.library;
     if (tab === 'bundled') return App.fontFamilies.bundled.map(f => ({ family: f, source: 'embutida', embeddable: true, styles: ['Regular', 'Regular itálico', 'Bold', 'Bold itálico'], faces: [], category: 'serifa' }));
     return App.fontFamilies.system;
@@ -35,15 +40,19 @@
     const q = query.toLowerCase();
     const items = famList().filter(f => (!q || f.family.toLowerCase().includes(q)) && (!category || f.category === category) && (!onlyEmbeddable || f.embeddable));
     const list = el('div', { class: 'font-list' }, items.slice(0, 400).map(f => {
+      const fav = App.fontFavs.has(f.family);
       const row = el('div', { class: 'font-row' + (selected === f.family ? ' active' : ''), 'data-family': f.family, onclick: () => { selected = f.family; render(); } }, [
-        el('div', { class: 'font-name', text: f.family }),
+        el('div', { class: 'font-name' }, [
+          el('button', { class: 'font-fav' + (fav ? ' on' : ''), title: fav ? 'Tirar das favoritas' : 'Favoritar (aparece primeiro em todos os seletores de fonte)', text: fav ? '★' : '☆', onclick: e => { e.stopPropagation(); toggleFav(f.family); } }),
+          f.family
+        ]),
         el('div', { class: 'font-sample', style: { fontFamily: `"${f.family}", sans-serif` }, text: 'Aa Bb Cc — Ação, poesia e coração' }),
         el('div', { class: 'font-meta muted small', text: `${(f.styles || []).length} estilo(s)${f.category ? ' · ' + f.category : ''}${f.embeddable === false ? ' · ⚠ não incorporável' : ''}` })
       ]);
       return row;
     }));
     if (items.length > 400) list.appendChild(el('p', { class: 'muted', text: `Mostrando 400 de ${items.length}. Refine a busca.` }));
-    const tabs = el('div', { class: 'tabs' }, [['library', `Minha biblioteca (${App.fontFamilies.library.length})`], ['system', `Fontes do computador (${App.fontFamilies.system.length})`], ['bundled', `Embutidas (${App.fontFamilies.bundled.length})`]]
+    const tabs = el('div', { class: 'tabs' }, [['favorites', `★ Favoritas (${App.fontFavs.list().length})`], ['library', `Minha biblioteca (${App.fontFamilies.library.length})`], ['system', `Fontes do computador (${App.fontFamilies.system.length})`], ['bundled', `Embutidas (${App.fontFamilies.bundled.length})`]]
       .map(([k, l]) => el('button', { class: tab === k ? 'on' : '', text: l, onclick: () => { tab = k; selected = null; render(); } })));
     const search = el('input', { type: 'search', placeholder: 'Buscar por nome…', value: query, oninput: e => { query = e.target.value; clearTimeout(search._t); search._t = setTimeout(() => { render(); const s = $('#view-fonts input[type=search]'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); }, 250); } });
     const cat = el('select', { onchange: e => { category = e.target.value; render(); } }, [['', 'Todas as classificações'], ['serifa', 'Com serifa'], ['sem serifa', 'Sem serifa'], ['manuscrita', 'Manuscrita'], ['decorativa', 'Decorativa'], ['símbolos', 'Símbolos']].map(([v2, l]) => el('option', { value: v2, text: l })));
@@ -79,6 +88,12 @@
     list.querySelectorAll('.font-row').forEach(r => io.observe(r));
   }
 
+  function toggleFav(f) {
+    const on = App.fontFavs.toggle(f);
+    App.toast(on ? `★ “${f}” nas favoritas: aparece primeiro em todos os seletores de fonte.` : `“${f}” saiu das favoritas.`);
+    render();
+  }
+
   function report(res) {
     if (!res) return;
     const fams = [...new Set((res.added || []).map(a => a.family))];
@@ -94,7 +109,10 @@
     const st = App.project.settings.styles;
     const roleSel = el('select', {}, D.STYLE_DEFS.map(d => el('option', { value: d.key, text: d.label })));
     return el('div', { class: 'font-detail' }, [
-      el('h3', { text: selected, style: { fontFamily: `"${selected}"` } }),
+      el('div', { class: 'inline' }, [
+        el('h3', { text: selected, style: { fontFamily: `"${selected}"` } }),
+        el('button', { class: 'font-fav-big' + (App.fontFavs.has(selected) ? ' on' : ''), text: App.fontFavs.has(selected) ? '★ Favorita' : '☆ Favoritar', onclick: () => toggleFav(selected) })
+      ]),
       el('div', { class: 'muted small', text: `Origem: ${f.source || ''}${f.category ? ' · ' + f.category : ''}` }),
       el('div', { class: 'small ' + (f.embeddable === false ? 'bad' : 'good'), text: f.embeddable === false ? '⚠ A licença desta fonte não permite incorporação no PDF. Escolha outra fonte para o livro impresso.' : '✓ Pode ser incorporada ao PDF.' }),
       el('div', { class: 'font-styles' }, (f.faces && f.faces.length ? f.faces : (f.styles || []).map(s => ({ label: s }))).map(face => el('span', {

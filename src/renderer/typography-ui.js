@@ -26,7 +26,6 @@
     ])) : [el('p', { class: 'muted small', text: 'Nenhum termo marcado. Selecione uma palavra no editor e clique em “📇 Índice”, ou digite um termo abaixo para marcar todas as ocorrências.' })]);
 
     // ---------- notas laterais precisam de margem externa larga
-    const sideNarrow = s.notesMode === 'side' && Number(s.marginOuter) < 35;
 
     v.appendChild(el('div', { class: 'form-wrap' }, [
       el('h2', { text: 'Tipografia e paginação' }),
@@ -60,22 +59,6 @@
         el('button', { text: '↺ Recalcular os ajustes', title: 'Descarta os ajustes salvos e calcula de novo na próxima paginação', onclick: () => { App.project.layoutAdjust = {}; App.changed('Ajustes de última página recalculados'); } })
       ], 'Quando um capítulo termina com menos linhas que o mínimo no topo da última página, ele é levemente encolhido (as linhas voltam para a página anterior); se não der, é levemente expandido (mais linhas passam para a última página). Os ajustes ficam salvos no livro e só são refeitos quando o capítulo muda.'),
 
-      card('Notas', [
-        field('Onde ficam as notas', bind(s, 'notesMode', 'select', { options: [{ value: 'footnote', label: 'Rodapé da página (padrão)' }, { value: 'chapter', label: 'Fim de cada capítulo (notas de fim)' }, { value: 'book', label: 'Fim do livro, agrupadas por capítulo' }, { value: 'side', label: 'Margem externa (notas laterais)' }], onChange: rerender }), periodical ? 'Revistas e jornais usam notas de rodapé.' : ''),
-        s.notesMode === 'chapter' || s.notesMode === 'book' ? field('Título da seção de notas', bind(s, 'endnotesTitle', 'text', { placeholder: 'Notas' })) : null,
-        field('Numeração das notas', bind(s, 'footnoteNumbering', 'select', { options: [{ value: 'book', label: 'Contínua no livro' }, { value: 'chapter', label: 'Reinicia a cada capítulo' }] })),
-        sideNarrow ? el('div', { class: 'warn-box span-all' }, [
-          el('span', { text: `A margem externa tem ${App.fmtNum(s.marginOuter)} mm: as notas laterais ficam muito estreitas. Recomendado: 40 a 50 mm.${s.standard === 'cedet' ? ' (No CEDET, a margem de segurança de 20 mm continua respeitada.)' : ''}` }),
-          el('button', { text: 'Ampliar a margem externa para 45 mm', onclick: () => { s.marginOuter = 45; App.changed('Margem externa para notas laterais'); rerender(); } })
-        ]) : null
-      ], 'As notas continuam sendo inseridas do mesmo jeito no editor (¹ Nota); aqui você escolhe só onde elas aparecem no livro. Notas de fim recebem números com ligação no PDF; notas laterais ficam na margem externa, na altura da chamada.'),
-
-      card('Numeração das páginas', [
-        field('Páginas pré-textuais', bind(s, 'frontNumbering', 'select', { options: [{ value: 'none', label: 'Sem número (padrão da maioria dos livros)' }, { value: 'roman', label: 'Algarismos romanos (i, ii, iii…) — livros acadêmicos e técnicos' }] })),
-        el('label', { class: 'chk' }, [bind(s, 'numberFromFirstChapter', 'checkbox', { disabled: s.frontNumbering === 'roman' }), ' Página 1 = primeiro capítulo']),
-        el('p', { class: 'small muted span-all', text: s.frontNumbering === 'roman' ? 'Com romanos, as páginas antes do 1º capítulo são i, ii, iii…; o sumário e as listas mostram o número em romano, e a contagem em algarismos arábicos recomeça no 1º capítulo. A ficha catalográfica sai como “xii, 230 p.”.' : 'ABNT: as páginas pré-textuais são contadas, mas o número só aparece a partir da primeira página do texto.' })
-      ]),
-
       card('Normas ABNT', [
         field('Referências', bind(s, 'referenceStyle', 'select', { options: [{ value: 'hanging', label: 'Recuo pendente (padrão editorial)' }, { value: 'abnt', label: 'ABNT NBR 6023 — alinhadas à esquerda, espaço simples, uma linha em branco entre elas' }] })),
         field('Citação longa', bind(s, 'quoteStyle', 'select', { options: [{ value: 'book', label: 'Estilo do livro' }, { value: 'abnt', label: 'ABNT NBR 10520 — recuo de 4 cm, letra menor, espaço simples, sem aspas' }] })),
@@ -103,30 +86,7 @@
           rerender();
         } })])]),
         el('div', { class: 'field wide' }, [el('span', { class: 'flabel', text: `Termos marcados (${terms.length})` }), termRows])
-      ], 'Marque os termos no texto (botão “📇 Índice” no editor). O índice é montado em ordem alfabética, agrupado por letra, com as páginas de cada ocorrência — e os números são atualizados a cada paginação.'),
-
-      card('Figuras, tabelas e quadros', [
-        el('label', { class: 'chk full' }, [bind(s, 'captionNumbering', 'checkbox'), ' Numerar automaticamente: Figura 1, Gráfico 1, Tabela 1, Quadro 1']),
-        el('div', { class: 'inline wrap span-all' }, [
-          el('label', { class: 'chk' }, [bind(f, 'listFigures', 'checkbox'), ' Lista de figuras']),
-          el('label', { class: 'chk' }, [bind(f, 'listCharts', 'checkbox'), ' Lista de gráficos']),
-          el('label', { class: 'chk' }, [bind(f, 'listTables', 'checkbox'), ' Lista de tabelas']),
-          el('label', { class: 'chk' }, [bind(f, 'listQuadros', 'checkbox'), ' Lista de quadros'])
-        ])
-      ], 'Quadro = tabela de informações em texto (escolha “Quadro” ao inserir a tabela). Para citar no texto, use “↪ Referência” no editor: entra “ver Figura 3, p. 41”, que se atualiza sozinho quando a numeração ou a página mudam.'),
-
-      card('Modelo do sumário', [
-        el('div', { class: 'inline wrap span-all' }, [el('button', { class: 'primary', text: '✦ Galeria de estilos de sumário…', onclick: () => App.tocGallery.open() }), el('span', { class: 'small muted', text: 'Fontes grandes, grossas ou finas; com ou sem moldura; faixas imersivas até o corte. Estilo atual: ' + TocThemes.byKey(f.tocTheme).label })]),
-        el('div', { class: 'toc-styles span-all' }, D.TOC_STYLES.map(t => el('button', {
-          class: 'toc-style-card' + ((f.tocStyle || 'dots') === t.key ? ' on' : ''),
-          onclick: () => { f.tocStyle = t.key; App.changed('Modelo do sumário: ' + t.label); rerender(); }
-        }, [el('div', { class: 'toc-sample toc-sample-' + t.key }, [
-          el('div', {}, [el('span', { class: 'ts-n', text: '9' }), el('span', { class: 'ts-t', text: 'O começo' }), el('span', { class: 'ts-d' }), el('span', { class: 'ts-p', text: '9' })]),
-          t.key === 'summary' ? el('div', { class: 'ts-sum', text: 'Resumo breve do capítulo.' }) : null,
-          el('div', {}, [el('span', { class: 'ts-n', text: '27' }), el('span', { class: 'ts-t', text: 'A travessia' }), el('span', { class: 'ts-d' }), el('span', { class: 'ts-p', text: '27' })])
-        ]), el('strong', { text: t.label }), el('span', { class: 'small muted', text: t.desc })]))),
-        (f.tocStyle === 'summary') ? el('p', { class: 'small muted span-all', text: 'Os resumos de cada capítulo são escritos em Dados e páginas iniciais › Sumário.' }) : null
-      ])
+      ], 'Marque os termos no texto (botão “📇 Índice” no editor). O índice é montado em ordem alfabética, agrupado por letra, com as páginas de cada ocorrência — e os números são atualizados a cada paginação.')
     ]));
   }
 

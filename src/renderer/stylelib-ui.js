@@ -5,7 +5,7 @@
 (function () {
   const { el, $, D } = App;
 
-  const SAMPLE_TITLE = { romance: 'O último verão', poesia: 'Mar de dentro', terror: 'A casa no fim da rua', suspense: 'Testemunha', fantasia: 'O reino de cinzas', ficcaocientifica: 'Órbita zero', contos: 'Histórias da varanda', infantil: 'O dragão dorminhoco', autoajuda: 'Comece pelo agora', biografia: 'Uma vida inteira', religioso: 'Caminhos de fé', academico: 'Introdução ao método', naoficcao: 'Como pensamos', humanas: 'Sociedade e memória', historia: 'O império e o porto', filosofia: 'Sobre o tempo', jornalismo: 'Dentro da notícia', culinaria: 'Cozinha de família' };
+  const SAMPLE_TITLE = { romance: 'O último verão', poesia: 'Mar de dentro', terror: 'A casa no fim da rua', terrornoturno: 'O que espera no escuro', suspense: 'Testemunha', fantasia: 'O reino de cinzas', ficcaocientifica: 'Órbita zero', contos: 'Histórias da varanda', infantil: 'O dragão dorminhoco', autoajuda: 'Comece pelo agora', biografia: 'Uma vida inteira', religioso: 'Caminhos de fé', academico: 'Introdução ao método', naoficcao: 'Como pensamos', humanas: 'Sociedade e memória', historia: 'O império e o porto', filosofia: 'Sobre o tempo', jornalismo: 'Dentro da notícia', culinaria: 'Cozinha de família' };
   const TEXT = 'Era uma manhã clara quando tudo começou. As palavras chegaram devagar, uma depois da outra, e encontraram o seu lugar na página — como se sempre tivessem estado ali.';
   const POEM = 'Há um mar de dentro<br>que ninguém navega:<br>só a palavra entra<br>e a maré a leva.';
 

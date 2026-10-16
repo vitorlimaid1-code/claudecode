@@ -666,3 +666,13 @@ body.ws-book .nav-item[data-ws="periodical"] { display: none !important; }
 .find-panel .fd-quick summary { cursor: pointer; font-size: 13px; }
 .find-panel .fd-quick { display: flex; flex-direction: column; gap: 6px; }
 .find-panel .fd-qbtn { display: block; width: 100%; text-align: left; margin-top: 4px; }
+
+/* fontes favoritas */
+.font-row .font-name { display: flex; align-items: center; gap: 6px; }
+.font-fav { border: 0; background: transparent; padding: 0 2px; font-size: 16px; line-height: 1; color: var(--muted); cursor: pointer; }
+.font-fav.on, .font-fav:hover { color: #e0a100; }
+.font-fav-big.on { color: #b07d00; border-color: #e0a100; }
+
+/* ISBN e código de barras */
+.isbn-where { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); grid-column: 1 / -1; }
+.isbn-where:last-child { border-bottom: 0; }
