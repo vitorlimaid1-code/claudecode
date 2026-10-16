@@ -280,17 +280,26 @@ async function importPdf(filePath) {
       const x = it.transform[4];
       const y = it.transform[5];
       if (!it.str && !it.hasEOL) continue;
+      // chamada de nota sobrescrita: número curto, menor (geradores como o reportlab usam 80–85% do corpo)
+      // e um pouco acima da linha — fica na mesma linha, marcada como sobrescrito
+      const supLike = cur && /^\s*[\d*†‡]{1,3}\s*$/.test(it.str) && size < cur.size * 0.92 && y > cur.y + cur.size * 0.12 && y - cur.y < cur.size * 0.8;
+      // espaço solto (depois de uma chamada sobrescrita): fica na linha atual
+      if (cur && it.str && !it.str.trim()) { cur.parts.push({ text: ' ', sup: false, size: cur.size }); continue; }
       if (!cur || Math.abs(cur.y - y) > Math.max(2, size * 0.45)) {
-        // possível sobrescrito: mesmo trecho de linha, ligeiramente acima e menor
-        if (cur && it.str.trim() && size < cur.size * 0.8 && y > cur.y && y - cur.y < cur.size * 0.8) {
+        if (supLike || (cur && it.str.trim() && size < cur.size * 0.8 && y > cur.y && y - cur.y < cur.size * 0.8)) {
           cur.parts.push({ text: it.str, sup: true, size });
           continue;
         }
-        cur = { y, x, size, parts: [], maxX: x + it.width };
-        lines.push(cur);
+        // volta à mesma linha depois de um sobrescrito ou de um trecho em outra fonte
+        const back = lines.slice(-3).reverse().find(l => Math.abs(l.y - y) <= Math.max(2, size * 0.45) && x >= l.x);
+        if (back) cur = back;
+        else {
+          cur = { y, x, size, parts: [], maxX: x + it.width };
+          lines.push(cur);
+        }
       }
       if (it.str) {
-        const sup = size < cur.size * 0.8 && y > cur.y + 1;
+        const sup = supLike || (size < cur.size * 0.8 && y > cur.y + 1);
         cur.parts.push({ text: it.str, sup, size });
         cur.size = Math.max(cur.size, sup ? 0 : size);
         cur.maxX = Math.max(cur.maxX, x + it.width);

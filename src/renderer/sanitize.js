@@ -634,6 +634,7 @@
 
   function inlineMd(s) {
     return escapeHtml(s)
+      .replace(/\^(\d{1,3})\^/g, '<sup>$1</sup>') // sobrescrito do Pandoc (texto^1^)
       .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
       .replace(/__(.+?)__/g, '<b>$1</b>')
       .replace(/(^|[^*])\*(?!\s)(.+?)\*(?!\*)/g, '$1<i>$2</i>')
@@ -642,8 +643,20 @@
 
   function markdownToChapters(text, fallbackTitle) {
     const src = String(text || '').replace(/\r\n?/g, '\n').replace(/^---\n[\s\S]*?\n---\n/, '');
+    // notas [^1]: … — a mesma marca pode se repetir (numeração recomeçando a cada capítulo): cada chamada
+    // usa a primeira definição com essa marca que vem depois dela no texto (ou a última, se não houver)
+    const defList = [];
+    src.replace(/^\[\^([^\]]+)\]:\s*(.*(?:\n(?: {2,}|\t).*)*)/gm, (m, k, t, at) => { defList.push({ k, t: t.replace(/\n\s+/g, ' '), at, used: false }); return m; });
+    const withRefs = src.replace(/\[\^([^\]]+)\](?!:)/g, (m, k, at) => {
+      let d = defList.find(x => x.k === k && !x.used && x.at > at);
+      if (!d) d = defList.filter(x => x.k === k).pop();
+      if (!d) return m;
+      d.used = true;
+      return `[^@${defList.indexOf(d)}]`;
+    });
     const defs = {};
-    const body = src.replace(/^\[\^([^\]]+)\]:\s*(.*(?:\n(?: {2,}|\t).*)*)/gm, (m, k, t) => { defs[k] = t.replace(/\n\s+/g, ' '); return ''; });
+    defList.forEach((d, i) => { defs['@' + i] = d.t; });
+    const body = withRefs.replace(/^\[\^([^\]]+)\]:\s*(.*(?:\n(?: {2,}|\t).*)*)/gm, '');
     const lines = body.split('\n');
     const html = [];
     let para = [];
@@ -791,7 +804,8 @@
   // PDF: reconstrói parágrafos, títulos e notas a partir da posição e tamanho do texto
   function pdfBodySize(pages) {
     const sizes = {};
-    pages.forEach(p => p.lines.forEach(l => { const k = Math.round(l.size); sizes[k] = (sizes[k] || 0) + l.parts.reduce((s, x) => s + x.text.length, 0); }));
+    // linhas de nota (“¹ Texto”, “1 Texto” em corpo menor) e filetes não contam para o tamanho do texto
+    pages.forEach(p => p.lines.forEach(l => { const t = l.parts.map(x => x.text).join('').trim(); if (/^[⁰¹²³⁴⁵⁶⁷⁸⁹]|^[_\-–—=]{3,}$/.test(t)) return; const k = Math.round(l.size); sizes[k] = (sizes[k] || 0) + l.parts.reduce((s, x) => s + (x.sup ? 0 : x.text.length), 0); }));
     return Number(Object.entries(sizes).sort((a, b) => b[1] - a[1])[0]?.[0] || 11);
   }
   const pdfLineText = l => l.parts.map(x => x.text).join('').replace(/\s+/g, ' ').trim();
@@ -856,7 +870,8 @@
       const left = xs.length ? Math.min(...xs) : 50;
       const right = Math.max(...lines.map(l => l.maxX));
       // notas: no pé da página, começando com número (pequeno ou em corpo menor)
-      const isNoteStart = l => !!l.marker || (l.size < body * 0.92 && /^\d{1,3}\s*\S/.test(lineText(l)));
+      // (o número da nota pode vir em algarismos comuns ou sobrescritos: “1 Texto”, “¹ Texto”)
+      const isNoteStart = l => !!l.marker || (l.size < body * 0.92 && /^[\d⁰¹²³⁴⁵⁶⁷⁸⁹]{1,3}\s*\S/.test(lineText(l)));
       let noteStart = -1;
       for (let i = Math.floor(lines.length * 0.3); i < lines.length; i++) {
         if (isNoteStart(lines[i]) && lines.slice(i).every(x => x.y < p.height * 0.45)) { noteStart = i; break; }
@@ -868,12 +883,14 @@
       noteLines.forEach(l => {
         const t = lineText(l);
         if (l.marker) { nk = l.marker; pendingNotes[nk] = t; return; }
-        const m = /^(\d{1,3})\s*(.*)$/.exec(t);
-        if (m && l.size < body * 0.92) { nk = m[1]; pendingNotes[nk] = m[2]; } else if (nk) pendingNotes[nk] += ' ' + t;
+        const m = /^([\d⁰¹²³⁴⁵⁶⁷⁸⁹]{1,3})\s*(.*)$/.exec(t);
+        if (m && l.size < body * 0.92) { nk = Array.from(m[1]).map(c => ('⁰¹²³⁴⁵⁶⁷⁸⁹'.indexOf(c) >= 0 ? String('⁰¹²³⁴⁵⁶⁷⁸⁹'.indexOf(c)) : c)).join(''); pendingNotes[nk] = m[2]; } else if (nk) pendingNotes[nk] += ' ' + t;
       });
       let prev = null;
       bodyLines.forEach(l => {
-        const t = l.parts.map(x => (x.sup && pendingNotes[x.text.trim()] ? `\u0001${encodeURIComponent(pendingNotes[x.text.trim()])}\u0002` : x.text)).join('').replace(/\s+/g, ' ').trim();
+        // chamada sobrescrita: vira a nota do pé da página; sem nota na página, fica como <sup> (as notas
+        // listadas no fim do capítulo ou do livro são ligadas depois, em htmlToChapters)
+        const t = l.parts.map(x => (x.sup && pendingNotes[x.text.trim()] ? `\u0001${encodeURIComponent(pendingNotes[x.text.trim()])}\u0002` : x.sup && /^\s*\d{1,3}\s*$/.test(x.text) ? `\u0003${x.text.trim()}\u0004` : x.text)).join('').replace(/\s+/g, ' ').trim();
         if (!t) return;
         const big = l.size >= body * 1.25;
         if (big) {
@@ -886,7 +903,7 @@
         const gap = prev ? prev.y - l.y : 0;
         // fala nova (aspas ou travessão no começo da linha, depois de frase terminada) abre parágrafo
         const speech = /^[“"«—–]\s*\S|^-\s+\S/.test(t) && /[.!?…:"”»]$/.test(cur ? cur.text : '');
-        const newPara = !cur || !prev || speech || gap > prev.size * 1.75 || gap < 0 || l.x > left + body * 0.9 || (prev.maxX < right - body * 4) || /[.!?:"”»]$/.test(cur.text) && l.x > left + body * 0.4;
+        const newPara = !cur || !prev || speech || gap > prev.size * 1.75 || gap < 0 || l.x > left + body * 0.9 || (prev.maxX < right - body * 4 && !/[,;\-–—(]$|\b(e|ou|de|da|do|das|dos|a|o|as|os|que|em|no|na|com|por|para)$/i.test(cur.text)) || /[.!?:"”»]$/.test(cur.text) && l.x > left + body * 0.4;
         if (newPara) { flush(); cur = { type: 'p', text: t, center: Math.abs((l.x + l.maxX) / 2 - (left + right) / 2) < body && l.x > left + body * 3 }; }
         else if (/[A-Za-zÀ-ú]-$/.test(cur.text) && /^[a-zà-ú]/.test(t)) cur.text = cur.text.slice(0, -1) + t;
         else cur.text += ' ' + t;
@@ -896,7 +913,7 @@
     flush();
     const html = out.map(b => {
       let t = escapeHtml(b.text);
-      t = t.replace(/\u0001([^\u0002]*)\u0002/g, (m, k) => `<span class="footnote">${escapeHtml(decodeURIComponent(k))}</span>`);
+      t = t.replace(/\u0001([^\u0002]*)\u0002/g, (m, k) => `<span class="footnote">${escapeHtml(decodeURIComponent(k))}</span>`).replace(/\u0003(\d{1,3})\u0004/g, '<sup>$1</sup>');
       if (b.type === 'h') return `<h${b.level}>${t}</h${b.level}>`;
       if (/^(\*\s*){3,}$/.test(b.text)) return '<hr class="scene-break">';
       return `<p${b.center ? ' style="text-align:center"' : ''}>${t}</p>`;
@@ -992,7 +1009,7 @@
     blocks.forEach(b => {
       const t = b.textContent.replace(/\s+/g, ' ').trim();
       if (/^H[12]$/.test(b.tagName) || CHAPTER_LINE.test(t)) zone = null;
-      if (t.length <= 40 && NOTES_HEAD.test(t)) { zone = { head: b, defs: [] }; heads.push(zone); return; }
+      if (t.length <= 40 && (NOTES_HEAD.test(t) || /^[_\-–—=*·.]{3,}$/.test(t))) { zone = { head: b, defs: [] }; heads.push(zone); return; }
       const mk = markOf(b, !!zone);
       if (!mk) { if (zone && t) zone = null; return; }
       defBlocks.add(b);
